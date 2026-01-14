@@ -3,7 +3,7 @@ from reflex.components.radix.themes.base import (
     LiteralAccentColor,
 )
 
-from patrimony import styles
+from ..styles import styles
 
 
 def notification(icon: str, color: LiteralAccentColor, count: int) -> rx.Component:

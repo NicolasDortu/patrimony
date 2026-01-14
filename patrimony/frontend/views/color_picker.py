@@ -1,7 +1,7 @@
 import reflex as rx
 from reflex.components.radix.themes.base import LiteralAccentColor, LiteralGrayColor
 
-from .. import styles
+from ..styles import styles
 from ..templates.template import ThemeState
 
 primary_color_dict: dict[str, str] = {

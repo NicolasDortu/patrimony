@@ -1,6 +1,6 @@
 import reflex as rx
 
-from ..backend.table_state import Item, TableState
+from ...backend.table_state import Item, TableState
 from ..components.status_badge import status_badge
 
 

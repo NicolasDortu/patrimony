@@ -6,7 +6,7 @@ from typing import Callable
 
 import reflex as rx
 
-from .. import styles
+from ..styles import styles
 from ..components.navbar import navbar
 from ..components.sidebar import sidebar
 

@@ -2,7 +2,7 @@
 
 import reflex as rx
 
-from .. import styles
+from ..styles import styles
 
 
 def sidebar_header() -> rx.Component:

@@ -2,9 +2,10 @@
 
 import reflex as rx
 
-from ..backend.table_state import TableState
+from ...backend.table_state import TableState  # TODO: adapt to stockstate
 from ..templates import template
 from ..views.table import main_table
+from ..dialogs.add_stock import add_stock_dialog
 
 
 @template(route="/table", title="Table", on_load=TableState.load_entries)
@@ -17,6 +18,7 @@ def table() -> rx.Component:
     """
     return rx.vstack(
         rx.heading("Table", size="5"),
+        add_stock_dialog(),
         main_table(),
         spacing="8",
         width="100%",

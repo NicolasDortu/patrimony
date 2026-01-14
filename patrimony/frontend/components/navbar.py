@@ -2,7 +2,7 @@
 
 import reflex as rx
 
-from patrimony import styles
+from ..styles import styles
 
 
 def menu_item_icon(icon: str) -> rx.Component:

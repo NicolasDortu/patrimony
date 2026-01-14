@@ -1,10 +1,10 @@
-"""Welcome to Reflex!."""
+"""Entry Point for the Patrimony App. Made with Reflex!"""
 
 # Import all the pages.
 import reflex as rx
 
-from . import styles
-from .pages import *
+from .frontend.styles import styles
+from .frontend.pages import *
 
 # Create the app.
 app = rx.App(

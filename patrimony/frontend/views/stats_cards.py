@@ -1,7 +1,7 @@
 import reflex as rx
 from reflex.components.radix.themes.base import LiteralAccentColor
 
-from .. import styles
+from ..styles import styles
 
 
 def stats_card(
@@ -15,9 +15,7 @@ def stats_card(
     percentage_change = (
         round(((value - prev_value) / prev_value) * 100, 2)
         if prev_value != 0
-        else 0
-        if value == 0
-        else float("inf")
+        else 0 if value == 0 else float("inf")
     )
     change = "increase" if value > prev_value else "decrease"
     arrow_icon = "trending-up" if value > prev_value else "trending-down"

@@ -1,6 +1,6 @@
 import reflex as rx
 
-from patrimony import styles
+from ..styles import styles
 
 
 def card(*children, **props):

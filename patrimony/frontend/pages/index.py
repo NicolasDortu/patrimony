@@ -4,7 +4,7 @@ import datetime
 
 import reflex as rx
 
-from .. import styles
+from ..styles import styles
 from ..components.card import card
 from ..components.notification import notification
 from ..templates import template

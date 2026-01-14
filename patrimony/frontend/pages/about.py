@@ -4,7 +4,7 @@ from pathlib import Path
 
 import reflex as rx
 
-from .. import styles
+from ..styles import styles
 from ..templates import template
 
 
