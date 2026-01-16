@@ -2,7 +2,7 @@
 
 import reflex as rx
 
-from ...backend.table_state import TableState  # TODO: adapt to stockstate
+from ..states.table_stock_state import TableState
 from ..templates import template
 from ..views.table import main_table
 from ..dialogs.add_stock import add_stock_dialog

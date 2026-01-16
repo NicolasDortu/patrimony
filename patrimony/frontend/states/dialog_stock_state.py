@@ -1,5 +1,6 @@
 import reflex as rx
 
+from ..states.table_stock_state import TableState
 from ...backend.api.stock_api import add_stock_position, validate_price, validate_ticker
 
 
@@ -58,7 +59,9 @@ class AddStockState(rx.State):
         self.is_open = False
         self._reset_form()
 
-    async def add_position(self) -> None:
+    @rx.event
+    def add_position(self):
+        print("add_position called")
         if not validate_ticker(self.ticker):
             self.error_message = "Please enter a valid ticker symbol"
             return
@@ -69,17 +72,20 @@ class AddStockState(rx.State):
 
         self.is_loading = True
         self.error_message = ""
+        yield
 
         result = add_stock_position(
             self.ticker,
             self.buy_price,
             self.quantity,
         )
+        print("add_stock_position result:", result)
 
         self.is_loading = False
 
         if result.success:
             self.success_message = result.message
             self.close_dialog()
+            yield TableState.load_entries
         else:
             self.error_message = result.message

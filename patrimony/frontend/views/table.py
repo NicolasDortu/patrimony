@@ -1,7 +1,9 @@
 import reflex as rx
 
-from ...backend.table_state import Item, TableState
-from ..components.status_badge import status_badge
+from ..states.table_stock_state import (
+    Item,
+    TableState,
+)
 
 
 def _header_cell(text: str, icon: str) -> rx.Component:
@@ -27,10 +29,11 @@ def _show_item(item: Item, index: int) -> rx.Component:
         rx.color("accent", 3),
     )
     return rx.table.row(
-        rx.table.row_header_cell(item.name),
-        rx.table.cell(f"${item.payment}"),
-        rx.table.cell(item.date),
-        rx.table.cell(status_badge(item.status)),
+        rx.table.row_header_cell(item.id),
+        rx.table.cell(item.ticker),
+        rx.table.cell(f"${item.buy_price}"),
+        rx.table.cell(item.quantity),
+        rx.table.cell(item.buy_date),
         style={"_hover": {"bg": hover_color}, "bg": bg_color},
         align="center",
     )
@@ -124,12 +127,13 @@ def main_table() -> rx.Component:
                 ),
                 rx.select(
                     [
-                        "name",
-                        "payment",
-                        "date",
-                        "status",
+                        "id",
+                        "ticker",
+                        "buy_price",
+                        "quantity",
+                        "buy_date",
                     ],
-                    placeholder="Sort By: Name",
+                    placeholder="Sort By: ticker",
                     size="3",
                     on_change=TableState.set_sort_value,
                 ),
@@ -172,10 +176,11 @@ def main_table() -> rx.Component:
         rx.table.root(
             rx.table.header(
                 rx.table.row(
-                    _header_cell("Name", "user"),
-                    _header_cell("Payment", "dollar-sign"),
-                    _header_cell("Date", "calendar"),
-                    _header_cell("Status", "notebook-pen"),
+                    _header_cell("id", "user"),
+                    _header_cell("ticker", "dollar-sign"),
+                    _header_cell("buy_price", "calendar"),
+                    _header_cell("quantity", "notebook-pen"),
+                    _header_cell("buy_date", "notebook-pen"),
                 ),
             ),
             rx.table.body(

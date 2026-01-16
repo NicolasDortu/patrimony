@@ -1,19 +1,21 @@
-import csv
-from pathlib import Path
 from typing import List
+from datetime import datetime
 from dataclasses import dataclass
 
 import reflex as rx
 
+from ...backend.api.stock_api import get_all_stocks
+
 
 @dataclass
 class Item:
-    """The item class."""
+    """The stock table item class."""
 
-    name: str
-    payment: float
-    date: str
-    status: str
+    id: int
+    ticker: str
+    buy_price: float
+    quantity: float
+    buy_date: datetime
 
 
 class TableState(rx.State):
@@ -37,13 +39,13 @@ class TableState(rx.State):
     def set_sort_value(self, value: str):
         self.sort_value = value
 
-    @rx.var(cache=True)
+    @rx.var
     def filtered_sorted_items(self) -> List[Item]:
         items = self.items
 
         # Filter items based on selected item
         if self.sort_value:
-            if self.sort_value in ["payment"]:
+            if self.sort_value in ["buy_price"]:
                 items = sorted(
                     items,
                     key=lambda item: float(getattr(item, self.sort_value)),
@@ -65,27 +67,25 @@ class TableState(rx.State):
                 if any(
                     search_value in str(getattr(item, attr)).lower()
                     for attr in [
-                        "name",
-                        "payment",
-                        "date",
-                        "status",
+                        "ticker",
+                        "buy_date",
                     ]
                 )
             ]
 
         return items
 
-    @rx.var(cache=True)
+    @rx.var
     def page_number(self) -> int:
         return (self.offset // self.limit) + 1
 
-    @rx.var(cache=True)
+    @rx.var
     def total_pages(self) -> int:
         return (self.total_items // self.limit) + (
             1 if self.total_items % self.limit else 1
         )
 
-    @rx.var(cache=True, initial_value=[])
+    @rx.var(initial_value=[])
     def get_current_page(self) -> list[Item]:
         start_index = self.offset
         end_index = start_index + self.limit
@@ -105,11 +105,12 @@ class TableState(rx.State):
     def last_page(self):
         self.offset = (self.total_pages - 1) * self.limit
 
+    @rx.event
     def load_entries(self):
-        with Path("items.csv").open(mode="r", encoding="utf-8") as file:
-            reader = csv.DictReader(file)
-            self.items = [Item(**row) for row in reader]
-            self.total_items = len(self.items)
+        stocks = get_all_stocks()
+        self.items = [Item(**stock) for stock in stocks]
+        print(self.items)
+        self.total_items = len(self.items)
 
     def toggle_sort(self):
         self.sort_reverse = not self.sort_reverse
