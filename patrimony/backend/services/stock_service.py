@@ -2,10 +2,12 @@ from datetime import datetime
 from dataclasses import dataclass
 from typing import Optional
 
+import polars as pl
+
 from .price_service import fetch_and_cache_price
 from ..domain.assets import Stock, Currency
 from ..database.connection import DatabaseConnection
-from ..database.queries import PriceCacheOperations
+from ..database.queries import TradableAssetsOperations, PriceCacheOperations
 
 
 @dataclass
@@ -23,6 +25,7 @@ class StockService:
     def __init__(self):
         self._conn = DatabaseConnection().get_connection()
         self._price_cache = PriceCacheOperations(self._conn)
+        self._tradable_assets = TradableAssetsOperations(self._conn)
 
     def add_position(
         self,
@@ -54,6 +57,12 @@ class StockService:
                 currency=currency,
             )
 
+            # Store position in the database
+            self._tradable_assets.add_position(
+                ticker=stock.ticker,
+                buy_price=stock.buy_price,
+                quantity=stock.quantity,
+            )
             # Fetch and cache current price
             current_price = fetch_and_cache_price(stock.ticker, self._price_cache)
 
@@ -82,3 +91,7 @@ class StockService:
     def validate_price(self, price: float) -> bool:
         """Validate if a price is valid."""
         return price > 0
+
+    def get_all_stocks(self) -> pl.DataFrame:
+        """Retrieve all stock assets from the database."""
+        return self._tradable_assets.get_positions()

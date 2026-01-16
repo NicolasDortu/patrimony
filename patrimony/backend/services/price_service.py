@@ -1,6 +1,5 @@
 """Portfolio analysis and market data fetching."""
 
-import yfinance as yf
 import polars as pl
 from typing import Optional
 
