@@ -139,3 +139,14 @@ class TableState(rx.State):
 
         if result.success:
             self.load_entries()
+
+    @rx.event
+    def export_csv(self):
+        stocks = get_all_stocks()
+        columns = list(Stock.__dataclass_fields__.keys())
+
+        header = ",".join(columns)
+        rows = [",".join(str(stock[col]) for col in columns) for stock in stocks]
+
+        data = str(header + "\n" + "\n".join(rows))
+        return rx.download(data=data, filename="positions.csv")
