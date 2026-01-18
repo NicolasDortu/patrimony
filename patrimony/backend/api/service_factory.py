@@ -17,9 +17,6 @@ def get_service(service_class: Type[T]) -> T:
 
     Returns:
         An instance of the service class
-
-    Example:
-        service = get_service(StockService)
     """
     if service_class not in _instances:
         _instances[service_class] = service_class()

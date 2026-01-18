@@ -3,43 +3,27 @@ import reflex as rx
 from ..states.table_stock_state import TableState
 
 
-def open_add_stock_dialog() -> rx.Component:
-    """Button to open a dialog to add a new stock position."""
+def open_delete_stock_dialog() -> rx.Component:
+    """Button to open a dialog to delete a stock position."""
     return rx.dialog.root(
         rx.dialog.trigger(
             rx.button(
-                rx.icon("plus", size=26),
-                rx.text("Add New Position", size="4"),
+                rx.icon("trash", size=26),
+                rx.text("Delete Position", size="4"),
                 size="3",
                 variant="surface",
             ),
         ),
         rx.dialog.content(
-            rx.dialog.title("Add New Position"),
+            rx.dialog.title("Delete Position"),
             rx.dialog.description(
-                "Enter the details for your new stock position.",
+                "Enter the id for the position you want to delete.",
             ),
             rx.form(
                 rx.flex(
                     rx.input(
-                        placeholder="Ticker (e.g., GOOG)",
-                        name="ticker",
-                        required=True,
-                    ),
-                    rx.input(
-                        placeholder="Buy Price ($)",
-                        name="buy_price",
-                        type="number",
-                        min="0.01",
-                        step="0.01",
-                        required=True,
-                    ),
-                    rx.input(
-                        placeholder="Quantity",
-                        name="quantity",
-                        type="number",
-                        min="1",
-                        step="1",
+                        placeholder="ID (e.g., 123)",
+                        name="id",
                         required=True,
                     ),
                     rx.flex(
@@ -51,7 +35,7 @@ def open_add_stock_dialog() -> rx.Component:
                             ),
                         ),
                         rx.dialog.close(
-                            rx.button("Add Position", type="submit"),
+                            rx.button("Delete Position", type="submit"),
                         ),
                         spacing="3",
                         justify="end",
@@ -59,7 +43,7 @@ def open_add_stock_dialog() -> rx.Component:
                     direction="column",
                     spacing="4",
                 ),
-                on_submit=TableState.add_stock,
+                on_submit=TableState.delete_stock,
                 reset_on_submit=True,
             ),
             max_width="450px",

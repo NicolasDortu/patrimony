@@ -1,3 +1,3 @@
-from .dialog_stock_state import AddStockState
+from .table_stock_state import TableState
 
-__all__ = ["AddStockState"]
+__all__ = ["TableState"]

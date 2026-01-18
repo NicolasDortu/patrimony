@@ -1,9 +1,10 @@
 import reflex as rx
 
 from ..states.table_stock_state import (
-    Item,
+    Stock,
     TableState,
 )
+from ..dialogs import open_add_stock_dialog, open_delete_stock_dialog
 
 
 def _header_cell(text: str, icon: str) -> rx.Component:
@@ -17,7 +18,7 @@ def _header_cell(text: str, icon: str) -> rx.Component:
     )
 
 
-def _show_item(item: Item, index: int) -> rx.Component:
+def _show_item(item: Stock, index: int) -> rx.Component:
     bg_color = rx.cond(
         index % 2 == 0,
         rx.color("gray", 1),
@@ -104,6 +105,14 @@ def _pagination_view() -> rx.Component:
 
 def main_table() -> rx.Component:
     return rx.box(
+        rx.flex(
+            open_add_stock_dialog(),
+            open_delete_stock_dialog(),
+            align="center",
+            justify="start",
+            spacing="4",
+            padding_bottom="1.5em",
+        ),
         rx.flex(
             rx.flex(
                 rx.cond(

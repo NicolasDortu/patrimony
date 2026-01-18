@@ -11,7 +11,7 @@ from ..database.queries import TradableAssetsOperations, PriceCacheOperations
 
 
 @dataclass
-class AddPositionResult:
+class StockPositionResult:
     """Result of adding a position."""
 
     success: bool
@@ -32,8 +32,8 @@ class StockService:
         ticker: str,
         buy_price: float,
         quantity: float,
-        currency: Currency = Currency.USD,
-    ) -> AddPositionResult:
+        currency: Currency = Currency.EUR,
+    ) -> StockPositionResult:
         """
         Add a new stock position.
 
@@ -44,7 +44,7 @@ class StockService:
             currency: Currency of the transaction
 
         Returns:
-            AddPositionResult with success status and message
+            StockPositionResult with success status and message
         """
         try:
             # Validate and create domain object
@@ -67,30 +67,41 @@ class StockService:
             current_price = fetch_and_cache_price(stock.ticker, self._price_cache)
 
             if current_price:
-                return AddPositionResult(
+                return StockPositionResult(
                     success=True,
                     message=f"Added {stock.ticker} @ ${stock.buy_price:.2f} (Current: ${current_price:.2f})",
                     current_price=current_price,
                 )
             else:
-                return AddPositionResult(
+                return StockPositionResult(
                     success=True,
                     message=f"Added {stock.ticker} @ ${stock.buy_price:.2f}. Could not fetch current price.",
                 )
 
         except Exception as e:
-            return AddPositionResult(
+            return StockPositionResult(
                 success=False,
                 message=f"Error adding position: {str(e)}",
             )
 
+    def delete_position(self, id: int) -> StockPositionResult:
+        """Delete a stock position by ID."""
+        try:
+            self._tradable_assets.delete_position(id=id)
+            return StockPositionResult(
+                success=True,
+                message=f"Deleted position with ID {id}.",
+            )
+        except Exception as e:
+            return StockPositionResult(
+                success=False,
+                message=f"Error deleting position: {str(e)}",
+            )
+
     def validate_ticker(self, ticker: str) -> bool:
         """Validate if a ticker symbol is valid."""
-        return bool(ticker and ticker.strip())
-
-    def validate_price(self, price: float) -> bool:
-        """Validate if a price is valid."""
-        return price > 0
+        # TODO: Implement a check to see if the ticker exists
+        pass
 
     def get_all_stocks(self) -> pl.DataFrame:
         """Retrieve all stock assets from the database."""

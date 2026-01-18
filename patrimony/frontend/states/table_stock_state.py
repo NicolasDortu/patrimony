@@ -1,14 +1,17 @@
-from typing import List
 from datetime import datetime
 from dataclasses import dataclass
 
 import reflex as rx
 
-from ...backend.api.stock_api import get_all_stocks
+from ...backend.api.stock_api import (
+    delete_stock_position,
+    get_all_stocks,
+    add_stock_position,
+)
 
 
 @dataclass
-class Item:
+class Stock:
     """The stock table item class."""
 
     id: int
@@ -21,7 +24,7 @@ class Item:
 class TableState(rx.State):
     """The state class."""
 
-    items: List[Item] = []
+    items: list[Stock] = []
 
     search_value: str = ""
     sort_value: str = ""
@@ -32,15 +35,15 @@ class TableState(rx.State):
     limit: int = 12  # Number of rows per page
 
     @rx.event
-    def set_search_value(self, value: str):
+    def set_search_value(self, value: str) -> None:
         self.search_value = value
 
     @rx.event
-    def set_sort_value(self, value: str):
+    def set_sort_value(self, value: str) -> None:
         self.sort_value = value
 
     @rx.var
-    def filtered_sorted_items(self) -> List[Item]:
+    def filtered_sorted_items(self) -> list[Stock]:
         items = self.items
 
         # Filter items based on selected item
@@ -86,32 +89,53 @@ class TableState(rx.State):
         )
 
     @rx.var(initial_value=[])
-    def get_current_page(self) -> list[Item]:
+    def get_current_page(self) -> list[Stock]:
         start_index = self.offset
         end_index = start_index + self.limit
         return self.filtered_sorted_items[start_index:end_index]
 
-    def prev_page(self):
+    def prev_page(self) -> None:
         if self.page_number > 1:
             self.offset -= self.limit
 
-    def next_page(self):
+    def next_page(self) -> None:
         if self.page_number < self.total_pages:
             self.offset += self.limit
 
-    def first_page(self):
+    def first_page(self) -> None:
         self.offset = 0
 
-    def last_page(self):
+    def last_page(self) -> None:
         self.offset = (self.total_pages - 1) * self.limit
 
     @rx.event
-    def load_entries(self):
+    def load_entries(self) -> None:
         stocks = get_all_stocks()
-        self.items = [Item(**stock) for stock in stocks]
-        print(self.items)
+        self.items = [Stock(**stock) for stock in stocks]
         self.total_items = len(self.items)
 
-    def toggle_sort(self):
+    def toggle_sort(self) -> None:
         self.sort_reverse = not self.sort_reverse
         self.load_entries()
+
+    @rx.event
+    def add_stock(self, form_data: dict) -> None:
+        """Add a new stock position from form data."""
+        ticker = form_data.get("ticker", "").upper()
+        buy_price = float(form_data.get("buy_price", 0))
+        quantity = float(form_data.get("quantity", 0))
+
+        result = add_stock_position(ticker, buy_price, quantity)
+
+        if result.success:
+            self.load_entries()
+
+    @rx.event
+    def delete_stock(self, form_data: dict) -> None:
+        """Add a new stock position from form data."""
+        id = form_data.get("id", "")
+
+        result = delete_stock_position(id)
+
+        if result.success:
+            self.load_entries()
