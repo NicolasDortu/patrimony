@@ -6,7 +6,7 @@
   "build": {
     "frontendDist": "../dist/assets",
     "devUrl": "http://localhost:3000",
-    "beforeDevCommand": "reflex run"
+    "beforeDevCommand": "uv run reflex run"
   },
   "app": {
     "windows": [

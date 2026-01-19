@@ -3,7 +3,7 @@
 import polars as pl
 from typing import Optional
 
-from ..database.queries import PriceCacheOperations, PriceHistoryOperations
+from ..database.queries.prices import PriceCacheOperations, PriceHistoryOperations
 from ..infrastructure.market_data_provider import (
     fetch_current_price,
     fetch_price_history,

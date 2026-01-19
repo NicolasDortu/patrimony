@@ -1,35 +1,8 @@
-"""Operations for interacting with the duckdb database tables."""
-
 from typing import Optional
 
 import polars as pl
 
-from ..database.connection import DatabaseConnection
-
-
-class TradableAssetsOperations:
-    """Database operations for TradableAssets."""
-
-    def __init__(self, conn: DatabaseConnection) -> None:
-        self.conn = conn
-
-    def add_position(
-        self,
-        ticker: str,
-        buy_price: float,
-        quantity: float = 1.0,
-        table: str = "positions",
-    ) -> None:
-        self.conn.execute(
-            f"INSERT INTO {table} (ticker, buy_price, quantity) VALUES (?, ?, ?)",
-            [ticker.upper(), buy_price, quantity],
-        )
-
-    def get_positions(self, table: str = "positions") -> pl.DataFrame:
-        return self.conn.execute(f"SELECT * FROM {table}").pl()
-
-    def delete_position(self, id: int, table: str = "positions") -> None:
-        self.conn.execute(f"DELETE FROM {table} WHERE id = ?", [id])
+from ...database.connection import DatabaseConnection
 
 
 class PriceCacheOperations:
@@ -68,14 +41,6 @@ class PriceCacheOperations:
     def delete_cached_price(self, ticker: str) -> None:
         """Delete cached price for a ticker."""
         self.conn.execute("DELETE FROM price_cache WHERE ticker = ?", [ticker.upper()])
-
-    def has_cached_price(self, ticker: str) -> bool:
-        """Check if a ticker has cached price data."""
-        result = self.conn.execute(
-            "SELECT COUNT(*) FROM price_cache WHERE ticker = ?",
-            [ticker.upper()],
-        ).fetchone()
-        return result[0] > 0 if result else False
 
 
 class PriceHistoryOperations:
@@ -145,14 +110,6 @@ class PriceHistoryOperations:
                 """,
                 [ticker_upper, row["date"], row["close"], period],
             )
-
-    def has_cached_history(self, ticker: str, period: str) -> bool:
-        """Check if a ticker has cached history for a period."""
-        result = self.conn.execute(
-            "SELECT COUNT(*) FROM price_history WHERE ticker = ? AND period = ?",
-            [ticker.upper(), period],
-        ).fetchone()
-        return result[0] > 0 if result else False
 
     def delete_history(self, ticker: str, period: str = None) -> None:
         """Delete cached history for a ticker, optionally filtered by period."""
