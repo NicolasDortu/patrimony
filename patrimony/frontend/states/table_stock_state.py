@@ -1,5 +1,6 @@
 from datetime import datetime
 from dataclasses import dataclass
+from typing import Union
 
 import reflex as rx
 
@@ -131,9 +132,13 @@ class TableState(rx.State):
             self.load_entries()
 
     @rx.event
-    def delete_stock(self, form_data: dict) -> None:
-        """Add a new stock position from form data."""
-        id = form_data.get("id", "")
+    def delete_stock(self, id: Union[int, dict]) -> None:
+        """Delete a stock position by ID
+        args:
+            id: The ID of the stock position to delete. Can be an int or a dict.
+        """
+        if isinstance(id, dict):
+            id = id.get("id", "")
 
         result = delete_stock_position(id)
 

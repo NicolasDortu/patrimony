@@ -4,7 +4,7 @@ from ..states.table_stock_state import (
     Stock,
     TableState,
 )
-from ..dialogs import open_add_stock_dialog, open_delete_stock_dialog
+from ..dialogs import open_add_stock_dialog
 
 
 def _header_cell(text: str, icon: str) -> rx.Component:
@@ -35,6 +35,14 @@ def _show_item(item: Stock, index: int) -> rx.Component:
         rx.table.cell(f"${item.buy_price}"),
         rx.table.cell(item.quantity),
         rx.table.cell(item.buy_date),
+        rx.table.cell(
+            rx.icon_button(
+                rx.icon("trash", size=22),
+                color_scheme="red",
+                variant="ghost",
+                on_click=lambda: TableState.delete_stock(item.id),
+            )  # TODO: will be removed later when the detail view by ticker is implemented
+        ),
         style={"_hover": {"bg": hover_color}, "bg": bg_color},
         align="center",
     )
@@ -107,7 +115,6 @@ def main_table() -> rx.Component:
     return rx.box(
         rx.flex(
             open_add_stock_dialog(),
-            open_delete_stock_dialog(),
             align="center",
             justify="start",
             spacing="4",
