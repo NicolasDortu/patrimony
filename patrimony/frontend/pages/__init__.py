@@ -1,7 +1,13 @@
-from .about import about
 from .index import index
-from .profile import profile
 from .settings import settings
-from .table import table
+from .equities import equities
+from .cash import cash
+from .connectors import connectors
 
-__all__ = ["about", "index", "profile", "settings", "table"]
+__all__ = [
+    "index",
+    "settings",
+    "equities",
+    "cash",
+    "connectors",
+]

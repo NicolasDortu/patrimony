@@ -22,17 +22,17 @@ def menu_item(text: str, url: str) -> rx.Component:
     """
     # Whether the item is active.
     active = (rx.State.router.page.path == url.lower()) | (
-        (rx.State.router.page.path == "/") & text == "Overview"
-    )
+        rx.State.router.page.path == "/"
+    ) & text == "Overview"
 
     return rx.link(
         rx.hstack(
             rx.match(
                 text,
                 ("Overview", menu_item_icon("home")),
-                ("Table", menu_item_icon("table-2")),
-                ("About", menu_item_icon("book-open")),
-                ("Profile", menu_item_icon("user")),
+                ("Equities", menu_item_icon("table-2")),
+                ("Cash", menu_item_icon("wallet")),
+                ("Connectors", menu_item_icon("plug")),
                 ("Settings", menu_item_icon("settings")),
                 menu_item_icon("layout-dashboard"),
             ),
@@ -83,14 +83,8 @@ def navbar_footer() -> rx.Component:
     """
     return rx.hstack(
         rx.link(
-            rx.text("Docs", size="3"),
+            rx.text("About", size="3"),
             href="https://reflex.dev/docs/getting-started/introduction/",
-            color_scheme="gray",
-            underline="none",
-        ),
-        rx.link(
-            rx.text("Blog", size="3"),
-            href="https://reflex.dev/blog/",
             color_scheme="gray",
             underline="none",
         ),
@@ -108,9 +102,9 @@ def menu_button() -> rx.Component:
 
     ordered_page_routes = [
         "/",
-        "/table",
-        "/about",
-        "/profile",
+        "/equities",
+        "/cash",
+        "/connectors",
         "/settings",
     ]
 

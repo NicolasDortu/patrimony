@@ -39,5 +39,15 @@ class TradableAssetsOperations:
     def get_positions(self, table: str = "positions") -> pl.DataFrame:
         return self.conn.execute(f"SELECT * FROM {table}").pl()
 
+    def get_ticker_positions(
+        self, ticker: str, table: str = "positions"
+    ) -> pl.DataFrame:
+        return self.conn.execute(
+            f"SELECT * FROM {table} WHERE ticker = ?", [ticker.upper()]
+        ).pl()
+
+    def get_positions_total(self, table: str = "positions_total") -> pl.DataFrame:
+        return self.conn.execute(f"SELECT * FROM {table}").pl()
+
     def delete_position(self, id: int, table: str = "positions") -> None:
         self.conn.execute(f"DELETE FROM {table} WHERE id = ?", [id])

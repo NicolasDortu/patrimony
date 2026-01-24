@@ -18,4 +18,8 @@ def validate_ticker(ticker: str) -> bool:
 
 
 def get_all_stocks() -> list[dict]:
-    return get_service(StockService).get_all_stocks().to_dicts()
+    return get_service(StockService).get_all_positions().to_dicts()
+
+
+def get_all_stocks_total() -> list[dict]:
+    return get_service(StockService).get_all_positions_total().to_dicts()

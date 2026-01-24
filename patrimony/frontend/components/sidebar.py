@@ -35,14 +35,8 @@ def sidebar_footer() -> rx.Component:
     """
     return rx.hstack(
         rx.link(
-            rx.text("Docs", size="3"),
+            rx.text("About", size="3"),
             href="https://reflex.dev/docs/getting-started/introduction/",
-            color_scheme="gray",
-            underline="none",
-        ),
-        rx.link(
-            rx.text("Blog", size="3"),
-            href="https://reflex.dev/blog/",
             color_scheme="gray",
             underline="none",
         ),
@@ -80,9 +74,9 @@ def sidebar_item(text: str, url: str) -> rx.Component:
             rx.match(
                 text,
                 ("Overview", sidebar_item_icon("home")),
-                ("Table", sidebar_item_icon("table-2")),
-                ("About", sidebar_item_icon("book-open")),
-                ("Profile", sidebar_item_icon("user")),
+                ("Equities", sidebar_item_icon("table-2")),
+                ("Cash", sidebar_item_icon("wallet")),
+                ("Connectors", sidebar_item_icon("plug")),
                 ("Settings", sidebar_item_icon("settings")),
                 sidebar_item_icon("layout-dashboard"),
             ),
@@ -134,9 +128,9 @@ def sidebar() -> rx.Component:
 
     ordered_page_routes = [
         "/",
-        "/table",
-        "/about",
-        "/profile",
+        "/equities",
+        "/cash",
+        "/connectors",
         "/settings",
     ]
 

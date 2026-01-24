@@ -89,6 +89,14 @@ class StockService:
         # TODO: Implement a check to see if the ticker exists
         pass
 
-    def get_all_stocks(self) -> pl.DataFrame:
+    def get_all_positions(self) -> pl.DataFrame:
         """Retrieve all stock assets from the database."""
         return self._tradable_assets.get_positions()
+
+    def get_ticker_positions(self, ticker: str) -> pl.DataFrame:
+        """Retrieve all stock assets for a specific ticker from the database."""
+        return self._tradable_assets.get_ticker_positions(ticker=ticker)
+
+    def get_all_positions_total(self) -> pl.DataFrame:
+        """Retrieve all stock assets total from the database."""
+        return self._tradable_assets.get_positions_total()

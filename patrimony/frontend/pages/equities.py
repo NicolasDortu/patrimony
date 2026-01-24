@@ -4,16 +4,15 @@ import reflex as rx
 
 from ..states.table_stock_state import TableState
 from ..templates import template
-from ..views.table import main_table
+from ..views.equity_table import main_table
 
 
-@template(route="/table", title="Table", on_load=TableState.load_entries)
-def table() -> rx.Component:
-    """The table page.
+@template(route="/equities", title="Equities", on_load=TableState.load_entries)
+def equities() -> rx.Component:
+    """The equities page.
 
     Returns:
-        The UI for the table page.
-
+        The UI for the equities page.
     """
     return rx.vstack(
         rx.heading("Your positions", size="5"),
