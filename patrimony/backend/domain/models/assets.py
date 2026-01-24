@@ -7,9 +7,25 @@ from typing import Optional
 
 
 class AssetType(Enum):
-    STOCK = "stock"
-    CRYPTO = "crypto"
-    CASH = "cash"
+    STOCK = "STOCK"
+    CRYPTO = "CRYPTO"
+    CASH = "CASH"
+    BOND = "BOND"
+    ETF = "ETF"
+    FUND = "FUND"
+
+
+class EntryType(Enum):
+    MANUAL = "MANUAL"
+    WEB = "WEB"
+    CSV = "CSV"
+    EXCEL = "EXCEL"
+    API = "API"
+
+
+class BuySell(Enum):
+    BUY = "BUY"
+    SELL = "SELL"
 
 
 class Currency(Enum):
@@ -24,7 +40,7 @@ class Asset:
     """Base class for all assets."""
 
     name: str
-    type: AssetType = field(default=None)
+    asset_type: AssetType = field(default=None)
     currency: Currency = Currency.EUR
 
 
@@ -33,9 +49,11 @@ class TradableAsset(Asset):
     """Assets that can be bought/sold with price tracking (stocks, crypto)."""
 
     ticker: str = ""
-    buy_price: float = 0.0
+    price: float = 0.0
     quantity: float = 1.0
-    buy_date: datetime.datetime = field(default_factory=datetime.datetime.now)
+    entry_type: EntryType = field(default=EntryType.MANUAL)
+    buy_sell: BuySell = field(default=BuySell.BUY)
+    date: datetime.datetime = field(default_factory=datetime.datetime.now)
 
 
 @dataclass
@@ -43,7 +61,7 @@ class Stock(TradableAsset):
     """Stock asset representation."""
 
     def __post_init__(self) -> None:
-        self.type = AssetType.STOCK
+        self.asset_type = AssetType.STOCK
         # Name defaults to ticker if not provided
         if not self.name:
             self.name = self.ticker
@@ -54,7 +72,7 @@ class Crypto(TradableAsset):
     """Cryptocurrency asset representation."""
 
     def __post_init__(self):
-        self.type = AssetType.CRYPTO
+        self.asset_type = AssetType.CRYPTO
         if not self.name:
             self.name = self.ticker
 
@@ -67,7 +85,7 @@ class Cash(Asset):
     bank_name: Optional[str] = None
 
     def __post_init__(self):
-        self.type = AssetType.CASH
+        self.asset_type = AssetType.CASH
 
     @property
     def current_value(self) -> float:

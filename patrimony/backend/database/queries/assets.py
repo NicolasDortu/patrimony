@@ -1,3 +1,4 @@
+from datetime import datetime
 import polars as pl
 
 from ...database.connection import DatabaseConnection
@@ -12,13 +13,27 @@ class TradableAssetsOperations:
     def add_position(
         self,
         ticker: str,
-        buy_price: float,
-        quantity: float = 1.0,
+        price: float,
+        quantity: float,
+        entry_type: str,
+        asset_type: str,
+        buy_sell: str,
+        currency: str,
+        date: datetime,
         table: str = "positions",
     ) -> None:
         self.conn.execute(
-            f"INSERT INTO {table} (ticker, buy_price, quantity) VALUES (?, ?, ?)",
-            [ticker.upper(), buy_price, quantity],
+            f"INSERT INTO {table} (ticker, price, quantity, entry_type, asset_type, buy_sell, currency, date) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            [
+                ticker.upper(),
+                price,
+                quantity,
+                entry_type,
+                asset_type,
+                buy_sell,
+                currency,
+                date,
+            ],
         )
 
     def get_positions(self, table: str = "positions") -> pl.DataFrame:

@@ -17,9 +17,13 @@ class Stock:
 
     id: int
     ticker: str
-    buy_price: float
+    price: float
     quantity: float
-    buy_date: datetime
+    entry_type: str
+    asset_type: str
+    buy_sell: str
+    currency: str
+    date: datetime
 
 
 class TableState(rx.State):
@@ -49,7 +53,7 @@ class TableState(rx.State):
 
         # Filter items based on selected item
         if self.sort_value:
-            if self.sort_value in ["buy_price"]:
+            if self.sort_value in ["price"]:
                 items = sorted(
                     items,
                     key=lambda item: float(getattr(item, self.sort_value)),
@@ -72,7 +76,7 @@ class TableState(rx.State):
                     search_value in str(getattr(item, attr)).lower()
                     for attr in [
                         "ticker",
-                        "buy_date",
+                        "date",
                     ]
                 )
             ]
@@ -123,13 +127,21 @@ class TableState(rx.State):
     def add_stock(self, form_data: dict) -> None:
         """Add a new stock position from form data."""
         ticker = form_data.get("ticker", "").upper()
-        buy_price = float(form_data.get("buy_price", 0))
+        price = float(form_data.get("price", 0))
         quantity = float(form_data.get("quantity", 0))
+        entry_type = "MANUAL"
+        buy_sell = "BUY"
+        currency = "EUR"  # TODO: make dynamic later
 
-        result = add_stock_position(ticker, buy_price, quantity)
+        result = add_stock_position(
+            ticker, price, quantity, entry_type, buy_sell, currency
+        )
 
         if result.success:
             self.load_entries()
+            return rx.toast.success(result.message, position="top-center")
+        else:
+            return rx.toast.error(result.message, position="top-center")
 
     @rx.event
     def delete_stock(self, id: Union[int, dict]) -> None:
@@ -144,6 +156,9 @@ class TableState(rx.State):
 
         if result.success:
             self.load_entries()
+            return rx.toast.success(result.message, position="top-center")
+        else:
+            return rx.toast.error(result.message, position="top-center")
 
     @rx.event
     def export_csv(self):

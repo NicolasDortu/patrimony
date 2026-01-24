@@ -28,7 +28,7 @@ def open_add_stock_dialog() -> rx.Component:
                     ),
                     rx.input(
                         placeholder="Buy Price ($)",
-                        name="buy_price",
+                        name="price",
                         type="number",
                         min="0.01",
                         step="0.01",
@@ -42,6 +42,7 @@ def open_add_stock_dialog() -> rx.Component:
                         step="1",
                         required=True,
                     ),
+                    # TODO: add dropdown for currency
                     rx.flex(
                         rx.dialog.close(
                             rx.button(

@@ -32,9 +32,9 @@ def _show_item(item: Stock, index: int) -> rx.Component:
     return rx.table.row(
         rx.table.row_header_cell(item.id),
         rx.table.cell(item.ticker),
-        rx.table.cell(f"${item.buy_price}"),
+        rx.table.cell(f"${item.price}"),
         rx.table.cell(item.quantity),
-        rx.table.cell(item.buy_date),
+        rx.table.cell(item.date),
         rx.table.cell(
             rx.icon_button(
                 rx.icon("trash", size=22),
@@ -145,9 +145,9 @@ def main_table() -> rx.Component:
                     [
                         "id",
                         "ticker",
-                        "buy_price",
+                        "price",
                         "quantity",
-                        "buy_date",
+                        "date",
                     ],
                     placeholder="Sort By: id",
                     size="3",
@@ -193,10 +193,10 @@ def main_table() -> rx.Component:
             rx.table.header(
                 rx.table.row(
                     _header_cell("id", "user"),
-                    _header_cell("ticker", "dollar-sign"),
-                    _header_cell("buy_price", "calendar"),
+                    _header_cell("ticker", "notebook-pen"),
+                    _header_cell("price", "dollar-sign"),
                     _header_cell("quantity", "notebook-pen"),
-                    _header_cell("buy_date", "notebook-pen"),
+                    _header_cell("date", "calendar"),
                 ),
             ),
             rx.table.body(
