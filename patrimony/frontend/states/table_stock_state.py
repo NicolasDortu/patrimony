@@ -1,5 +1,3 @@
-from datetime import datetime
-from dataclasses import dataclass
 from typing import Union
 
 import reflex as rx
@@ -9,21 +7,7 @@ from ...backend.api.stock_api import (
     get_all_stocks,
     add_stock_position,
 )
-
-
-@dataclass
-class Stock:
-    """The stock table item class."""
-
-    id: int
-    ticker: str
-    price: float
-    quantity: float
-    entry_type: str
-    asset_type: str
-    buy_sell: str
-    currency: str
-    date: datetime
+from ...shared.models.assets import Stock, EntryType, BuySell, Currency
 
 
 class TableState(rx.State):
@@ -126,16 +110,15 @@ class TableState(rx.State):
     @rx.event
     def add_stock(self, form_data: dict) -> None:
         """Add a new stock position from form data."""
-        ticker = form_data.get("ticker", "").upper()
-        price = float(form_data.get("price", 0))
-        quantity = float(form_data.get("quantity", 0))
-        entry_type = "MANUAL"
-        buy_sell = "BUY"
-        currency = "EUR"  # TODO: make dynamic later
-
-        result = add_stock_position(
-            ticker, price, quantity, entry_type, buy_sell, currency
+        stock = Stock(
+            ticker=form_data.get("ticker", "").upper(),
+            price=float(form_data.get("price", 0)),
+            quantity=float(form_data.get("quantity", 0)),
+            entry_type=EntryType.MANUAL,
+            buy_sell=BuySell.BUY,
+            currency=Currency.EUR,  # TODO: make dynamic later
         )
+        result = add_stock_position(stock=stock)
 
         if result.success:
             self.load_entries()

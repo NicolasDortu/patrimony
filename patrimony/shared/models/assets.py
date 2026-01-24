@@ -39,7 +39,8 @@ class Currency(Enum):
 class Asset:
     """Base class for all assets."""
 
-    name: str
+    id: int = field(default=None)
+    name: str = field(default=None)
     asset_type: AssetType = field(default=None)
     currency: Currency = Currency.EUR
 

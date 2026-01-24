@@ -4,7 +4,7 @@ from typing import Optional
 import polars as pl
 
 from .price_service import fetch_and_cache_price
-from ..domain.models.assets import Stock
+from ...shared.models.assets import Stock
 from ..database.connection import DatabaseConnection
 from ..database.queries.assets import TradableAssetsOperations
 from ..database.queries.prices import PriceCacheOperations
