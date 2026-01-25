@@ -1,3 +1,4 @@
-from .table_stock_state import TableState
+from .table_details_state import TableStateDetails
+from .table_total_state import TableStateTotal
 
-__all__ = ["TableState"]
+__all__ = ["TableStateDetails", "TableStateTotal"]

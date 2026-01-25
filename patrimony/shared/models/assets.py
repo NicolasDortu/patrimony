@@ -92,3 +92,13 @@ class Cash(Asset):
     def current_value(self) -> float:
         """Current value is simply the balance."""
         return self.balance
+
+
+@dataclass
+class EquityTotal:
+    """Dataclass for total equity representation from the positions_total view."""
+
+    ticker: str
+    total_quantity: int
+    current_price: float
+    total_value: float

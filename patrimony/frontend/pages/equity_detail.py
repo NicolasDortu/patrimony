@@ -2,10 +2,25 @@
 
 import reflex as rx
 
+from ..states.table_details_state import TableStateDetails
 from ..templates import template
+from ..views.equity_details_table import main_table
 
 
-@template(route="/equity_detail", title="Equity Detail")
+class EquityDetailState(rx.State):
+    @rx.event
+    def on_load(self):
+        # Get ticker from URL query params
+        ticker = self.router.page.params.get("ticker", "")
+        if ticker:
+            return TableStateDetails.set_ticker(ticker)
+
+
+@template(
+    route="/equity_detail",
+    title="Equity Detail",
+    on_load=[TableStateDetails.on_page_load],
+)
 def equity_detail() -> rx.Component:
     """The equity detail page.
 
@@ -13,7 +28,8 @@ def equity_detail() -> rx.Component:
         The UI for the equity detail page.
     """
     return rx.vstack(
-        rx.heading("Equity detail page WIP", size="5"),
+        rx.heading(f"Details for {TableStateDetails.ticker}", size="5"),
+        main_table(),
         spacing="5",
         width="100%",
     )

@@ -4,16 +4,16 @@ import reflex as rx
 
 from ...backend.api.stock_api import (
     delete_stock_position,
-    get_all_stocks,
+    get_all_stocks_total,
     add_stock_position,
 )
-from ...shared.models.assets import Stock, EntryType, BuySell, Currency
+from ...shared.models.assets import EquityTotal, Stock, EntryType, BuySell, Currency
 
 
-class TableState(rx.State):
+class TableStateTotal(rx.State):
     """The state class."""
 
-    items: list[Stock] = []
+    items: list[EquityTotal] = []
 
     search_value: str = ""
     sort_value: str = ""
@@ -32,7 +32,7 @@ class TableState(rx.State):
         self.sort_value = value
 
     @rx.var
-    def filtered_sorted_items(self) -> list[Stock]:
+    def filtered_sorted_items(self) -> list[EquityTotal]:
         items = self.items
 
         # Filter items based on selected item
@@ -78,7 +78,7 @@ class TableState(rx.State):
         )
 
     @rx.var(initial_value=[])
-    def get_current_page(self) -> list[Stock]:
+    def get_current_page(self) -> list[EquityTotal]:
         start_index = self.offset
         end_index = start_index + self.limit
         return self.filtered_sorted_items[start_index:end_index]
@@ -99,8 +99,8 @@ class TableState(rx.State):
 
     @rx.event
     def load_entries(self) -> None:
-        stocks = get_all_stocks()
-        self.items = [Stock(**stock) for stock in stocks]
+        stocks = get_all_stocks_total()
+        self.items = [EquityTotal(**stock) for stock in stocks]
         self.total_items = len(self.items)
 
     def toggle_sort(self) -> None:
@@ -145,11 +145,15 @@ class TableState(rx.State):
 
     @rx.event
     def export_csv(self):
-        stocks = get_all_stocks()
-        columns = list(Stock.__dataclass_fields__.keys())
+        stocks = get_all_stocks_total()
+        columns = list(EquityTotal.__dataclass_fields__.keys())
 
         header = ",".join(columns)
         rows = [",".join(str(stock[col]) for col in columns) for stock in stocks]
 
         data = str(header + "\n" + "\n".join(rows))
         return rx.download(data=data, filename="positions.csv")
+
+    @rx.event
+    def open_detail_view(self, ticker: str):
+        return rx.redirect(f"/equity_detail?ticker={ticker}")

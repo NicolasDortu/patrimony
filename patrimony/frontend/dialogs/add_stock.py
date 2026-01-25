@@ -1,9 +1,7 @@
 import reflex as rx
 
-from ..states.table_stock_state import TableState
 
-
-def open_add_stock_dialog() -> rx.Component:
+def open_add_stock_dialog(on_submit: callable) -> rx.Component:
     """Button to open a dialog to add a new stock position."""
     return rx.dialog.root(
         rx.dialog.trigger(
@@ -60,7 +58,7 @@ def open_add_stock_dialog() -> rx.Component:
                     direction="column",
                     spacing="4",
                 ),
-                on_submit=TableState.add_stock,
+                on_submit=on_submit,
                 reset_on_submit=True,
             ),
             max_width="450px",

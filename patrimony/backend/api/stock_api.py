@@ -21,5 +21,9 @@ def get_all_stocks() -> list[dict]:
     return get_service(StockService).get_all_positions().to_dicts()
 
 
+def get_ticker_positions(ticker: str) -> list[dict]:
+    return get_service(StockService).get_ticker_positions(ticker).to_dicts()
+
+
 def get_all_stocks_total() -> list[dict]:
     return get_service(StockService).get_all_positions_total().to_dicts()

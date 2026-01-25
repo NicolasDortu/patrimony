@@ -2,12 +2,12 @@
 
 import reflex as rx
 
-from ..states.table_stock_state import TableState
+from ..states.table_total_state import TableStateTotal
 from ..templates import template
-from ..views.equity_table import main_table
+from ..views.equity_total_table import main_table
 
 
-@template(route="/equities", title="Equities", on_load=TableState.load_entries)
+@template(route="/equities", title="Equities", on_load=TableStateTotal.load_entries)
 def equities() -> rx.Component:
     """The equities page.
 

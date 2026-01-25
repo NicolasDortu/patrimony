@@ -36,7 +36,7 @@ def sidebar_footer() -> rx.Component:
     return rx.hstack(
         rx.link(
             rx.text("About", size="3"),
-            href="https://reflex.dev/docs/getting-started/introduction/",
+            href="/about",
             color_scheme="gray",
             underline="none",
         ),
@@ -134,10 +134,14 @@ def sidebar() -> rx.Component:
         "/settings",
     ]
 
+    # Exclude unwanted routes from navigation
+    excluded_routes = {"/about", "/equity_detail"}
+
     pages = [
         page_dict
         for page_list in DECORATED_PAGES.values()
         for _, page_dict in page_list
+        if page_dict["route"] not in excluded_routes
     ]
 
     ordered_pages = sorted(
