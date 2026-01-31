@@ -37,7 +37,6 @@ def _show_item(item: EquityTotal, index: int) -> rx.Component:
         rx.table.cell(
             rx.icon_button(
                 rx.icon("arrow_right_to_line", size=22),
-                color_scheme="blue",
                 variant="ghost",
                 on_click=lambda: TableStateTotal.open_detail_view(item.ticker),
             )
