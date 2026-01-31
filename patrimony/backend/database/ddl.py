@@ -52,9 +52,22 @@ CREATE_POSITIONS_TOTAL_VIEW = """
     LEFT JOIN price_cache pc ON agg.ticker = pc.ticker
 """
 
+CREATE_CASH_TABLE = """
+    CREATE SEQUENCE IF NOT EXISTS cash_id_seq;
+    CREATE TABLE IF NOT EXISTS cash (
+        id INTEGER PRIMARY KEY DEFAULT nextval('cash_id_seq'),
+        bank VARCHAR NOT NULL,
+        account_number VARCHAR NOT NULL,
+        currency VARCHAR DEFAULT 'EUR',
+        balance DOUBLE NOT NULL,
+        last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+)
+"""
+
 DDL_COMMANDS = [
     CREATE_POSITIONS_TABLE,
     CREATE_PRICE_CACHE_TABLE,
     CREATE_PRICE_HISTORY_TABLE,
     CREATE_POSITIONS_TOTAL_VIEW,
+    CREATE_CASH_TABLE,
 ]

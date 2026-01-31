@@ -3,7 +3,6 @@
 import datetime
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Optional
 
 
 class AssetType(Enum):
@@ -82,8 +81,10 @@ class Crypto(TradableAsset):
 class Cash(Asset):
     """Cash asset representation."""
 
+    bank: str = ""
+    account_number: str = ""
     balance: float = 0.0
-    bank_name: Optional[str] = None
+    last_updated: datetime.datetime = field(default_factory=datetime.datetime.now)
 
     def __post_init__(self):
         self.asset_type = AssetType.CASH
