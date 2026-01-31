@@ -197,10 +197,11 @@ def main_table() -> rx.Component:
         rx.table.root(
             rx.table.header(
                 rx.table.row(
-                    _header_cell("ticker", "notebook-pen"),
+                    _header_cell("ticker", "building"),
                     _header_cell("total_quantity", "notebook-pen"),
                     _header_cell("current_price", "dollar-sign"),
-                    _header_cell("total_value", "notebook-pen"),
+                    _header_cell("total_value", "wallet"),
+                    _header_cell("", "chart_no_axes_combined"),
                 ),
             ),
             rx.table.body(
