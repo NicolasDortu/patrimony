@@ -1,10 +1,8 @@
 import reflex as rx
 
-from ..states.table_details_state import (
-    Stock,
-    TableStateDetails,
-)
-from ..dialogs import open_add_stock_dialog
+from ..states.securities_details_state import TableStateDetails
+from ..services import SecurityPosition
+from ..dialogs import open_add_position_dialog
 
 
 def _header_cell(text: str, icon: str) -> rx.Component:
@@ -18,7 +16,7 @@ def _header_cell(text: str, icon: str) -> rx.Component:
     )
 
 
-def _show_item(item: Stock, index: int) -> rx.Component:
+def _show_item(item: SecurityPosition, index: int) -> rx.Component:
     bg_color = rx.cond(
         index % 2 == 0,
         rx.color("gray", 1),
@@ -32,7 +30,7 @@ def _show_item(item: Stock, index: int) -> rx.Component:
     return rx.table.row(
         rx.table.row_header_cell(item.id),
         rx.table.cell(item.ticker),
-        rx.table.cell(f"${item.price}"),
+        rx.table.cell(f"${item.price:.2f}"),
         rx.table.cell(item.quantity),
         rx.table.cell(item.date),
         rx.table.cell(
@@ -41,7 +39,7 @@ def _show_item(item: Stock, index: int) -> rx.Component:
                 color_scheme="red",
                 variant="ghost",
                 on_click=lambda: TableStateDetails.delete_stock(item.id),
-            )  # TODO: will be removed later when the detail view by ticker is implemented
+            )
         ),
         style={"_hover": {"bg": hover_color}, "bg": bg_color},
         align="center",
@@ -122,7 +120,7 @@ def _pagination_view() -> rx.Component:
 def main_table() -> rx.Component:
     return rx.box(
         rx.flex(
-            open_add_stock_dialog(TableStateDetails.add_stock),
+            open_add_position_dialog(TableStateDetails.add_stock),
             align="center",
             justify="start",
             spacing="4",

@@ -4,7 +4,7 @@ import reflex as rx
 
 from ..templates import template
 from ..views.cash_table import cash_table
-from ..states.cash_table_state import CashTableState
+from ..states.cash_state import CashTableState
 
 
 @template(route="/cash", title="Cash", on_load=CashTableState.load_entries)

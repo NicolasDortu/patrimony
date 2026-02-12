@@ -2,7 +2,7 @@
 
 import reflex as rx
 
-from ..states.table_total_state import TableStateTotal
+from ..states.securities_total_state import TableStateTotal
 from ..templates import template
 from ..views.equity_total_table import main_table
 

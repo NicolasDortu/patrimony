@@ -3,32 +3,43 @@ import reflex as rx
 from ..services import Currency
 
 
-def open_add_cash_dialog(on_submit: callable) -> rx.Component:
-    """Button to open a dialog to add a new cash entry."""
+def open_add_position_dialog(on_submit: callable) -> rx.Component:
+    """Button to open a dialog to add a new stock position."""
     return rx.dialog.root(
         rx.dialog.trigger(
             rx.button(
                 rx.icon("plus", size=26),
-                rx.text("Add Cash", size="4"),
+                rx.text("Add New Position", size="4"),
                 size="3",
                 variant="surface",
             ),
         ),
         rx.dialog.content(
-            rx.dialog.title("Add Cash Entry"),
+            rx.dialog.title("Add New Position"),
             rx.dialog.description(
-                "Enter the details for your new cash entry.",
+                "Enter the details for your new stock position.",
             ),
             rx.form(
                 rx.flex(
                     rx.input(
-                        placeholder="Bank Name",
-                        name="bank",
+                        placeholder="Ticker (e.g., GOOG)",
+                        name="ticker",
                         required=True,
                     ),
                     rx.input(
-                        placeholder="Account Number",
-                        name="account_number",
+                        placeholder="Buy Price ($)",
+                        name="price",
+                        type="number",
+                        min="0.01",
+                        step="0.01",
+                        required=True,
+                    ),
+                    rx.input(
+                        placeholder="Quantity",
+                        name="quantity",
+                        type="number",
+                        min="1",
+                        step="1",
                         required=True,
                     ),
                     rx.select(
@@ -36,14 +47,6 @@ def open_add_cash_dialog(on_submit: callable) -> rx.Component:
                         placeholder="Currency",
                         name="currency",
                         default_value="EUR",
-                        required=True,
-                    ),
-                    rx.input(
-                        placeholder="Balance",
-                        name="balance",
-                        type="number",
-                        min="0",
-                        step="0.01",
                         required=True,
                     ),
                     rx.flex(
@@ -55,7 +58,7 @@ def open_add_cash_dialog(on_submit: callable) -> rx.Component:
                             ),
                         ),
                         rx.dialog.close(
-                            rx.button("Add Cash", type="submit"),
+                            rx.button("Add Position", type="submit"),
                         ),
                         spacing="3",
                         justify="end",

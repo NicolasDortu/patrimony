@@ -1,10 +1,8 @@
 import reflex as rx
 
-from ..states.table_total_state import (
-    TableStateTotal,
-    EquityTotal,
-)
-from ..dialogs import open_add_stock_dialog
+from ..states.securities_total_state import TableStateTotal
+from ..services import SecurityTotal
+from ..dialogs import open_add_position_dialog
 
 
 def _header_cell(text: str, icon: str) -> rx.Component:
@@ -18,7 +16,7 @@ def _header_cell(text: str, icon: str) -> rx.Component:
     )
 
 
-def _show_item(item: EquityTotal, index: int) -> rx.Component:
+def _show_item(item: SecurityTotal, index: int) -> rx.Component:
     bg_color = rx.cond(
         index % 2 == 0,
         rx.color("gray", 1),
@@ -32,8 +30,8 @@ def _show_item(item: EquityTotal, index: int) -> rx.Component:
     return rx.table.row(
         rx.table.cell(item.ticker),
         rx.table.cell(item.total_quantity),
-        rx.table.cell(f"${item.current_price}"),
-        rx.table.cell(f"${item.total_value}"),
+        rx.table.cell(f"${item.current_price:.2f}"),
+        rx.table.cell(f"${item.total_value:.2f}"),
         rx.table.cell(
             rx.icon_button(
                 rx.icon("arrow_right_to_line", size=22),
@@ -120,7 +118,7 @@ def _pagination_view() -> rx.Component:
 def main_table() -> rx.Component:
     return rx.box(
         rx.flex(
-            open_add_stock_dialog(TableStateTotal.add_stock),
+            open_add_position_dialog(TableStateTotal.add_stock),
             align="center",
             justify="start",
             spacing="4",

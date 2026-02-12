@@ -1,6 +1,6 @@
 import reflex as rx
 
-from ..states.cash_table_state import CashTableState
+from ..states.cash_state import CashTableState
 from ..dialogs.add_cash import open_add_cash_dialog
 
 
