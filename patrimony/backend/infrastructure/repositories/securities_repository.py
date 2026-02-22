@@ -56,6 +56,12 @@ class SecuritiesRepositoryImpl(SecuritiesRepository):
         """Get aggregated positions from the positions_total view."""
         return self._conn.execute("SELECT * FROM positions_total").pl()
 
+    def get_aggregated_positions_by_ticker(self, ticker: str) -> pl.DataFrame:
+        """Get aggregated positions from the positions_total view by ticker."""
+        return self._conn.execute(
+            "SELECT * FROM positions_total WHERE ticker = ?", [ticker.upper()]
+        ).pl()
+
     def get_by_id(self, id: int) -> pl.DataFrame:
         """Get position by ID."""
         return self._conn.execute("SELECT * FROM positions WHERE id = ?", [id]).pl()

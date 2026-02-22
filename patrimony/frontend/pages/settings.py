@@ -3,9 +3,9 @@
 import reflex as rx
 
 from ..templates import template
-from ..views.color_picker import primary_color_picker, secondary_color_picker
-from ..views.radius_picker import radius_picker
-from ..views.scaling_picker import scaling_picker
+from ..views.pickers.color_picker import primary_color_picker, secondary_color_picker
+from ..views.pickers.radius_picker import radius_picker
+from ..views.pickers.scaling_picker import scaling_picker
 
 
 @template(route="/settings", title="Settings")

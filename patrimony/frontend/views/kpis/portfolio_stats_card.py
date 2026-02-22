@@ -1,0 +1,37 @@
+import reflex as rx
+
+from ...components.card import stats_card
+from ...states.portfolio_state import PortfolioState
+
+
+def portfolio_kpi_cards() -> rx.Component:
+    """Display main portfolio KPI cards."""
+    return rx.grid(
+        stats_card(
+            stat_name="Total Portfolio",
+            value=PortfolioState.total_value,
+            return_pct=PortfolioState.total_return,
+            icon="wallet",
+        ),
+        stats_card(
+            stat_name="Stocks Value",
+            value=PortfolioState.stocks_value,
+            return_pct=PortfolioState.total_return,
+            icon="trending-up",
+        ),
+        stats_card(
+            stat_name="Cash Holdings",
+            value=PortfolioState.cash_value,
+            return_pct=0,
+            icon="banknote",
+        ),
+        gap="1rem",
+        grid_template_columns=[
+            "1fr",
+            "repeat(1, 1fr)",
+            "repeat(2, 1fr)",
+            "repeat(3, 1fr)",
+            "repeat(3, 1fr)",
+        ],
+        width="100%",
+    )

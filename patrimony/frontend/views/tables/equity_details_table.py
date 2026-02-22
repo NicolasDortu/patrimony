@@ -1,19 +1,8 @@
 import reflex as rx
 
-from ..states.securities_details_state import TableStateDetails
-from ..services import SecurityPosition
-from ..dialogs import open_add_position_dialog
-
-
-def _header_cell(text: str, icon: str) -> rx.Component:
-    return rx.table.column_header_cell(
-        rx.hstack(
-            rx.icon(icon, size=18),
-            rx.text(text),
-            align="center",
-            spacing="2",
-        ),
-    )
+from .common import header_cell
+from ...states.securities_details_state import TableStateDetails
+from ...services import SecurityPosition
 
 
 def _show_item(item: SecurityPosition, index: int) -> rx.Component:
@@ -120,13 +109,6 @@ def _pagination_view() -> rx.Component:
 def main_table() -> rx.Component:
     return rx.box(
         rx.flex(
-            open_add_position_dialog(TableStateDetails.add_stock),
-            align="center",
-            justify="start",
-            spacing="4",
-            padding_bottom="1.5em",
-        ),
-        rx.flex(
             rx.flex(
                 rx.cond(
                     TableStateDetails.sort_reverse,
@@ -181,14 +163,6 @@ def main_table() -> rx.Component:
                 justify="end",
                 spacing="3",
             ),
-            rx.button(
-                rx.icon("arrow-down-to-line", size=20),
-                "Export",
-                size="3",
-                variant="surface",
-                display=["none", "none", "none", "flex"],
-                on_click=TableStateDetails.export_csv,
-            ),
             spacing="3",
             justify="between",
             wrap="wrap",
@@ -198,11 +172,11 @@ def main_table() -> rx.Component:
         rx.table.root(
             rx.table.header(
                 rx.table.row(
-                    _header_cell("id", "user"),
-                    _header_cell("ticker", "notebook-pen"),
-                    _header_cell("price", "dollar-sign"),
-                    _header_cell("quantity", "notebook-pen"),
-                    _header_cell("date", "calendar"),
+                    header_cell("id", "user"),
+                    header_cell("ticker", "notebook-pen"),
+                    header_cell("price", "dollar-sign"),
+                    header_cell("quantity", "notebook-pen"),
+                    header_cell("date", "calendar"),
                 ),
             ),
             rx.table.body(

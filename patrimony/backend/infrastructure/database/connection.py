@@ -26,7 +26,7 @@ class DatabaseConnection:
         self.db_path = db_path if db_path else _get_db_path()
         self.conn = duckdb.connect(str(self.db_path))
         self.init_db()
-        atexit.register(self.close)
+        atexit.register(self.close_connection)
 
     def init_db(self) -> None:
         for command in ddl.DDL_COMMANDS:
@@ -46,8 +46,9 @@ class DatabaseConnection:
             return self.conn.execute(query, parameters)
         return self.conn.execute(query)
 
-    def get_connection(self) -> duckdb.DuckDBPyConnection:
+    @property
+    def connection(self) -> duckdb.DuckDBPyConnection:
         return self.conn
 
-    def close(self) -> None:
+    def close_connection(self) -> None:
         self.conn.close()

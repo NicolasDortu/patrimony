@@ -57,14 +57,6 @@ class CashRepositoryImpl(CashRepository):
             [bank, account_number, currency.value, balance, last_updated, id],
         )
 
-    def get_by_bank(self, bank: str) -> pl.DataFrame:
-        """Get all cash accounts for a specific bank."""
-        return self._conn.execute("SELECT * FROM cash WHERE bank = ?", [bank]).pl()
-
-    def get_by_id(self, id: int) -> pl.DataFrame:
-        """Get cash account by ID."""
-        return self._conn.execute("SELECT * FROM cash WHERE id = ?", [id]).pl()
-
     def delete(self, id: int) -> None:
         """Delete a cash account by ID."""
         self._conn.execute("DELETE FROM cash WHERE id = ?", [id])
@@ -72,3 +64,7 @@ class CashRepositoryImpl(CashRepository):
     def get_all(self) -> pl.DataFrame:
         """Get all cash accounts."""
         return self._conn.execute("SELECT * FROM cash").pl()
+
+    def get_by_id(self, id: int) -> pl.DataFrame:
+        """Get cash account by ID."""
+        return self._conn.execute("SELECT * FROM cash WHERE id = ?", [id]).pl()

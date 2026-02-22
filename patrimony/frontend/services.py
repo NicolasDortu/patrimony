@@ -13,9 +13,9 @@ from ..backend.domain.entities import (
     Currency,
     EntryType,
     TransactionType,
-    OperationResult,
 )
 from ..backend.presentation.controllers import (
+    OperationResult,
     CashController,
     SecuritiesController,
     PortfolioController,
@@ -160,6 +160,12 @@ class SecuritiesService:
         controller = SecuritiesController()
         return controller.get_aggregated_positions()
 
+    @staticmethod
+    def get_chart_data_ticker(ticker: str, period: str = "1M") -> list[dict]:
+        """Get chart data for a single ticker."""
+        controller = SecuritiesController()
+        return controller.get_chart_data_ticker(ticker, period)
+
 
 # ============================================================================
 # BACKEND INTERFACE - Portfolio Operations
@@ -174,3 +180,9 @@ class PortfolioService:
         """Get complete portfolio overview."""
         controller = PortfolioController()
         return controller.get_portfolio_overview()
+
+    @staticmethod
+    def get_chart_data(period: str = "1M") -> list[dict]:
+        """Get chart data for the entire portfolio."""
+        controller = PortfolioController()
+        return controller.get_chart_data(period)

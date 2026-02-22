@@ -1,7 +1,8 @@
 from datetime import datetime
 from typing import Optional
 
-from ...domain.entities import Currency, OperationResult
+from ...domain.entities import Currency
+from .operation_result import OperationResult
 from ..di_container import container
 
 
@@ -129,19 +130,7 @@ class CashController:
             List of cash account dictionaries
         """
         df = self._cash_repo.get_all()
-        return df.to_dicts() if df is not None and not df.is_empty() else []
-
-    def get_cash_by_bank(self, bank: str) -> list[dict]:
-        """Get cash accounts for specific bank.
-
-        Args:
-            bank: Bank name
-
-        Returns:
-            List of cash account dictionaries
-        """
-        df = self._cash_repo.get_by_bank(bank)
-        return df.to_dicts() if df is not None and not df.is_empty() else []
+        return df.to_dicts() if df is not None else []
 
     def get_cash_by_id(self, id: int) -> Optional[dict]:
         """Get single cash account by ID.
@@ -153,17 +142,6 @@ class CashController:
             Cash account dictionary or None if not found
         """
         df = self._cash_repo.get_by_id(id)
-        if df is not None and not df.is_empty():
+        if df is not None:
             return df.to_dicts()[0]
         return None
-
-    def get_total_cash_value(self) -> float:
-        """Calculate total cash value across all accounts.
-
-        Returns:
-            Total balance sum
-        """
-        df = self._cash_repo.get_all()
-        if df is not None and not df.is_empty():
-            return float(df["balance"].sum())
-        return 0.0

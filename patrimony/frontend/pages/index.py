@@ -6,13 +6,10 @@ from ..components.card import card
 from ..components.notification import notification
 from ..templates import template
 from ..states.portfolio_state import PortfolioState
-from ..views.wealth_chart import wealth_chart
-from ..views.portfolio_kpis import (
-    portfolio_kpi_cards,
-    top_performers_card,
-    bottom_performers_card,
-    allocation_card,
-)
+from ..views.charts.wealth_chart import wealth_chart
+from ..views.kpis.portfolio_stats_card import portfolio_kpi_cards
+from ..views.kpis.portfolio_performers import portfolio_performers_card
+from ..views.kpis.portfolio_allocation import allocation_card
 
 
 @template(route="/", title="Overview", on_load=PortfolioState.load_portfolio_data)
@@ -27,13 +24,12 @@ def index() -> rx.Component:
         rx.flex(
             rx.heading("Portfolio Overview", size="5"),
             rx.flex(
-                notification("bell", "cyan", 12),
-                notification("message-square-text", "plum", 6),
+                notification("message-square-text", "plum", 0),
                 spacing="4",
                 width="100%",
                 wrap="nowrap",
                 justify="end",
-            ),
+            ),  # TODO: link notifications to connector status and other important events + color should be the accent color of user
             justify="between",
             align="center",
             width="100%",
@@ -41,16 +37,15 @@ def index() -> rx.Component:
         portfolio_kpi_cards(),
         card(wealth_chart()),
         rx.grid(
-            top_performers_card(),
-            bottom_performers_card(),
+            portfolio_performers_card(),
             allocation_card(),
             gap="1rem",
             grid_template_columns=[
                 "1fr",
-                "repeat(1, 1fr)",
-                "repeat(2, 1fr)",
-                "repeat(3, 1fr)",
-                "repeat(3, 1fr)",
+                "1fr",
+                "1fr 2fr",
+                "1fr 2fr",
+                "1fr 2fr",
             ],
             width="100%",
         ),

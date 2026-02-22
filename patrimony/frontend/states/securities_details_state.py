@@ -26,12 +26,17 @@ class TableStateDetails(rx.State):
     offset: int = 0
     limit: int = 12  # Number of rows per page
 
+    # Stock chart state
+    selected_period: str = "6M"
+    stock_chart_data: list[dict] = []
+
     @rx.event
     def on_page_load(self) -> None:
         """Handle page load - get ticker from URL and load entries."""
         ticker = self.router.url.query_parameters.get("ticker", "")
         self.ticker = ticker
         self.load_entries()
+        self._load_chart_data()
 
     @rx.event
     def set_ticker(self, ticker: str) -> None:
@@ -168,3 +173,20 @@ class TableStateDetails(rx.State):
 
         data = str(header + "\n" + "\n".join(rows))
         return rx.download(data=data, filename="positions.csv")
+
+    def _load_chart_data(self):
+        """Fetch stock price history for the chart."""
+        if self.ticker:
+            self.stock_chart_data = SecuritiesService.get_chart_data_ticker(
+                self.ticker, self.selected_period
+            )
+        else:
+            self.stock_chart_data = []
+
+    @rx.event
+    async def set_chart_period(self, period: str | list[str]):
+        """Change chart period and refresh data."""
+        if isinstance(period, list):
+            period = period[0] if period else "1Y"
+        self.selected_period = period
+        self._load_chart_data()

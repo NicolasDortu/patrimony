@@ -1,35 +1,29 @@
 from abc import ABC, abstractmethod
 from datetime import datetime
-from typing import Generic, TypeVar
-import polars as pl
 
 from .entities import AssetType, Currency, TransactionType, EntryType
 
-# Generic types for repository pattern
-T = TypeVar("T")
-ID = TypeVar("ID")
 
-
-class Repository(ABC, Generic[T, ID]):
+class Repository(ABC):
     """Base repository interface following Repository Pattern."""
 
     @abstractmethod
-    def get_by_id(self, id: ID) -> T:
+    def get_by_id(self, id: int) -> object:
         """Retrieve entity by ID."""
         pass
 
     @abstractmethod
-    def delete(self, id: ID) -> None:
+    def delete(self, id: int) -> None:
         """Delete entity by ID."""
         pass
 
     @abstractmethod
-    def get_all(self) -> pl.DataFrame:
+    def get_all(self) -> object:
         """Get all entities."""
         pass
 
 
-class SecuritiesRepository(Repository[T, int], ABC):
+class SecuritiesRepository(Repository, ABC):
     """Repository for securities (stocks, crypto, ETFs, bonds, ...).
 
     Extends base repository with security-specific operations.
@@ -47,21 +41,21 @@ class SecuritiesRepository(Repository[T, int], ABC):
         currency: Currency,
         date: datetime,
     ) -> int:
-        """Add a new position."""
+        """Add a new position and return its id."""
         pass
 
     @abstractmethod
-    def get_by_ticker(self, ticker: str) -> pl.DataFrame:
+    def get_by_ticker(self, ticker: str) -> object:
         """Get all positions for a specific ticker."""
         pass
 
     @abstractmethod
-    def get_aggregated_positions(self) -> pl.DataFrame:
+    def get_aggregated_positions(self) -> object:
         """Get aggregated positions (total quantities, avg prices)."""
         pass
 
 
-class CashRepository(Repository[T, int], ABC):
+class CashRepository(Repository, ABC):
     """Repository for cash accounts.
 
     Specific interface for cash-related operations.
@@ -76,7 +70,7 @@ class CashRepository(Repository[T, int], ABC):
         balance: float,
         last_updated: datetime,
     ) -> int:
-        """Add a new cash account."""
+        """Add a new cash account and return its id."""
         pass
 
     @abstractmethod
@@ -90,11 +84,6 @@ class CashRepository(Repository[T, int], ABC):
         last_updated: datetime,
     ) -> None:
         """Update cash account."""
-        pass
-
-    @abstractmethod
-    def get_by_bank(self, bank: str) -> pl.DataFrame:
-        """Get all cash accounts for a specific bank."""
         pass
 
 
@@ -117,12 +106,39 @@ class MarketDataProvider(ABC):
         pass
 
     @abstractmethod
-    def get_price_history(self, ticker: str, period: str = "1mo") -> pl.DataFrame:
-        """Fetch historical prices for a ticker.
+    def get_price_history(
+        self,
+        ticker: str,
+        start_date: datetime = None,
+        end_date: datetime = None,
+        interval: str = "1d",
+    ) -> object:
+        """Fetch price history for a ticker.
 
         Args:
             ticker: Stock ticker symbol
-            period: Time period (e.g., '1mo', '1y')
+            start_date: Start of date range (inclusive)
+            end_date: End of date range (inclusive)
+            interval: Data interval (e.g. '5m', '1d', '1wk')
+
+        Returns:
+            DataFrame with columns: date, close
+        """
+        pass
+
+    @abstractmethod
+    def get_price_history_period(
+        self,
+        ticker: str,
+        period: str = None,
+        interval: str = "1d",
+    ) -> object:
+        """Fetch price history for a ticker using period instead of dates.
+
+        Args:
+            ticker: Stock ticker symbol
+            period: yfinance period string (e.g. '1d', '1mo', '1y')
+            interval: Data interval (e.g. '5m', '1d', '1wk')
 
         Returns:
             DataFrame with columns: date, close
@@ -146,4 +162,16 @@ class PriceRepository(ABC):
     @abstractmethod
     def get_cached_price(self, ticker: str, max_age_minutes: int = 15) -> float:
         """Get cached price if available and not stale."""
+        pass
+
+    @abstractmethod
+    def get_price_history(
+        self, tickers: list[str], start_date: datetime, end_date: datetime
+    ) -> object:
+        """Get stored price history for tickers within a date range."""
+        pass
+
+    @abstractmethod
+    def sync_price_history(self, tickers: list[str], start_date: datetime) -> None:
+        """Fetch and store missing price history data for tickers."""
         pass

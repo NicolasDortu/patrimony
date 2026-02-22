@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Optional
 import polars as pl
 
@@ -7,9 +7,18 @@ from ...domain.entities import (
     Currency,
     EntryType,
     TransactionType,
-    OperationResult,
 )
+from .operation_result import OperationResult
 from ..di_container import container
+
+PERIOD_CONFIG = {
+    "1D": {"days": 1, "period": "1d", "interval": "5m"},
+    "5D": {"days": 5, "period": "5d", "interval": "1d"},
+    "1M": {"days": 30, "period": "1mo", "interval": "1d"},
+    "6M": {"days": 180, "period": "6mo", "interval": "1d"},
+    "1Y": {"days": 365, "period": "1y", "interval": "1d"},
+    "5Y": {"days": 1825, "period": "5y", "interval": "1wk"},
+}
 
 
 class SecuritiesController:
@@ -24,6 +33,11 @@ class SecuritiesController:
     def _price_repo(self):
         """Get price repository from DI container."""
         return container.price_repository()
+
+    @property
+    def _market_data(self):
+        """Get market data provider from DI container."""
+        return container.market_data_provider()
 
     def add_position(
         self,
@@ -105,7 +119,7 @@ class SecuritiesController:
             List of position dictionaries
         """
         df = self._securities_repo.get_all()
-        return df.to_dicts() if df is not None and not df.is_empty() else []
+        return df.to_dicts() if df is not None else []
 
     def get_positions_by_ticker(self, ticker: str) -> list[dict]:
         """Get all positions for specific ticker.
@@ -117,7 +131,7 @@ class SecuritiesController:
             List of position dictionaries
         """
         df = self._securities_repo.get_by_ticker(ticker)
-        return df.to_dicts() if df is not None and not df.is_empty() else []
+        return df.to_dicts() if df is not None else []
 
     def get_aggregated_positions(self) -> list[dict]:
         """Get aggregated positions (total quantities, avg prices).
@@ -128,7 +142,7 @@ class SecuritiesController:
             List of aggregated position dictionaries with current prices
         """
         df = self._securities_repo.get_aggregated_positions()
-        if df is None or df.is_empty():
+        if df is None:
             return []
 
         # Enrich with current prices
@@ -145,24 +159,13 @@ class SecuritiesController:
             Position dictionary or None if not found
         """
         df = self._securities_repo.get_by_id(id)
-        if df is not None and not df.is_empty():
+        if df is not None:
             return df.to_dicts()[0]
         return None
 
     def validate_ticker(self, ticker: str) -> bool:
-        """Validate ticker by attempting to fetch current price.
-
-        Args:
-            ticker: Ticker symbol to validate
-
-        Returns:
-            True if ticker is valid (price available), False otherwise
-        """
-        try:
-            price = self._price_repo.get_current_price(ticker)
-            return price is not None and price > 0
-        except Exception:
-            return False
+        # TODO: Implement actual validation logic
+        pass
 
     def _enrich_with_prices(self, df: pl.DataFrame) -> pl.DataFrame:
         """Enrich DataFrame with current prices.
@@ -196,3 +199,44 @@ class SecuritiesController:
             )
 
         return df
+
+    # Chart methods
+    def _fetch_price_data(
+        self, ticker: str, config: dict, is_intraday: bool
+    ) -> Optional[pl.DataFrame]:
+        """Fetch price data from live API (intraday) or cache (daily)."""
+        if is_intraday:
+            return self._market_data.get_price_history_period(
+                ticker, period=config["period"], interval=config["interval"]
+            )
+        else:
+            start = datetime.now() - timedelta(days=config["days"])
+            end = datetime.now()
+            self._price_repo.sync_price_history([ticker], start)
+            return self._price_repo.get_price_history([ticker], start, end)
+
+    def get_chart_data_ticker(self, ticker: str, period: str = "1M") -> list[dict]:
+        """Get time-series price data for a single ticker."""
+        config = PERIOD_CONFIG.get(period, PERIOD_CONFIG["1M"])
+        df = self._securities_repo.get_aggregated_positions_by_ticker(ticker)
+        if df is None or df.is_empty():
+            return []
+
+        is_intraday = period == "1D"
+        price_df = self._fetch_price_data(ticker, config, is_intraday)
+        if price_df is None or price_df.is_empty():
+            return []
+
+        date_fmt = (
+            "%H:%M" if is_intraday else ("%Y-%m" if config["days"] > 365 else "%d/%m")
+        )
+
+        return [
+            {
+                "name": row["date"].strftime(date_fmt)
+                if hasattr(row["date"], "strftime")
+                else str(row["date"]),
+                "price": round(row["close_price"] * df["total_quantity"][0], 2),
+            }
+            for row in price_df.iter_rows(named=True)
+        ]

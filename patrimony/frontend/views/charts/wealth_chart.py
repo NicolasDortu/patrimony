@@ -1,40 +1,17 @@
 """Wealth chart visualization for portfolio overview."""
 
 import reflex as rx
-from reflex.components.radix.themes.base import LiteralAccentColor
 
-from ..states.portfolio_state import PortfolioState
-
-
-def _create_gradient(color: LiteralAccentColor, id: str) -> rx.Component:
-    """Create gradient definition for area chart."""
-    return rx.el.svg.defs(
-        rx.el.svg.linear_gradient(
-            rx.el.svg.stop(
-                stop_color=f"var(--{color}-9)",
-                stop_opacity="0.8",
-                offset="5%",
-            ),
-            rx.el.svg.stop(
-                stop_color=f"var(--{color}-9)",
-                stop_opacity="0",
-                offset="95%",
-            ),
-            id=id,
-            x1="0",
-            x2="0",
-            y1="0",
-            y2="1",
-        )
-    )
+from .common import create_gradient, period_selector
+from ...states.portfolio_state import PortfolioState
 
 
-def wealth_area_chart() -> rx.Component:
+def _wealth_area_chart() -> rx.Component:
     """Area chart showing portfolio value over time."""
     return rx.recharts.area_chart(
-        _create_gradient("blue", "colorTotal"),
-        _create_gradient("green", "colorCash"),
-        _create_gradient("purple", "colorStocks"),
+        create_gradient("blue", "colorTotal"),
+        create_gradient("green", "colorCash"),
+        create_gradient("purple", "colorStocks"),
         rx.cond(
             PortfolioState.asset_filter == "all",
             rx.recharts.area(
@@ -69,13 +46,13 @@ def wealth_area_chart() -> rx.Component:
         rx.recharts.cartesian_grid(stroke_dasharray="3 3", vertical=False),
         rx.recharts.legend(),
         rx.recharts.graphing_tooltip(),
-        data=PortfolioState.wealth_chart_data,
+        data=PortfolioState.get_chart_data,
         width="100%",
         height=400,
     )
 
 
-def wealth_bar_chart() -> rx.Component:
+def _wealth_bar_chart() -> rx.Component:
     """Bar chart showing portfolio value over time."""
     return rx.recharts.bar_chart(
         rx.cond(
@@ -106,13 +83,13 @@ def wealth_bar_chart() -> rx.Component:
         rx.recharts.cartesian_grid(stroke_dasharray="3 3", vertical=False),
         rx.recharts.legend(),
         rx.recharts.graphing_tooltip(),
-        data=PortfolioState.wealth_chart_data,
+        data=PortfolioState.get_chart_data,
         width="100%",
         height=400,
     )
 
 
-def chart_type_toggle() -> rx.Component:
+def _chart_type_toggle() -> rx.Component:
     """Toggle button for switching chart types."""
     return rx.cond(
         PortfolioState.chart_type == "area",
@@ -133,10 +110,10 @@ def chart_type_toggle() -> rx.Component:
     )
 
 
-def asset_filter_control() -> rx.Component:
+def _asset_filter_control() -> rx.Component:
     """Segmented control for filtering asset types."""
     return rx.segmented_control.root(
-        rx.segmented_control.item("All Assets", value="all"),
+        rx.segmented_control.item("All", value="all"),
         rx.segmented_control.item("Stocks", value="stocks"),
         rx.segmented_control.item("Cash", value="cash"),
         default_value="all",
@@ -156,8 +133,11 @@ def wealth_chart() -> rx.Component:
                 spacing="2",
             ),
             rx.hstack(
-                asset_filter_control(),
-                chart_type_toggle(),
+                period_selector(
+                    PortfolioState.selected_period, PortfolioState.set_period
+                ),
+                _asset_filter_control(),
+                _chart_type_toggle(),
                 align="center",
                 spacing="3",
             ),
@@ -167,8 +147,8 @@ def wealth_chart() -> rx.Component:
         ),
         rx.cond(
             PortfolioState.chart_type == "area",
-            wealth_area_chart(),
-            wealth_bar_chart(),
+            _wealth_area_chart(),
+            _wealth_bar_chart(),
         ),
         width="100%",
         spacing="4",

@@ -1,18 +1,8 @@
 import reflex as rx
 
-from ..states.cash_state import CashTableState
-from ..dialogs.add_cash import open_add_cash_dialog
-
-
-def _header_cell(text: str, icon: str) -> rx.Component:
-    return rx.table.column_header_cell(
-        rx.hstack(
-            rx.icon(icon, size=18),
-            rx.text(text),
-            align="center",
-            spacing="2",
-        ),
-    )
+from .common import header_cell
+from ...states.cash_state import CashTableState
+from ...dialogs.add_cash import open_add_cash_dialog
 
 
 def _show_item(item: dict, index: int) -> rx.Component:
@@ -62,7 +52,12 @@ def _show_item(item: dict, index: int) -> rx.Component:
                                     required=True,
                                 ),
                                 rx.select(
-                                    ["EUR", "USD", "GBP", "JPY"],
+                                    [
+                                        "EUR",
+                                        "USD",
+                                        "GBP",
+                                        "JPY",
+                                    ],  # TODO: make it dynamic based on available currencies
                                     placeholder="Currency",
                                     name="currency",
                                     default_value=CashTableState.edit_currency,
@@ -275,11 +270,11 @@ def cash_table() -> rx.Component:
         rx.table.root(
             rx.table.header(
                 rx.table.row(
-                    _header_cell("Bank", "landmark"),
-                    _header_cell("Account Number", "hash"),
-                    _header_cell("Currency", "badge-euro"),
-                    _header_cell("Balance", "wallet"),
-                    _header_cell("Actions", "settings"),
+                    header_cell("Bank", "landmark"),
+                    header_cell("Account Number", "hash"),
+                    header_cell("Currency", "badge-euro"),
+                    header_cell("Balance", "wallet"),
+                    header_cell("Actions", "settings"),
                 ),
             ),
             rx.table.body(

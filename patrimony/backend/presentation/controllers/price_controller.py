@@ -2,7 +2,7 @@
 
 from typing import Optional
 
-from ...domain.entities import OperationResult
+from .operation_result import OperationResult
 from ..di_container import container
 
 
@@ -43,23 +43,6 @@ class PriceController:
                 success=False,
                 message=f"Error fetching price for {ticker}: {str(e)}",
             )
-
-    def get_multiple_prices(self, tickers: list[str]) -> dict[str, Optional[float]]:
-        """Get current prices for multiple tickers.
-
-        Args:
-            tickers: List of ticker symbols
-
-        Returns:
-            Dictionary mapping tickers to prices (None if unavailable)
-        """
-        prices = {}
-        for ticker in tickers:
-            try:
-                prices[ticker] = self._price_repo.get_current_price(ticker)
-            except Exception:
-                prices[ticker] = None
-        return prices
 
     def get_cached_price(
         self, ticker: str, max_age_minutes: int = 15

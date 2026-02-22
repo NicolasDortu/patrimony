@@ -1,19 +1,9 @@
 import reflex as rx
 
-from ..states.securities_total_state import TableStateTotal
-from ..services import SecurityTotal
-from ..dialogs import open_add_position_dialog
-
-
-def _header_cell(text: str, icon: str) -> rx.Component:
-    return rx.table.column_header_cell(
-        rx.hstack(
-            rx.icon(icon, size=18),
-            rx.text(text),
-            align="center",
-            spacing="2",
-        ),
-    )
+from .common import header_cell
+from ...states.securities_total_state import TableStateTotal
+from ...services import SecurityTotal
+from ...dialogs import open_add_position_dialog
 
 
 def _show_item(item: SecurityTotal, index: int) -> rx.Component:
@@ -195,11 +185,11 @@ def main_table() -> rx.Component:
         rx.table.root(
             rx.table.header(
                 rx.table.row(
-                    _header_cell("ticker", "building"),
-                    _header_cell("total_quantity", "notebook-pen"),
-                    _header_cell("current_price", "dollar-sign"),
-                    _header_cell("total_value", "wallet"),
-                    _header_cell("", "chart_no_axes_combined"),
+                    header_cell("ticker", "building"),
+                    header_cell("total_quantity", "notebook-pen"),
+                    header_cell("current_price", "dollar-sign"),
+                    header_cell("total_value", "wallet"),
+                    header_cell("", "chart_no_axes_combined"),
                 ),
             ),
             rx.table.body(

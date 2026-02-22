@@ -4,6 +4,8 @@ This module contains concrete implementations of the MarketDataProvider interfac
 for different data sources (Yahoo Finance, Alpha Vantage, etc.).
 """
 
+from datetime import datetime
+
 import yfinance as yf
 from typing import Optional
 import polars as pl
@@ -30,18 +32,53 @@ class YahooFinanceProvider(MarketDataProvider):
             return None
         return None
 
-    def get_price_history(self, ticker: str, period: str = "1mo") -> pl.DataFrame:
-        """Fetch historical prices from Yahoo Finance."""
+    def get_price_history(
+        self,
+        ticker: str,
+        start_date: datetime = None,
+        end_date: datetime = None,
+        interval: str = "1d",
+    ) -> pl.DataFrame:
+        """Fetch price history from Yahoo Finance using date range."""
         try:
             stock = yf.Ticker(ticker)
-            data = stock.history(period=period)
+            data = stock.history(
+                start=start_date.strftime("%Y-%m-%d"),
+                end=end_date.strftime("%Y-%m-%d"),
+                interval=interval,
+            )
             if not data.empty:
+                data = data.reset_index()
+                date_col = "Datetime" if "Datetime" in data.columns else "Date"
                 return pl.DataFrame(
                     {
-                        "date": data.index.tolist(),
-                        "close": data["Close"].tolist(),
+                        "date": data[date_col].tolist(),
+                        "close_price": data["Close"].tolist(),
                     }
                 )
-        except Exception:
-            return pl.DataFrame(schema={"date": pl.Datetime, "close": pl.Float64})
-        return pl.DataFrame(schema={"date": pl.Datetime, "close": pl.Float64})
+        except Exception as e:
+            print(f"Error fetching price history for {ticker}: {e}")
+        return pl.DataFrame(schema={"date": pl.Datetime, "close_price": pl.Float64})
+
+    def get_price_history_period(
+        self,
+        ticker: str,
+        period: str = None,
+        interval: str = "1d",
+    ) -> pl.DataFrame:
+        """Fetch price history from Yahoo Finance using period."""
+        try:
+            stock = yf.Ticker(ticker)
+            data = stock.history(period=period, interval=interval)
+            if not data.empty:
+                data = data.reset_index()
+                date_col = "Datetime" if "Datetime" in data.columns else "Date"
+                return pl.DataFrame(
+                    {
+                        "date": data[date_col].tolist(),
+                        "close_price": data["Close"].tolist(),
+                    }
+                )
+        except Exception as e:
+            print(f"Error fetching price history for {ticker}: {e}")
+        return pl.DataFrame(schema={"date": pl.Datetime, "close_price": pl.Float64})
