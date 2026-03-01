@@ -18,10 +18,37 @@ class CashRepositoryImpl(CashRepository):
     def __init__(self, connection: DatabaseConnection):
         self._conn = connection
 
+    def _recalculate_ranks_and_balances(self, account_number: str) -> None:
+        """Recalculate ranks and running balances for all operations of an account.
+
+        Orders operations by operation_date ASC, id ASC, then assigns
+        sequential ranks and recomputes the cumulative balance.
+        """
+        rows = self._conn.execute(
+            """
+            SELECT id, amount
+            FROM balance_operations
+            WHERE account_number = ?
+            ORDER BY operation_date ASC, id ASC
+            """,
+            [account_number],
+        ).fetchall()
+
+        running_balance = 0.0
+        for rank, (op_id, amount) in enumerate(rows, start=1):
+            running_balance += amount
+            self._conn.execute(
+                """
+                UPDATE balance_operations
+                SET rank = ?, balance = ?
+                WHERE id = ?
+                """,
+                [rank, running_balance, op_id],
+            )
+
     def _create_initial_balance_operation(
         self,
         account_number: str,
-        currency: Currency,
         balance: float,
         entry_type: EntryType,
     ) -> None:
@@ -29,12 +56,11 @@ class CashRepositoryImpl(CashRepository):
         self._conn.execute(
             """
             INSERT INTO balance_operations
-            (account_number, currency, amount, balance,title, operation_date, entry_type)
-            VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP, ?)
+            (account_number, amount, balance, rank, title, operation_date, entry_type)
+            VALUES (?, ?, ?, 1, ?, CURRENT_TIMESTAMP, ?)
             """,
             [
                 account_number,
-                currency.value,
                 balance,
                 balance,
                 "Initial balance",
@@ -50,14 +76,14 @@ class CashRepositoryImpl(CashRepository):
         balance: float,
         last_updated: datetime,
         entry_type: EntryType = EntryType.MANUAL,
-    ) -> int:
+    ) -> str:
         """Add a new cash account."""
         result = self._conn.execute(
             """
             INSERT INTO cash
             (bank, account_number, currency, last_updated, entry_type)
             VALUES (?, ?, ?, ?, ?)
-            RETURNING id
+            RETURNING account_number
             """,
             [
                 bank,
@@ -68,14 +94,11 @@ class CashRepositoryImpl(CashRepository):
             ],
         )
         # also create the initial balance operation
-        self._create_initial_balance_operation(
-            account_number, currency, balance, entry_type
-        )
+        self._create_initial_balance_operation(account_number, balance, entry_type)
         return result.fetchone()[0]
 
     def update_cash(
         self,
-        id: int,
         bank: str,
         account_number: str,
         currency: Currency,
@@ -86,30 +109,32 @@ class CashRepositoryImpl(CashRepository):
             """
             UPDATE cash
             SET bank = ?, account_number = ?, currency = ?, last_updated = ?
-            WHERE id = ?
+            WHERE account_number = ?
             """,
-            [bank, account_number, currency.value, last_updated, id],
+            [bank, account_number, currency.value, last_updated, account_number],
         )
 
-    def get_balance(self, account_number: str, currency: Currency) -> float:
+    def get_balance(self, account_number: str) -> float:
         """Get the current balance of a cash account."""
         result = self._conn.execute(
             """
             SELECT balance FROM cash_balance
-            WHERE account_number = ? AND currency = ?
+            WHERE account_number = ?
             """,
-            [account_number, currency.value],
+            [account_number],
         )
         return result.fetchone()[0]
 
-    def delete(self, id: int) -> None:
-        """Delete a cash account by ID. And also delete all related balance operations."""
+    def delete(self, account_number: str) -> None:
+        """Delete a cash account by account number. And also delete all related balance operations."""
         with self._conn.transaction():
             self._conn.execute(
-                "DELETE FROM balance_operations WHERE account_number = (SELECT account_number FROM cash WHERE id = ?)",
-                [id],
+                "DELETE FROM balance_operations WHERE account_number = ?",
+                [account_number],
             )
-            self._conn.execute("DELETE FROM cash WHERE id = ?", [id])
+            self._conn.execute(
+                "DELETE FROM cash WHERE account_number = ?", [account_number]
+            )
 
     def get_all(self) -> pl.DataFrame:
         """Get all cash accounts with their current balance."""
@@ -119,57 +144,51 @@ class CashRepositoryImpl(CashRepository):
             FROM cash c
             LEFT JOIN cash_balance cb
                 ON c.account_number = cb.account_number
-                AND c.currency = cb.currency
             """
         ).pl()
 
-    def get_by_id(self, id: int) -> pl.DataFrame:
-        """Get cash account by ID with its current balance."""
+    def get_by_id(self, account_number: str) -> pl.DataFrame:
+        """Get cash account by account number with its current balance."""
         return self._conn.execute(
             """
             SELECT c.*, COALESCE(cb.balance, 0.0) AS balance
             FROM cash c
             LEFT JOIN cash_balance cb
                 ON c.account_number = cb.account_number
-                AND c.currency = cb.currency
-            WHERE c.id = ?
+            WHERE c.account_number = ?
             """,
-            [id],
+            [account_number],
         ).pl()
 
     ## Operations methods ##
-    def operation_balance(
+    def add_operation_balance(
         self,
         account_number: str,
-        currency: Currency,
         amount: float,
         title: str,
         operation_date: datetime,
         entry_type: EntryType,
-    ) -> list[bool, str]:
-        """Record a cash operation on the balance."""
-        balance = self.get_balance(account_number, currency)
-        try:
+    ) -> str:
+        """Record a cash operation on the balance and return the operation ID."""
+        with self._conn.transaction():
             result = self._conn.execute(
                 """
                 INSERT INTO balance_operations
-                (account_number, currency, amount, balance, title, operation_date, entry_type)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
-                RETURNING id
+                (account_number, amount, balance, rank, title, operation_date, entry_type)
+                VALUES (?, ?, 0, 0, ?, ?, ?)
+                RETURNING account_number
                 """,
                 [
                     account_number,
-                    currency.value,
                     amount,
-                    balance + amount,
                     title,
                     operation_date,
                     entry_type.value,
                 ],
             )
-            return [True, f"Operation successful, id: {result.fetchone()[0]}"]
-        except Exception as e:
-            return [False, f"Operation failed: {str(e)}"]
+            op_id = result.fetchone()[0]
+            self._recalculate_ranks_and_balances(account_number)
+        return op_id
 
     def get_operations_by_account(self, account_number: str) -> pl.DataFrame:
         """Get all balance operations for a specific account."""
@@ -177,7 +196,7 @@ class CashRepositoryImpl(CashRepository):
             """
             SELECT * FROM balance_operations
             WHERE account_number = ?
-            ORDER BY operation_date DESC
+            ORDER BY rank DESC
             """,
             [account_number],
         )
@@ -188,7 +207,7 @@ class CashRepositoryImpl(CashRepository):
         result = self._conn.execute(
             """
             SELECT * FROM balance_operations
-            ORDER BY operation_date DESC
+            ORDER BY rank DESC
             """
         )
         return result.pl()
@@ -197,33 +216,23 @@ class CashRepositoryImpl(CashRepository):
         """Get cash balance history ordered by date for building a cash timeline."""
         result = self._conn.execute(
             """
-            SELECT operation_date, account_number, currency, balance
+            SELECT operation_date, account_number, balance
             FROM balance_operations
-            ORDER BY operation_date ASC, id ASC
+            ORDER BY rank ASC
             """
         )
         return result.pl()
 
     def delete_operation_by_id(self, id: int) -> bool:
-        """Delete a balance operation by ID. And also update the balance of the account accordingly."""
+        """Delete a balance operation by ID and recalculate ranks/balances."""
         with self._conn.transaction():
-            # step1 : get the previous amount and balance of the operation
             result = self._conn.execute(
-                "SELECT amount, account_number, currency FROM balance_operations WHERE id = ?",
+                "SELECT account_number FROM balance_operations WHERE id = ?",
                 [id],
             )
-            previous_amount, account_number, currency = result.fetchone()
-            # step2 : delete the operation
+            account_number = result.fetchone()[0]
             self._conn.execute("DELETE FROM balance_operations WHERE id = ?", [id])
-            # step3 : update the balance for all the operations with a bigger ID to remove the amount of the deleted operation
-            self._conn.execute(
-                """
-                UPDATE balance_operations
-                SET balance = balance - ?
-                WHERE account_number = ? AND currency = ? AND id > ?
-                """,
-                [previous_amount, account_number, currency, id],
-            )
+            self._recalculate_ranks_and_balances(account_number)
             return True
 
     def update_operation_by_id(
@@ -234,17 +243,13 @@ class CashRepositoryImpl(CashRepository):
         operation_date: datetime,
         entry_type: EntryType,
     ) -> bool:
-        """Update a balance operation by ID."""
+        """Update a balance operation by ID and recalculate ranks/balances."""
         with self._conn.transaction():
-            # step1 : get the previous amount and balance of the operation
             result = self._conn.execute(
-                "SELECT amount, account_number, currency FROM balance_operations WHERE id = ?",
+                "SELECT account_number FROM balance_operations WHERE id = ?",
                 [id],
             )
-            # step2 : calculate the difference between the previous amount and the new amount
-            previous_amount, account_number, currency = result.fetchone()
-            difference = amount - previous_amount
-            # step3 : update the operation with the new amount, title, operation_date and entry_type
+            account_number = result.fetchone()[0]
             self._conn.execute(
                 """
                 UPDATE balance_operations
@@ -253,13 +258,5 @@ class CashRepositoryImpl(CashRepository):
                 """,
                 [amount, title, operation_date, entry_type.value, id],
             )
-            # step4 : update the balance of the operation with the new amount as well as all the other operations with a bigger ID to add the difference to the balance
-            self._conn.execute(
-                """
-                UPDATE balance_operations
-                SET balance = balance + ?
-                WHERE account_number = ? AND currency = ? AND id >= ?
-                """,
-                [difference, account_number, currency, id],
-            )
+            self._recalculate_ranks_and_balances(account_number)
             return True

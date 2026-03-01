@@ -1,9 +1,12 @@
+import logging
 from datetime import datetime
 from typing import Optional
 
 from ...domain.entities import Currency, EntryType
 from .operation_result import OperationResult
 from ..di_container import container
+
+logger = logging.getLogger(__name__)
 
 
 class CashController:
@@ -143,10 +146,9 @@ class CashController:
             return df.to_dicts()[0]
         return None
 
-    def post_operation_balance(
+    def add_operation_balance(
         self,
         account_number: str,
-        currency: Currency,
         amount: float,
         title: str,
         operation_date: datetime,
@@ -154,25 +156,23 @@ class CashController:
     ) -> OperationResult:
         """Record a cash operation on the balance."""
         try:
-            operation = self._cash_repo.operation_balance(
+            op_id = self._cash_repo.add_operation_balance(
                 account_number=account_number,
-                currency=currency,
                 amount=amount,
                 title=title,
                 operation_date=operation_date,
                 entry_type=entry_type,
             )
-            if operation[0]:
-                return OperationResult(success=True, message=operation[1])
-            else:
-                return OperationResult(
-                    success=False,
-                    message=operation[1],
-                )
+            return OperationResult(
+                success=True,
+                message=f"Operation successful, id: {op_id}",
+                data={"id": op_id},
+            )
         except Exception as e:
+            logger.error("Failed to record cash operation: %s", e)
             return OperationResult(
                 success=False,
-                message=f"Failed to record cash operation: {str(e)}",
+                message=f"Failed to record cash operation: {e}",
             )
 
     def get_operations_by_account(self, account_number: str) -> list[dict]:
@@ -181,7 +181,9 @@ class CashController:
             df = self._cash_repo.get_operations_by_account(account_number)
             return df.to_dicts() if df is not None else []
         except Exception as e:
-            print(f"Failed to get operations for account {account_number}: {str(e)}")
+            logger.error(
+                "Failed to get operations for account %s: %s", account_number, e
+            )
             return []
 
     def get_all_operations(self) -> list[dict]:
@@ -190,16 +192,16 @@ class CashController:
             df = self._cash_repo.get_all_operations()
             return df.to_dicts() if df is not None else []
         except Exception as e:
-            print(f"Failed to get all operations: {str(e)}")
+            logger.error("Failed to get all operations: %s", e)
             return []
 
-    def get_balance(self, account_number: str, currency: Currency) -> float:
-        """Get current balance for specific account and currency."""
+    def get_balance(self, account_number: str) -> float:
+        """Get current balance for specific account."""
         try:
-            balance = self._cash_repo.get_balance(account_number, currency)
+            balance = self._cash_repo.get_balance(account_number)
             return balance if balance is not None else 0.0
         except Exception as e:
-            print(f"Failed to get balance for account {account_number}: {str(e)}")
+            logger.error("Failed to get balance for account %s: %s", account_number, e)
             return 0.0
 
     def update_operation_by_id(

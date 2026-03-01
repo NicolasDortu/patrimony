@@ -107,7 +107,7 @@ class PortfolioController:
         timeline: dict = {}
 
         for row in df.iter_rows(named=True):
-            key = (row["account_number"], row["currency"])
+            key = row["account_number"]
             account_balances[key] = row["balance"]
             total = sum(account_balances.values())
             timeline[row["operation_date"]] = total

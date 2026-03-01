@@ -99,17 +99,16 @@ class CashService:
         return CashController().get_all_cash()
 
     @staticmethod
-    def post_operation_balance(
+    def add_operation_balance(
         account_number: str,
-        currency: Currency,
         amount: float,
         title: str,
         operation_date: datetime,
         entry_type: EntryType = EntryType.MANUAL,
     ) -> OperationResult:
         """Make an operation on cash balance."""
-        return CashController().post_operation_balance(
-            account_number, currency, amount, title, operation_date, entry_type
+        return CashController().add_operation_balance(
+            account_number, amount, title, operation_date, entry_type
         )
 
     @staticmethod
@@ -141,9 +140,9 @@ class CashService:
         return CashController().delete_operation_by_id(id)
 
     @staticmethod
-    def get_balance(account_number: str, currency: Currency) -> float:
-        """Get current balance for specific account and currency."""
-        return CashController().get_balance(account_number, currency)
+    def get_balance(account_number: str) -> float:
+        """Get current balance for specific account."""
+        return CashController().get_balance(account_number)
 
 
 # ============================================================================

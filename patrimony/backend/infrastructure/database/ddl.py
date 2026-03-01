@@ -12,7 +12,8 @@ CREATE_POSITIONS_TABLE = """
         transaction_type VARCHAR NOT NULL DEFAULT 'BUY',
         currency VARCHAR DEFAULT 'EUR',
         date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-)
+);
+    CREATE INDEX IF NOT EXISTS idx_positions_ticker ON positions (ticker);
 """
 
 
@@ -56,11 +57,9 @@ CREATE_POSITIONS_TOTAL_VIEW = """
 """
 
 CREATE_CASH_TABLE = """
-    CREATE SEQUENCE IF NOT EXISTS cash_id_seq;
     CREATE TABLE IF NOT EXISTS cash (
-        id INTEGER PRIMARY KEY DEFAULT nextval('cash_id_seq'),
         bank VARCHAR NOT NULL,
-        account_number VARCHAR NOT NULL,
+        account_number VARCHAR PRIMARY KEY,
         currency VARCHAR DEFAULT 'EUR',
         last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         entry_type VARCHAR NOT NULL DEFAULT 'MANUAL'
@@ -72,21 +71,27 @@ CREATE_BALANCE_OPERATIONS_TABLE = """
     CREATE TABLE IF NOT EXISTS balance_operations (
         id INTEGER PRIMARY KEY DEFAULT nextval('balance_operations_id_seq'),
         account_number VARCHAR NOT NULL,
-        currency VARCHAR DEFAULT 'EUR',
         rank INTEGER NOT NULL,
         amount DOUBLE NOT NULL,
         balance DOUBLE NOT NULL,
         title VARCHAR,
         operation_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        entry_type VARCHAR NOT NULL DEFAULT 'MANUAL'
-)
+        entry_type VARCHAR NOT NULL DEFAULT 'MANUAL',
+        FOREIGN KEY (account_number) REFERENCES cash(account_number)
+);
+    CREATE INDEX IF NOT EXISTS idx_balance_ops_accountnumber
+        ON balance_operations (account_number);
 """
 
 CREATE_CASH_BALANCE_VIEW = """
     CREATE OR REPLACE VIEW cash_balance AS
-    SELECT account_number, currency, balance
+    SELECT account_number, balance
     FROM balance_operations
-    WHERE rank = 1
+    WHERE (account_number, rank) IN (
+        SELECT account_number, MAX(rank)
+        FROM balance_operations
+        GROUP BY account_number
+    )
 """
 
 DDL_COMMANDS = [

@@ -8,6 +8,11 @@ class Repository(ABC):
     """Base repository interface following Repository Pattern."""
 
     @abstractmethod
+    def get_all(self) -> object:
+        """Get all entities."""
+        pass
+
+    @abstractmethod
     def get_by_id(self, id: int) -> object:
         """Retrieve entity by ID."""
         pass
@@ -15,11 +20,6 @@ class Repository(ABC):
     @abstractmethod
     def delete(self, id: int) -> None:
         """Delete entity by ID."""
-        pass
-
-    @abstractmethod
-    def get_all(self) -> object:
-        """Get all entities."""
         pass
 
 
@@ -69,15 +69,13 @@ class CashRepository(Repository, ABC):
         currency: Currency,
         balance: float,
         last_updated: datetime,
-    ) -> int:
-        """Add a new cash account and return its id."""
-        # TODO: return success/failure instead
+    ) -> str:
+        """Add a new cash account and return its account number."""
         pass
 
     @abstractmethod
     def update_cash(
         self,
-        id: int,
         bank: str,
         account_number: str,
         currency: Currency,
@@ -87,21 +85,20 @@ class CashRepository(Repository, ABC):
         pass
 
     @abstractmethod
-    def get_balance(self, account_number: str, currency: Currency) -> float:
+    def get_balance(self, account_number: str) -> float:
         """Get the current balance of a cash account."""
         pass
 
     @abstractmethod
-    def operation_balance(
+    def add_operation_balance(
         self,
         account_number: str,
-        currency: Currency,
         amount: float,
         title: str,
         operation_date: datetime,
         entry_type: EntryType = EntryType.MANUAL,
-    ) -> list[bool, str]:
-        """Record a cash operation on the balance and return success/failure and message."""
+    ) -> int:
+        """Record a cash operation on the balance and return the operation ID."""
         pass
 
     @abstractmethod
@@ -112,11 +109,6 @@ class CashRepository(Repository, ABC):
     @abstractmethod
     def get_all_operations(self) -> object:
         """Get all balance operations."""
-        pass
-
-    @abstractmethod
-    def delete_operation_by_id(self, id: int) -> None:
-        """Delete a balance operation by ID."""
         pass
 
     @abstractmethod
@@ -134,6 +126,11 @@ class CashRepository(Repository, ABC):
         entry_type: EntryType,
     ) -> None:
         """Update a balance operation by ID."""
+        pass
+
+    @abstractmethod
+    def delete_operation_by_id(self, id: int) -> None:
+        """Delete a balance operation by ID."""
         pass
 
 

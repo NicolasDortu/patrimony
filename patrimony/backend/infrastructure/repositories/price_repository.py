@@ -4,12 +4,15 @@ Handles fetching current prices from external APIs and
 caching price data in the database.
 """
 
+import logging
 from datetime import datetime, timedelta
 
 import polars as pl
 
 from ...domain.repositories import PriceRepository, MarketDataProvider
 from ..database.connection import DatabaseConnection
+
+logger = logging.getLogger(__name__)
 
 
 class PriceRepositoryImpl(PriceRepository):
@@ -103,8 +106,13 @@ class PriceRepositoryImpl(PriceRepository):
                     """,
                     [ticker, row["date"], row["close_price"]],
                 )
-            except Exception:
-                print("error while storing price history for", ticker, row["date"])
+            except Exception as e:
+                logger.warning(
+                    "Error storing price history for %s at %s: %s",
+                    ticker,
+                    row["date"],
+                    e,
+                )
 
     def sync_price_history(self, tickers: list[str], start_date: datetime) -> None:
         """Fetch and store only missing price history data."""

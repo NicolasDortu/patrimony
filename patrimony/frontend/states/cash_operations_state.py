@@ -4,7 +4,7 @@ from datetime import datetime
 
 import reflex as rx
 
-from ..services import CashService, Currency, EntryType
+from ..services import CashService, EntryType
 
 
 class CashOperationsState(rx.State):
@@ -147,14 +147,8 @@ class CashOperationsState(rx.State):
             else:
                 operation_date = datetime.now()
 
-            try:
-                currency = Currency[self.account_currency]
-            except KeyError:
-                currency = Currency.EUR
-
-            result = CashService.post_operation_balance(
+            result = CashService.add_operation_balance(
                 account_number=self.account_number,
-                currency=currency,
                 amount=amount,
                 title=title,
                 operation_date=operation_date,

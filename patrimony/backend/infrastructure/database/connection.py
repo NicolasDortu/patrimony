@@ -1,11 +1,23 @@
 import os
 import atexit
+import logging
 from pathlib import Path
 from contextlib import contextmanager
 
 import duckdb
 
 from . import ddl
+
+logger = logging.getLogger(__name__)
+
+
+class DatabaseError(Exception):
+    """Raised when a database operation fails."""
+
+    def __init__(self, message: str, query: str = None, original: Exception = None):
+        self.query = query
+        self.original = original
+        super().__init__(message)
 
 
 def _get_db_path() -> Path:
@@ -42,20 +54,38 @@ class DatabaseConnection:
 
         Returns:
             DuckDB query result
+
+        Raises:
+            DatabaseError: If the query fails
         """
-        if parameters:
-            return self.conn.execute(query, parameters)
-        return self.conn.execute(query)
+        try:
+            if parameters:
+                return self.conn.execute(query, parameters)
+            return self.conn.execute(query)
+        except duckdb.Error as e:
+            logger.error(
+                "Query failed: %s | Params: %s | Error: %s", query, parameters, e
+            )
+            raise DatabaseError(message=str(e), query=query, original=e) from e
 
     @contextmanager
     def transaction(self):
+        """Context manager for transactions with automatic rollback on failure.
+
+        Raises:
+            DatabaseError: If the transaction or any operation within it fails
+        """
         self.execute("BEGIN TRANSACTION")
         try:
             yield
             self.execute("COMMIT")
-        except Exception:
+        except DatabaseError:
             self.execute("ROLLBACK")
             raise
+        except Exception as e:
+            self.execute("ROLLBACK")
+            logger.error("Transaction failed: %s", e)
+            raise DatabaseError(message=f"Transaction failed: {e}", original=e) from e
 
     @property
     def connection(self) -> duckdb.DuckDBPyConnection:

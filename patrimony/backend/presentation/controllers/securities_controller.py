@@ -1,3 +1,4 @@
+import logging
 from datetime import datetime, timedelta
 from typing import Optional
 import polars as pl
@@ -10,6 +11,8 @@ from ...domain.entities import (
 )
 from .operation_result import OperationResult
 from ..di_container import container
+
+logger = logging.getLogger(__name__)
 
 PERIOD_CONFIG = {
     "1D": {"days": 1, "period": "1d", "interval": "5m"},
@@ -186,7 +189,7 @@ class SecuritiesController:
                 price = self._price_repo.get_current_price(ticker)
                 prices.append(price)
             except Exception as e:
-                print(f"Error fetching price for {ticker}: {e}")
+                logger.error("Error fetching price for %s: %s", ticker, e)
                 prices.append(None)
 
         # Add prices as new column and recompute total_value
