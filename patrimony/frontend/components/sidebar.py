@@ -135,7 +135,7 @@ def sidebar() -> rx.Component:
     ]
 
     # Exclude unwanted routes from navigation
-    excluded_routes = {"/about", "/equity_detail"}
+    excluded_routes = {"/about", "/equity_detail", "/cash_operations"}
 
     pages = [
         page_dict

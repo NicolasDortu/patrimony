@@ -101,10 +101,10 @@ class PriceRepositoryImpl(PriceRepository):
                     (ticker, date, close_price, period, last_updated)
                     VALUES (?, ?, ?, '1d', CURRENT_TIMESTAMP)
                     """,
-                    [ticker, row["date"], row["close"]],
+                    [ticker, row["date"], row["close_price"]],
                 )
             except Exception:
-                pass
+                print("error while storing price history for", ticker, row["date"])
 
     def sync_price_history(self, tickers: list[str], start_date: datetime) -> None:
         """Fetch and store only missing price history data."""

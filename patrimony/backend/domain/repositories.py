@@ -71,6 +71,7 @@ class CashRepository(Repository, ABC):
         last_updated: datetime,
     ) -> int:
         """Add a new cash account and return its id."""
+        # TODO: return success/failure instead
         pass
 
     @abstractmethod
@@ -80,10 +81,59 @@ class CashRepository(Repository, ABC):
         bank: str,
         account_number: str,
         currency: Currency,
-        balance: float,
         last_updated: datetime,
     ) -> None:
         """Update cash account."""
+        pass
+
+    @abstractmethod
+    def get_balance(self, account_number: str, currency: Currency) -> float:
+        """Get the current balance of a cash account."""
+        pass
+
+    @abstractmethod
+    def operation_balance(
+        self,
+        account_number: str,
+        currency: Currency,
+        amount: float,
+        title: str,
+        operation_date: datetime,
+        entry_type: EntryType = EntryType.MANUAL,
+    ) -> list[bool, str]:
+        """Record a cash operation on the balance and return success/failure and message."""
+        pass
+
+    @abstractmethod
+    def get_operations_by_account(self, account_number: str) -> object:
+        """Get all balance operations for a specific account."""
+        pass
+
+    @abstractmethod
+    def get_all_operations(self) -> object:
+        """Get all balance operations."""
+        pass
+
+    @abstractmethod
+    def delete_operation_by_id(self, id: int) -> None:
+        """Delete a balance operation by ID."""
+        pass
+
+    @abstractmethod
+    def get_cash_balance_history(self) -> object:
+        """Get cash balance history over time for all accounts."""
+        pass
+
+    @abstractmethod
+    def update_operation_by_id(
+        self,
+        id: int,
+        amount: float,
+        title: str,
+        operation_date: datetime,
+        entry_type: EntryType,
+    ) -> None:
+        """Update a balance operation by ID."""
         pass
 
 

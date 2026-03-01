@@ -71,8 +71,7 @@ class CashService:
         last_updated: Optional[datetime] = None,
     ) -> OperationResult:
         """Add new cash account."""
-        controller = CashController()
-        return controller.add_cash(
+        return CashController().add_cash(
             bank, account_number, currency, balance, last_updated
         )
 
@@ -82,26 +81,69 @@ class CashService:
         bank: str,
         account_number: str,
         currency: Currency,
-        balance: float,
         last_updated: Optional[datetime] = None,
     ) -> OperationResult:
         """Update existing cash account."""
-        controller = CashController()
-        return controller.update_cash(
-            id, bank, account_number, currency, balance, last_updated
+        return CashController().update_cash(
+            id, bank, account_number, currency, last_updated
         )
 
     @staticmethod
     def delete_cash(id: int) -> OperationResult:
         """Delete cash account."""
-        controller = CashController()
-        return controller.delete_cash(id)
+        return CashController().delete_cash(id)
 
     @staticmethod
     def get_all_cash() -> list[dict]:
         """Get all cash accounts."""
-        controller = CashController()
-        return controller.get_all_cash()
+        return CashController().get_all_cash()
+
+    @staticmethod
+    def post_operation_balance(
+        account_number: str,
+        currency: Currency,
+        amount: float,
+        title: str,
+        operation_date: datetime,
+        entry_type: EntryType = EntryType.MANUAL,
+    ) -> OperationResult:
+        """Make an operation on cash balance."""
+        return CashController().post_operation_balance(
+            account_number, currency, amount, title, operation_date, entry_type
+        )
+
+    @staticmethod
+    def get_operations_by_account(account_number: str) -> list[dict]:
+        """Get balance operations for specific account."""
+        return CashController().get_operations_by_account(account_number)
+
+    @staticmethod
+    def get_all_operations() -> list[dict]:
+        """Get all balance operations."""
+        return CashController().get_all_operations()
+
+    @staticmethod
+    def update_operation_by_id(
+        id: int,
+        amount: float,
+        title: str,
+        operation_date: datetime,
+        entry_type: EntryType,
+    ) -> OperationResult:
+        """Update a balance operation by ID."""
+        return CashController().update_operation_by_id(
+            id, amount, title, operation_date, entry_type
+        )
+
+    @staticmethod
+    def delete_operation_by_id(id: int) -> OperationResult:
+        """Delete a balance operation by ID."""
+        return CashController().delete_operation_by_id(id)
+
+    @staticmethod
+    def get_balance(account_number: str, currency: Currency) -> float:
+        """Get current balance for specific account and currency."""
+        return CashController().get_balance(account_number, currency)
 
 
 # ============================================================================
@@ -124,8 +166,7 @@ class SecuritiesService:
         date: Optional[datetime] = None,
     ) -> OperationResult:
         """Add new security position."""
-        controller = SecuritiesController()
-        return controller.add_position(
+        return SecuritiesController().add_position(
             ticker,
             price,
             quantity,
@@ -139,32 +180,27 @@ class SecuritiesService:
     @staticmethod
     def delete_position(id: int) -> OperationResult:
         """Delete security position."""
-        controller = SecuritiesController()
-        return controller.delete_position(id)
+        return SecuritiesController().delete_position(id)
 
     @staticmethod
     def get_all_positions() -> list[dict]:
         """Get all individual positions."""
-        controller = SecuritiesController()
-        return controller.get_all_positions()
+        return SecuritiesController().get_all_positions()
 
     @staticmethod
     def get_positions_by_ticker(ticker: str) -> list[dict]:
         """Get positions for specific ticker."""
-        controller = SecuritiesController()
-        return controller.get_positions_by_ticker(ticker)
+        return SecuritiesController().get_positions_by_ticker(ticker)
 
     @staticmethod
     def get_aggregated_positions() -> list[dict]:
         """Get aggregated positions (totals)."""
-        controller = SecuritiesController()
-        return controller.get_aggregated_positions()
+        return SecuritiesController().get_aggregated_positions()
 
     @staticmethod
     def get_chart_data_ticker(ticker: str, period: str = "1M") -> list[dict]:
         """Get chart data for a single ticker."""
-        controller = SecuritiesController()
-        return controller.get_chart_data_ticker(ticker, period)
+        return SecuritiesController().get_chart_data_ticker(ticker, period)
 
 
 # ============================================================================
@@ -178,11 +214,9 @@ class PortfolioService:
     @staticmethod
     def get_portfolio_overview() -> PortfolioOverview:
         """Get complete portfolio overview."""
-        controller = PortfolioController()
-        return controller.get_portfolio_overview()
+        return PortfolioController().get_portfolio_overview()
 
     @staticmethod
     def get_chart_data(period: str = "1M") -> list[dict]:
         """Get chart data for the entire portfolio."""
-        controller = PortfolioController()
-        return controller.get_chart_data(period)
+        return PortfolioController().get_chart_data(period)

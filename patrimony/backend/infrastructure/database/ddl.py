@@ -62,9 +62,31 @@ CREATE_CASH_TABLE = """
         bank VARCHAR NOT NULL,
         account_number VARCHAR NOT NULL,
         currency VARCHAR DEFAULT 'EUR',
-        balance DOUBLE NOT NULL,
-        last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        entry_type VARCHAR NOT NULL DEFAULT 'MANUAL'
 )
+"""
+
+CREATE_BALANCE_OPERATIONS_TABLE = """
+    CREATE SEQUENCE IF NOT EXISTS balance_operations_id_seq;
+    CREATE TABLE IF NOT EXISTS balance_operations (
+        id INTEGER PRIMARY KEY DEFAULT nextval('balance_operations_id_seq'),
+        account_number VARCHAR NOT NULL,
+        currency VARCHAR DEFAULT 'EUR',
+        rank INTEGER NOT NULL,
+        amount DOUBLE NOT NULL,
+        balance DOUBLE NOT NULL,
+        title VARCHAR,
+        operation_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        entry_type VARCHAR NOT NULL DEFAULT 'MANUAL'
+)
+"""
+
+CREATE_CASH_BALANCE_VIEW = """
+    CREATE OR REPLACE VIEW cash_balance AS
+    SELECT account_number, currency, balance
+    FROM balance_operations
+    WHERE rank = 1
 """
 
 DDL_COMMANDS = [
@@ -73,4 +95,6 @@ DDL_COMMANDS = [
     CREATE_PRICE_HISTORY_TABLE,
     CREATE_POSITIONS_TOTAL_VIEW,
     CREATE_CASH_TABLE,
+    CREATE_BALANCE_OPERATIONS_TABLE,
+    CREATE_CASH_BALANCE_VIEW,
 ]

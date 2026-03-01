@@ -92,6 +92,28 @@ class PortfolioController:
             return 0.0
         return float(df["balance"].sum())
 
+    def _build_cash_timeline(self) -> dict:
+        """Build a timeline of total cash balance keyed by date.
+
+        Returns a dict mapping datetime -> total cash balance across all accounts.
+        For each operation date, tracks the last known balance per (account, currency)
+        and sums them to get the total.
+        """
+        df = self._cash_repo.get_cash_balance_history()
+        if df is None or df.is_empty():
+            return {}
+
+        account_balances: dict[tuple[str, str], float] = {}
+        timeline: dict = {}
+
+        for row in df.iter_rows(named=True):
+            key = (row["account_number"], row["currency"])
+            account_balances[key] = row["balance"]
+            total = sum(account_balances.values())
+            timeline[row["operation_date"]] = total
+
+        return timeline
+
     def get_portfolio_overview(self) -> PortfolioOverview:
         """Get complete portfolio overview with all metrics."""
         # Securities
@@ -160,20 +182,39 @@ class PortfolioController:
 
         return ticker_data, sorted(all_dates_set)
 
+    def _get_cash_at_date(self, cash_timeline: dict, dt, current_cash: float) -> float:
+        """Get the total cash balance as of a given date using forward-fill.
+
+        Finds the most recent cash timeline entry that is <= dt.
+        Returns 0.0 for dates before any cash operation exists.
+        """
+        if not cash_timeline:
+            return current_cash
+
+        best_value = None
+        for timeline_dt, value in cash_timeline.items():
+            if timeline_dt <= dt:
+                if best_value is None or timeline_dt >= best_value[0]:
+                    best_value = (timeline_dt, value)
+
+        return best_value[1] if best_value else 0.0
+
     def _build_chart_rows(
         self,
         securities: dict[str, float],
         ticker_data: dict[str, dict],
         all_dates: list,
-        cash: float,
+        cash_timeline: dict,
+        current_cash: float,
         date_fmt: str,
     ) -> list[dict]:
-        """Build chart rows from unified ticker data."""
+        """Build chart rows from unified ticker data with time-varying cash."""
         rows = []
         for dt in all_dates:
             stocks = sum(
                 qty * ticker_data.get(t, {}).get(dt, 0) for t, qty in securities.items()
             )
+            cash = self._get_cash_at_date(cash_timeline, dt, current_cash)
             date_str = dt.strftime(date_fmt) if hasattr(dt, "strftime") else str(dt)
             rows.append(
                 {
@@ -189,7 +230,8 @@ class PortfolioController:
         """Build time-series chart data for the entire portfolio."""
         config = PERIOD_CONFIG.get(period, PERIOD_CONFIG["1M"])
         securities = self._get_all_securities()
-        cash_value = self._calculate_cash_value(self._cash_repo.get_all())
+        current_cash = self._calculate_cash_value(self._cash_repo.get_all())
+        cash_timeline = self._build_cash_timeline()
 
         if not securities:
             return []
@@ -207,5 +249,5 @@ class PortfolioController:
         )
 
         return self._build_chart_rows(
-            securities, ticker_data, all_dates, cash_value, date_fmt
+            securities, ticker_data, all_dates, cash_timeline, current_cash, date_fmt
         )

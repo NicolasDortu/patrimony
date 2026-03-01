@@ -103,6 +103,24 @@ class CashTableState(rx.State):
     def load_entries(self) -> None:
         """Load all cash entries from the database."""
         cash_entries = CashService.get_all_cash()
+        # Enrich each entry with its current balance
+        for entry in cash_entries:
+            try:
+                currency_str = entry.get("currency", "EUR")
+                try:
+                    currency = Currency[currency_str]
+                except KeyError:
+                    currency = Currency.EUR
+                balance = CashService.get_balance(
+                    entry.get("account_number", ""),
+                    currency,
+                )
+                entry["balance"] = balance if balance is not None else 0.0
+            except Exception as e:
+                print(
+                    f"Failed to get balance for account {entry.get('account_number', '')}: {e}"
+                )
+                entry["balance"] = 0.0
         self.items = cash_entries
         self.total_items = len(self.items)
 
@@ -164,7 +182,6 @@ class CashTableState(rx.State):
             bank=form_data.get("bank", self.edit_bank),
             account_number=form_data.get("account_number", self.edit_account_number),
             currency=currency,
-            balance=float(form_data.get("balance", self.edit_balance)),
             last_updated=datetime.now(),
         )
 
@@ -187,3 +204,10 @@ class CashTableState(rx.State):
             return rx.toast.success(result.message, position="top-center")
         else:
             return rx.toast.error(result.message, position="top-center")
+
+    @rx.event
+    def open_operations_view(self, account_number: str, currency: str):
+        """Navigate to the cash operations page for a specific account."""
+        return rx.redirect(
+            f"/cash_operations?account_number={account_number}&currency={currency}"
+        )

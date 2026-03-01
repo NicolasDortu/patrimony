@@ -1,8 +1,7 @@
 import reflex as rx
 
 from .common import header_cell
-from ...states.cash_state import CashTableState
-from ...dialogs.cash_dialog import open_add_cash_dialog
+from ...states.cash_operations_state import CashOperationsState
 
 
 def _show_item(item: dict, index: int) -> rx.Component:
@@ -17,50 +16,58 @@ def _show_item(item: dict, index: int) -> rx.Component:
         rx.color("accent", 3),
     )
     return rx.table.row(
-        rx.table.cell(item["bank"]),
-        rx.table.cell(item["account_number"]),
-        rx.table.cell(item["currency"]),
-        rx.table.cell(f"{item['balance']:.2f}"),
+        rx.table.row_header_cell(item["id"]),
+        rx.table.cell(item["title"]),
+        rx.table.cell(
+            rx.cond(
+                item["amount"].to(float) >= 0,
+                rx.text(item["amount"], color=rx.color("grass", 9)),
+                rx.text(item["amount"], color=rx.color("red", 9)),
+            )
+        ),
+        rx.table.cell(item["balance"]),
+        rx.table.cell(item["operation_date"]),
+        rx.table.cell(item["entry_type"]),
         rx.table.cell(
             rx.hstack(
+                # Edit button with dialog
                 rx.dialog.root(
                     rx.dialog.trigger(
                         rx.icon_button(
                             rx.icon("pencil", size=18),
                             variant="ghost",
                             color_scheme="blue",
-                            on_click=lambda: CashTableState.open_edit_dialog(item),
+                            on_click=lambda: CashOperationsState.open_edit_dialog(item),
                         ),
                     ),
                     rx.dialog.content(
-                        rx.dialog.title("Edit Cash Entry"),
+                        rx.dialog.title("Edit Operation"),
                         rx.dialog.description(
-                            "Update the balance for this cash entry.",
+                            "Update the details for this operation.",
                         ),
                         rx.form(
                             rx.flex(
                                 rx.input(
-                                    placeholder="Bank Name",
-                                    name="bank",
-                                    default_value=CashTableState.edit_bank,
+                                    placeholder="Title",
+                                    name="title",
+                                    default_value=CashOperationsState.edit_title,
                                     required=True,
                                 ),
                                 rx.input(
-                                    placeholder="Account Number",
-                                    name="account_number",
-                                    default_value=CashTableState.edit_account_number,
+                                    placeholder="Amount",
+                                    name="amount",
+                                    type="number",
+                                    step="0.01",
+                                    default_value=CashOperationsState.edit_amount.to(
+                                        str
+                                    ),
                                     required=True,
                                 ),
-                                rx.select(
-                                    [
-                                        "EUR",
-                                        "USD",
-                                        "GBP",
-                                        "JPY",
-                                    ],  # TODO: make it dynamic based on available currencies
-                                    placeholder="Currency",
-                                    name="currency",
-                                    default_value=CashTableState.edit_currency,
+                                rx.input(
+                                    placeholder="Operation Date",
+                                    name="operation_date",
+                                    type="date",
+                                    default_value=CashOperationsState.edit_operation_date,
                                     required=True,
                                 ),
                                 rx.flex(
@@ -80,19 +87,13 @@ def _show_item(item: dict, index: int) -> rx.Component:
                                 direction="column",
                                 spacing="4",
                             ),
-                            on_submit=CashTableState.update_cash_entry,
+                            on_submit=CashOperationsState.update_operation,
                             reset_on_submit=False,
                         ),
                         max_width="450px",
                     ),
                 ),
-                rx.icon_button(
-                    rx.icon("arrow_right_to_line", size=18),
-                    variant="ghost",
-                    on_click=lambda: CashTableState.open_operations_view(
-                        item["account_number"], item["currency"]
-                    ),
-                ),
+                # Delete button with confirmation dialog
                 rx.alert_dialog.root(
                     rx.alert_dialog.trigger(
                         rx.icon_button(
@@ -102,22 +103,24 @@ def _show_item(item: dict, index: int) -> rx.Component:
                         ),
                     ),
                     rx.alert_dialog.content(
-                        rx.alert_dialog.title("Delete Cash Entry"),
+                        rx.alert_dialog.title("Delete Operation"),
                         rx.alert_dialog.description(
-                            "Are you sure you want to delete this cash entry? This action cannot be undone.",
+                            "Are you sure you want to delete this operation? This action cannot be undone.",
                         ),
                         rx.flex(
                             rx.alert_dialog.cancel(
                                 rx.button(
-                                    "Cancel", variant="soft", color_scheme="gray"
+                                    "Cancel",
+                                    variant="soft",
+                                    color_scheme="gray",
                                 ),
                             ),
                             rx.alert_dialog.action(
                                 rx.button(
                                     "Delete",
                                     color_scheme="red",
-                                    on_click=lambda: CashTableState.delete_cash_entry(
-                                        item
+                                    on_click=lambda: CashOperationsState.delete_operation(
+                                        item["id"]
                                     ),
                                 ),
                             ),
@@ -127,7 +130,7 @@ def _show_item(item: dict, index: int) -> rx.Component:
                     ),
                 ),
                 spacing="2",
-            )
+            ),
         ),
         style={"_hover": {"bg": hover_color}, "bg": bg_color},
         align="center",
@@ -138,35 +141,39 @@ def _pagination_view() -> rx.Component:
     return rx.hstack(
         rx.text(
             "Page ",
-            rx.code(CashTableState.page_number),
-            f" of {CashTableState.total_pages}",
+            rx.code(CashOperationsState.page_number),
+            f" of {CashOperationsState.total_pages}",
             justify="end",
         ),
         rx.hstack(
             rx.icon_button(
                 rx.icon("chevrons-left", size=18),
-                on_click=CashTableState.first_page,
-                opacity=rx.cond(CashTableState.page_number == 1, 0.6, 1),
-                color_scheme=rx.cond(CashTableState.page_number == 1, "gray", "accent"),
+                on_click=CashOperationsState.first_page,
+                opacity=rx.cond(CashOperationsState.page_number == 1, 0.6, 1),
+                color_scheme=rx.cond(
+                    CashOperationsState.page_number == 1, "gray", "accent"
+                ),
                 variant="soft",
             ),
             rx.icon_button(
                 rx.icon("chevron-left", size=18),
-                on_click=CashTableState.prev_page,
-                opacity=rx.cond(CashTableState.page_number == 1, 0.6, 1),
-                color_scheme=rx.cond(CashTableState.page_number == 1, "gray", "accent"),
+                on_click=CashOperationsState.prev_page,
+                opacity=rx.cond(CashOperationsState.page_number == 1, 0.6, 1),
+                color_scheme=rx.cond(
+                    CashOperationsState.page_number == 1, "gray", "accent"
+                ),
                 variant="soft",
             ),
             rx.icon_button(
                 rx.icon("chevron-right", size=18),
-                on_click=CashTableState.next_page,
+                on_click=CashOperationsState.next_page,
                 opacity=rx.cond(
-                    CashTableState.page_number == CashTableState.total_pages,
+                    CashOperationsState.page_number == CashOperationsState.total_pages,
                     0.6,
                     1,
                 ),
                 color_scheme=rx.cond(
-                    CashTableState.page_number == CashTableState.total_pages,
+                    CashOperationsState.page_number == CashOperationsState.total_pages,
                     "gray",
                     "accent",
                 ),
@@ -174,14 +181,14 @@ def _pagination_view() -> rx.Component:
             ),
             rx.icon_button(
                 rx.icon("chevrons-right", size=18),
-                on_click=CashTableState.last_page,
+                on_click=CashOperationsState.last_page,
                 opacity=rx.cond(
-                    CashTableState.page_number == CashTableState.total_pages,
+                    CashOperationsState.page_number == CashOperationsState.total_pages,
                     0.6,
                     1,
                 ),
                 color_scheme=rx.cond(
-                    CashTableState.page_number == CashTableState.total_pages,
+                    CashOperationsState.page_number == CashOperationsState.total_pages,
                     "gray",
                     "accent",
                 ),
@@ -199,27 +206,20 @@ def _pagination_view() -> rx.Component:
     )
 
 
-def cash_table() -> rx.Component:
-    """Main cash table component."""
+def cash_operations_table() -> rx.Component:
+    """Main cash operations table component."""
     return rx.box(
-        rx.flex(
-            open_add_cash_dialog(CashTableState.add_cash_entry),
-            align="center",
-            justify="start",
-            spacing="4",
-            padding_bottom="1.5em",
-        ),
         rx.flex(
             rx.flex(
                 rx.cond(
-                    CashTableState.sort_reverse,
+                    CashOperationsState.sort_reverse,
                     rx.icon(
                         "arrow-down-z-a",
                         size=28,
                         stroke_width=1.5,
                         cursor="pointer",
                         flex_shrink="0",
-                        on_click=CashTableState.toggle_sort,
+                        on_click=CashOperationsState.toggle_sort,
                     ),
                     rx.icon(
                         "arrow-down-a-z",
@@ -227,14 +227,19 @@ def cash_table() -> rx.Component:
                         stroke_width=1.5,
                         cursor="pointer",
                         flex_shrink="0",
-                        on_click=CashTableState.toggle_sort,
+                        on_click=CashOperationsState.toggle_sort,
                     ),
                 ),
                 rx.select(
-                    ["bank", "account_number", "currency", "balance"],
-                    placeholder="Sort By: bank",
+                    [
+                        "title",
+                        "amount",
+                        "balance",
+                        "operation_date",
+                    ],
+                    placeholder="Sort By: operation_date",
                     size="3",
-                    on_change=CashTableState.set_sort_value,
+                    on_change=CashOperationsState.set_sort_value,
                 ),
                 rx.input(
                     rx.input.slot(rx.icon("search")),
@@ -242,17 +247,19 @@ def cash_table() -> rx.Component:
                         rx.icon("x"),
                         justify="end",
                         cursor="pointer",
-                        on_click=CashTableState.set_search_value(""),
-                        display=rx.cond(CashTableState.search_value, "flex", "none"),
+                        on_click=CashOperationsState.set_search_value(""),
+                        display=rx.cond(
+                            CashOperationsState.search_value, "flex", "none"
+                        ),
                     ),
-                    value=CashTableState.search_value,
+                    value=CashOperationsState.search_value,
                     placeholder="Search here...",
                     size="3",
                     max_width=["150px", "150px", "200px", "250px"],
                     width="100%",
                     variant="surface",
                     color_scheme="gray",
-                    on_change=CashTableState.set_search_value,
+                    on_change=CashOperationsState.set_search_value,
                 ),
                 align="center",
                 justify="end",
@@ -267,16 +274,18 @@ def cash_table() -> rx.Component:
         rx.table.root(
             rx.table.header(
                 rx.table.row(
-                    header_cell("Bank", "landmark"),
-                    header_cell("Account Number", "hash"),
-                    header_cell("Currency", "badge-euro"),
+                    header_cell("ID", "hash"),
+                    header_cell("Title", "text"),
+                    header_cell("Amount", "dollar-sign"),
                     header_cell("Balance", "wallet"),
-                    header_cell("Actions", "settings"),
+                    header_cell("Date", "calendar"),
+                    header_cell("Entry Type", "tag"),
+                    header_cell("Actions", "cog"),
                 ),
             ),
             rx.table.body(
                 rx.foreach(
-                    CashTableState.get_current_page,
+                    CashOperationsState.get_current_page,
                     lambda item, index: _show_item(item, index),
                 )
             ),

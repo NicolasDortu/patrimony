@@ -1,6 +1,7 @@
 import os
 import atexit
 from pathlib import Path
+from contextlib import contextmanager
 
 import duckdb
 
@@ -45,6 +46,16 @@ class DatabaseConnection:
         if parameters:
             return self.conn.execute(query, parameters)
         return self.conn.execute(query)
+
+    @contextmanager
+    def transaction(self):
+        self.execute("BEGIN TRANSACTION")
+        try:
+            yield
+            self.execute("COMMIT")
+        except Exception:
+            self.execute("ROLLBACK")
+            raise
 
     @property
     def connection(self) -> duckdb.DuckDBPyConnection:
