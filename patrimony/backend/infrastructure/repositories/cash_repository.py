@@ -223,7 +223,7 @@ class CashRepositoryImpl(CashRepository):
         )
         return result.pl()
 
-    def delete_operation_by_id(self, id: int) -> bool:
+    def delete_operation_by_id(self, id: int) -> None:
         """Delete a balance operation by ID and recalculate ranks/balances."""
         with self._conn.transaction():
             result = self._conn.execute(
@@ -233,7 +233,6 @@ class CashRepositoryImpl(CashRepository):
             account_number = result.fetchone()[0]
             self._conn.execute("DELETE FROM balance_operations WHERE id = ?", [id])
             self._recalculate_ranks_and_balances(account_number)
-            return True
 
     def update_operation_by_id(
         self,
@@ -242,7 +241,7 @@ class CashRepositoryImpl(CashRepository):
         title: str,
         operation_date: datetime,
         entry_type: EntryType,
-    ) -> bool:
+    ) -> None:
         """Update a balance operation by ID and recalculate ranks/balances."""
         with self._conn.transaction():
             result = self._conn.execute(
@@ -259,4 +258,3 @@ class CashRepositoryImpl(CashRepository):
                 [amount, title, operation_date, entry_type.value, id],
             )
             self._recalculate_ranks_and_balances(account_number)
-            return True

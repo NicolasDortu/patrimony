@@ -214,22 +214,16 @@ class CashController:
     ) -> OperationResult:
         """Update a balance operation by ID."""
         try:
-            result = self._cash_repo.update_operation_by_id(
+            self._cash_repo.update_operation_by_id(
                 id=id,
                 amount=amount,
                 title=title,
                 operation_date=operation_date,
                 entry_type=entry_type,
             )
-            if result:
-                return OperationResult(
-                    success=True, message="Operation updated successfully"
-                )
-            else:
-                return OperationResult(
-                    success=False,
-                    message="Failed to update operation",
-                )
+            return OperationResult(
+                success=True, message="Operation updated successfully"
+            )
         except Exception as e:
             return OperationResult(
                 success=False,
@@ -239,16 +233,10 @@ class CashController:
     def delete_operation_by_id(self, id: int) -> OperationResult:
         """Delete a balance operation by ID."""
         try:
-            result = self._cash_repo.delete_operation_by_id(id)
-            if result:
-                return OperationResult(
-                    success=True, message="Operation deleted successfully"
-                )
-            else:
-                return OperationResult(
-                    success=False,
-                    message="Failed to delete operation",
-                )
+            self._cash_repo.delete_operation_by_id(id)
+            return OperationResult(
+                success=True, message="Operation deleted successfully"
+            )
         except Exception as e:
             return OperationResult(
                 success=False,

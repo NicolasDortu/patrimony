@@ -9,7 +9,7 @@ class AssetType(Enum):
     CASH = "CASH"
     BOND = "BOND"
     ETF = "ETF"
-    FUND = "FUND"
+    COMMODITY = "COMMODITY"
 
 
 class Currency(Enum):
