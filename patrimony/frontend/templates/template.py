@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import json
+import os
+from pathlib import Path
 from typing import Callable
 
 import reflex as rx
@@ -34,6 +37,17 @@ def menu_item_link(text, href):
     )
 
 
+def _get_settings_path() -> Path:
+    """Get the settings file path (same directory as the database)."""
+    if os.name == "nt":
+        base = Path(os.environ.get("LOCALAPPDATA", Path.home()))
+    else:
+        base = Path.home() / ".local" / "share"
+    settings_dir = base / "patrimony" / "settings"
+    settings_dir.mkdir(parents=True, exist_ok=True)
+    return settings_dir / "settings.json"
+
+
 class ThemeState(rx.State):
     """The state for the theme of the app."""
 
@@ -45,21 +59,46 @@ class ThemeState(rx.State):
 
     scaling: str = "100%"
 
+    def _save(self) -> None:
+        """Persist current settings to JSON."""
+        data = {
+            "accent_color": self.accent_color,
+            "gray_color": self.gray_color,
+            "radius": self.radius,
+            "scaling": self.scaling,
+        }
+        _get_settings_path().write_text(json.dumps(data, indent=2))
+
+    @rx.event
+    def load_settings(self) -> None:
+        """Load settings from JSON file on app start."""
+        path = _get_settings_path()
+        if path.exists():
+            data = json.loads(path.read_text())
+            self.accent_color = data.get("accent_color", self.accent_color)
+            self.gray_color = data.get("gray_color", self.gray_color)
+            self.radius = data.get("radius", self.radius)
+            self.scaling = data.get("scaling", self.scaling)
+
     @rx.event
     def set_scaling(self, value: str):
         self.scaling = value
+        self._save()
 
     @rx.event
     def set_radius(self, value: str):
         self.radius = value
+        self._save()
 
     @rx.event
     def set_accent_color(self, value: str):
         self.accent_color = value
+        self._save()
 
     @rx.event
     def set_gray_color(self, value: str):
         self.gray_color = value
+        self._save()
 
 
 ALL_PAGES = []
@@ -135,13 +174,23 @@ def template(
                 position="relative",
             )
 
+        # Always load theme settings alongside any page-specific on_load.
+        if on_load is not None:
+            combined_on_load = (
+                [ThemeState.load_settings, on_load]
+                if not isinstance(on_load, list)
+                else [ThemeState.load_settings, *on_load]
+            )
+        else:
+            combined_on_load = ThemeState.load_settings
+
         @rx.page(
             route=route,
             title=title,
             description=description,
             meta=all_meta,
             script_tags=script_tags,
-            on_load=on_load,
+            on_load=combined_on_load,
         )
         def theme_wrap():
             return rx.theme(
