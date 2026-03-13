@@ -7,7 +7,7 @@ import reflex as rx
 from ..services import PortfolioService
 
 
-AssetFilter = Literal["all", "stocks", "cash"]
+AssetFilter = Literal["all", "stocks", "etfs", "crypto", "commodity", "cash"]
 
 
 class PortfolioState(rx.State):
@@ -116,13 +116,28 @@ class PortfolioState(rx.State):
         allocation = []
 
         if self.total_value > 0:
-            if self.stocks_value > 0:
+            # Group securities by asset_type
+            asset_type_config = {
+                "STOCK": ("Stocks", "var(--purple-9)"),
+                "ETF": ("ETFs", "var(--orange-9)"),
+                "CRYPTO": ("Crypto", "var(--yellow-9)"),
+                "COMMODITY": ("Commodity", "var(--red-9)"),
+            }
+            asset_totals: dict[str, float] = {}
+            for stock in self._stocks_total_data:
+                at = stock.get("asset_type", "STOCK")
+                val = stock.get("total_value") or 0.0
+                if val > 0:
+                    asset_totals[at] = asset_totals.get(at, 0.0) + val
+
+            for at, total in asset_totals.items():
+                label, fill = asset_type_config.get(at, (at, "var(--blue-9)"))
                 allocation.append(
                     {
-                        "name": "Stocks",
-                        "value": round(self.stocks_value, 2),
-                        "percentage": self._calc_percentage(self.stocks_value),
-                        "fill": "var(--blue-9)",
+                        "name": label,
+                        "value": round(total, 2),
+                        "percentage": self._calc_percentage(total),
+                        "fill": fill,
                     }
                 )
 

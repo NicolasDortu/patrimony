@@ -42,11 +42,13 @@ CREATE_POSITIONS_TOTAL_VIEW = """
         agg.ticker,
         agg.total_quantity,
         agg.avg_price,
+        agg.asset_type,
         pc.current_price,
         agg.total_quantity * pc.current_price AS total_value
     FROM (
         SELECT
             ticker,
+            MIN(asset_type) AS asset_type,
             SUM(CASE WHEN transaction_type = 'BUY' THEN quantity ELSE -quantity END) AS total_quantity,
             SUM(CASE WHEN transaction_type = 'BUY' THEN price * quantity ELSE -price * quantity END) /
                 NULLIF(SUM(CASE WHEN transaction_type = 'BUY' THEN quantity ELSE -quantity END), 0) AS avg_price
@@ -94,6 +96,20 @@ CREATE_CASH_BALANCE_VIEW = """
     )
 """
 
+CREATE_SECURITIES_REFERENCE_TABLE = """
+CREATE TABLE IF NOT EXISTS securities_reference (
+    ticker VARCHAR PRIMARY KEY,
+    name VARCHAR,
+    asset_type VARCHAR,
+    exchange VARCHAR,
+    category VARCHAR,
+    country VARCHAR
+);
+
+CREATE INDEX IF NOT EXISTS idx_ref_name ON securities_reference(name);
+CREATE INDEX IF NOT EXISTS idx_ref_asset_type ON securities_reference(asset_type);
+"""
+
 DDL_COMMANDS = [
     CREATE_POSITIONS_TABLE,
     CREATE_PRICE_CACHE_TABLE,
@@ -102,4 +118,5 @@ DDL_COMMANDS = [
     CREATE_CASH_TABLE,
     CREATE_BALANCE_OPERATIONS_TABLE,
     CREATE_CASH_BALANCE_VIEW,
+    CREATE_SECURITIES_REFERENCE_TABLE,
 ]

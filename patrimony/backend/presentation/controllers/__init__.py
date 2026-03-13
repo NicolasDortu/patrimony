@@ -10,6 +10,7 @@ from .cash_controller import CashController
 from .securities_controller import SecuritiesController
 from .price_controller import PriceController
 from .portfolio_controller import PortfolioController, PortfolioOverview
+from .reference_controller import ReferenceController
 
 __all__ = [
     "OperationResult",
@@ -18,4 +19,5 @@ __all__ = [
     "PriceController",
     "PortfolioController",
     "PortfolioOverview",
+    "ReferenceController",
 ]

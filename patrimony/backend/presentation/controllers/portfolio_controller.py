@@ -1,7 +1,7 @@
 """Portfolio Controller - Orchestrates multiple repositories to provide portfolio-wide metrics and views."""
 
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 from typing import Optional
 import polars as pl
 
@@ -139,13 +139,16 @@ class PortfolioController:
         )
 
     # Chart Methods
-    def _get_all_securities(self) -> dict[str, float]:
-        """Get all securities as {ticker: quantity}."""
+    def _get_all_securities(self) -> dict[str, dict]:
+        """Get all securities as {ticker: {quantity, asset_type}}."""
         df = self._securities_repo.get_aggregated_positions()
         if df is None or df.is_empty():
             return {}
         return {
-            row["ticker"]: float(row["total_quantity"])
+            row["ticker"]: {
+                "quantity": float(row["total_quantity"]),
+                "asset_type": row.get("asset_type", "STOCK"),
+            }
             for row in df.iter_rows(named=True)
             if row.get("total_quantity", 0) > 0
         }
@@ -177,10 +180,27 @@ class PortfolioController:
                     ticker = t_df["ticker"][0]
                     dates = t_df["date"].to_list()
                     prices = t_df["close_price"].to_list()
-                    ticker_data[ticker] = dict(zip(dates, prices))
-                    all_dates_set.update(dates)
+                    # Normalize to date-only so tickers from different
+                    # exchanges/timezones share matching keys
+                    for d, p in zip(dates, prices):
+                        day = d.date() if hasattr(d, "date") else d
+                        ticker_data.setdefault(ticker, {})[day] = p
+                        all_dates_set.add(day)
 
-        return ticker_data, sorted(all_dates_set)
+        sorted_dates = sorted(all_dates_set)
+
+        # Forward-fill: for each ticker, replace missing/0/None with last known price
+        for ticker in ticker_data:
+            prices = ticker_data[ticker]
+            last_valid = None
+            for dt in sorted_dates:
+                price = prices.get(dt)
+                if price is not None and price == price and price > 0:
+                    last_valid = price
+                elif last_valid is not None:
+                    prices[dt] = last_valid
+
+        return ticker_data, sorted_dates
 
     def _get_cash_at_date(self, cash_timeline: dict, dt, current_cash: float) -> float:
         """Get the total cash balance as of a given date using forward-fill.
@@ -191,37 +211,68 @@ class PortfolioController:
         if not cash_timeline:
             return current_cash
 
+        # Normalize dt to date for comparison
+        dt_date = (
+            dt
+            if isinstance(dt, date) and not isinstance(dt, datetime)
+            else (dt.date() if hasattr(dt, "date") else dt)
+        )
+
         best_value = None
         for timeline_dt, value in cash_timeline.items():
-            if timeline_dt <= dt:
-                if best_value is None or timeline_dt >= best_value[0]:
-                    best_value = (timeline_dt, value)
+            tl_date = (
+                timeline_dt.date() if hasattr(timeline_dt, "date") else timeline_dt
+            )
+            if tl_date <= dt_date:
+                if best_value is None or tl_date >= best_value[0]:
+                    best_value = (tl_date, value)
 
         return best_value[1] if best_value else 0.0
 
     def _build_chart_rows(
         self,
-        securities: dict[str, float],
+        securities: dict[str, dict],
         ticker_data: dict[str, dict],
         all_dates: list,
         cash_timeline: dict,
         current_cash: float,
         date_fmt: str,
     ) -> list[dict]:
-        """Build chart rows from unified ticker data with time-varying cash."""
+        """Build chart rows with per-asset-type breakdown."""
+        asset_type_labels = {
+            "STOCK": "Stocks",
+            "ETF": "ETFs",
+            "CRYPTO": "Crypto",
+            "COMMODITY": "Commodity",
+        }
         rows = []
         for dt in all_dates:
-            stocks = sum(
-                qty * ticker_data.get(t, {}).get(dt, 0) for t, qty in securities.items()
-            )
+            asset_values = {
+                "Stocks": 0.0,
+                "ETFs": 0.0,
+                "Crypto": 0.0,
+                "Commodity": 0.0,
+            }
+            for ticker, info in securities.items():
+                price = ticker_data.get(ticker, {}).get(dt)
+                if price is None or price != price or price <= 0:
+                    price = 0
+                value = info["quantity"] * price
+                label = asset_type_labels.get(info.get("asset_type", "STOCK"), "Stocks")
+                asset_values[label] += value
+
             cash = self._get_cash_at_date(cash_timeline, dt, current_cash)
+            securities_total = sum(asset_values.values())
             date_str = dt.strftime(date_fmt) if hasattr(dt, "strftime") else str(dt)
             rows.append(
                 {
                     "Date": date_str,
-                    "Stocks": round(stocks, 2),
+                    "Stocks": round(asset_values["Stocks"], 2),
+                    "ETFs": round(asset_values["ETFs"], 2),
+                    "Crypto": round(asset_values["Crypto"], 2),
+                    "Commodity": round(asset_values["Commodity"], 2),
                     "Cash": round(cash, 2),
-                    "Total": round(stocks + cash, 2),
+                    "Total": round(securities_total + cash, 2),
                 }
             )
         return rows

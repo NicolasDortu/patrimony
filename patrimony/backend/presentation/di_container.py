@@ -6,6 +6,7 @@ from ..infrastructure.repositories import (
     CashRepositoryImpl,
     SecuritiesRepositoryImpl,
     PriceRepositoryImpl,
+    ReferenceRepositoryImpl,
 )
 
 
@@ -44,6 +45,11 @@ class Container(containers.DeclarativeContainer):
         PriceRepositoryImpl,
         connection=database,
         market_data_provider=market_data_provider,
+    )
+
+    reference_repository = providers.Factory(
+        ReferenceRepositoryImpl,
+        connection=database,
     )
 
 

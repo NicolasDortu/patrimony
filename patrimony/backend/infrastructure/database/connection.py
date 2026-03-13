@@ -3,6 +3,7 @@ import atexit
 import logging
 from pathlib import Path
 from contextlib import contextmanager
+import polars as pl
 
 import duckdb
 
@@ -44,6 +45,28 @@ class DatabaseConnection:
     def init_db(self) -> None:
         for command in ddl.DDL_COMMANDS:
             self.conn.execute(command)
+        self._load_reference_data()
+
+    def _load_reference_data(self) -> None:
+        """Load securities reference table from CSV if empty."""
+        count = self.conn.execute(
+            "SELECT COUNT(*) FROM securities_reference"
+        ).fetchone()[0]
+        if count > 0:
+            return
+
+        csv_path = Path(__file__).parent / "data" / "tickers.csv"
+        if not csv_path.exists():
+            logger.warning("Tickers CSV not found at %s", csv_path)
+            return
+
+        df = pl.read_csv(str(csv_path), encoding="utf8-lossy")
+        self.conn.execute(
+            "INSERT INTO securities_reference "
+            "(ticker, name, asset_type, exchange, category, country) "
+            "SELECT ticker, name, asset_type, exchange, category, country FROM df"
+        )
+        logger.info("Loaded %d securities into reference table", len(df))
 
     def execute(self, query: str, parameters=None) -> duckdb.DuckDBPyConnection:
         """Execute a query and return the result.

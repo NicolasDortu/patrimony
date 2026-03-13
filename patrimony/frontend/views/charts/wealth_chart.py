@@ -12,6 +12,9 @@ def _wealth_area_chart() -> rx.Component:
         create_gradient("blue", "colorTotal"),
         create_gradient("green", "colorCash"),
         create_gradient("purple", "colorStocks"),
+        create_gradient("orange", "colorETFs"),
+        create_gradient("yellow", "colorCrypto"),
+        create_gradient("red", "colorCommodity"),
         rx.cond(
             PortfolioState.asset_filter == "all",
             rx.recharts.area(
@@ -28,6 +31,36 @@ def _wealth_area_chart() -> rx.Component:
                 data_key="Stocks",
                 stroke=rx.color("purple", 9),
                 fill="url(#colorStocks)",
+                type_="monotone",
+            ),
+        ),
+        rx.cond(
+            (PortfolioState.asset_filter == "all")
+            | (PortfolioState.asset_filter == "etfs"),
+            rx.recharts.area(
+                data_key="ETFs",
+                stroke=rx.color("orange", 9),
+                fill="url(#colorETFs)",
+                type_="monotone",
+            ),
+        ),
+        rx.cond(
+            (PortfolioState.asset_filter == "all")
+            | (PortfolioState.asset_filter == "crypto"),
+            rx.recharts.area(
+                data_key="Crypto",
+                stroke=rx.color("yellow", 9),
+                fill="url(#colorCrypto)",
+                type_="monotone",
+            ),
+        ),
+        rx.cond(
+            (PortfolioState.asset_filter == "all")
+            | (PortfolioState.asset_filter == "commodity"),
+            rx.recharts.area(
+                data_key="Commodity",
+                stroke=rx.color("red", 9),
+                fill="url(#colorCommodity)",
                 type_="monotone",
             ),
         ),
@@ -68,6 +101,30 @@ def _wealth_bar_chart() -> rx.Component:
             rx.recharts.bar(
                 data_key="Stocks",
                 fill=rx.color("purple", 9),
+            ),
+        ),
+        rx.cond(
+            (PortfolioState.asset_filter == "all")
+            | (PortfolioState.asset_filter == "etfs"),
+            rx.recharts.bar(
+                data_key="ETFs",
+                fill=rx.color("orange", 9),
+            ),
+        ),
+        rx.cond(
+            (PortfolioState.asset_filter == "all")
+            | (PortfolioState.asset_filter == "crypto"),
+            rx.recharts.bar(
+                data_key="Crypto",
+                fill=rx.color("yellow", 9),
+            ),
+        ),
+        rx.cond(
+            (PortfolioState.asset_filter == "all")
+            | (PortfolioState.asset_filter == "commodity"),
+            rx.recharts.bar(
+                data_key="Commodity",
+                fill=rx.color("red", 9),
             ),
         ),
         rx.cond(
@@ -115,6 +172,9 @@ def _asset_filter_control() -> rx.Component:
     return rx.segmented_control.root(
         rx.segmented_control.item("All", value="all"),
         rx.segmented_control.item("Stocks", value="stocks"),
+        rx.segmented_control.item("ETFs", value="etfs"),
+        rx.segmented_control.item("Crypto", value="crypto"),
+        rx.segmented_control.item("Commodity", value="commodity"),
         rx.segmented_control.item("Cash", value="cash"),
         default_value="all",
         value=PortfolioState.asset_filter,

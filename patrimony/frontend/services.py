@@ -20,6 +20,7 @@ from ..backend.presentation.controllers import (
     SecuritiesController,
     PortfolioController,
     PortfolioOverview,
+    ReferenceController,
 )
 
 
@@ -52,6 +53,7 @@ class SecurityTotal:
     avg_price: float = 0.0
     current_price: float = 0.0
     total_value: float = 0.0
+    asset_type: str = "STOCK"
 
 
 # ============================================================================
@@ -219,3 +221,17 @@ class PortfolioService:
     def get_chart_data(period: str = "1M") -> list[dict]:
         """Get chart data for the entire portfolio."""
         return PortfolioController().get_chart_data(period)
+
+
+# ============================================================================
+# BACKEND INTERFACE - Securities Reference
+# ============================================================================
+
+
+class SecuritiesReferenceService:
+    """Frontend service for securities reference lookup."""
+
+    @staticmethod
+    def search(query: str, limit: int = 10) -> list[dict]:
+        """Search securities reference by ticker or name."""
+        return ReferenceController().search(query, limit)

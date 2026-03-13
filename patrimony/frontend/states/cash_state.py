@@ -106,15 +106,7 @@ class CashTableState(rx.State):
         # Enrich each entry with its current balance
         for entry in cash_entries:
             try:
-                currency_str = entry.get("currency", "EUR")
-                try:
-                    currency = Currency[currency_str]
-                except KeyError:
-                    currency = Currency.EUR
-                balance = CashService.get_balance(
-                    entry.get("account_number", ""),
-                    currency,
-                )
+                balance = CashService.get_balance(entry.get("account_number", ""))
                 entry["balance"] = balance if balance is not None else 0.0
             except Exception as e:
                 print(

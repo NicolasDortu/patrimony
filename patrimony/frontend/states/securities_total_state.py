@@ -4,6 +4,7 @@ import reflex as rx
 
 from ..services import (
     SecuritiesService,
+    SecuritiesReferenceService,
     SecurityTotal,
     EntryType,
     TransactionType,
@@ -25,6 +26,15 @@ class TableStateTotal(rx.State):
     offset: int = 0
     limit: int = 12  # Number of rows per page
 
+    # Asset type filter for the table
+    selected_asset_filter: str = "all"
+
+    # Position form autocomplete state
+    ticker_search: str = ""
+    _ticker_suggestions: list[dict] = []
+    show_suggestions: bool = False
+    selected_asset_type: str = "STOCK"
+
     @rx.event
     def set_search_value(self, value: str) -> None:
         self.search_value = value
@@ -36,6 +46,14 @@ class TableStateTotal(rx.State):
     @rx.var
     def filtered_sorted_items(self) -> list[SecurityTotal]:
         items = self.items
+
+        # Filter by asset type
+        if self.selected_asset_filter != "all":
+            items = [
+                item
+                for item in items
+                if item.asset_type.upper() == self.selected_asset_filter.upper()
+            ]
 
         # Filter items based on selected item
         if self.sort_value:
@@ -110,17 +128,61 @@ class TableStateTotal(rx.State):
         self.load_entries()
 
     @rx.event
+    def set_asset_filter(self, value: str | list[str]) -> None:
+        self.selected_asset_filter = value
+        self.offset = 0
+
+    # Autocomplete for position form
+    @rx.event
+    def search_ticker(self, query: str) -> None:
+        self.ticker_search = query
+        if len(query) >= 1:
+            self._ticker_suggestions = SecuritiesReferenceService.search(query)
+            self.show_suggestions = len(self._ticker_suggestions) > 0
+        else:
+            self._ticker_suggestions = []
+            self.show_suggestions = False
+
+    @rx.event
+    def select_suggestion(self, ticker: str, asset_type: str) -> None:
+        self.ticker_search = ticker
+        self.selected_asset_type = asset_type.upper() if asset_type else "STOCK"
+        self.show_suggestions = False
+
+    @rx.event
+    def set_selected_asset_type(self, value: str) -> None:
+        self.selected_asset_type = value
+
+    @rx.event
+    def clear_ticker_search(self) -> None:
+        self.ticker_search = ""
+        self._ticker_suggestions = []
+        self.show_suggestions = False
+        self.selected_asset_type = "STOCK"
+
+    @rx.var
+    def ticker_suggestions(self) -> list[dict]:
+        return self._ticker_suggestions
+
+    @rx.event
     def add_stock(self, form_data: dict) -> None:
-        """Add a new stock position from form data."""
+        """Add a new position from form data."""
+        ticker = form_data.get("ticker", self.ticker_search).upper()
+        asset_type_str = form_data.get("asset_type", self.selected_asset_type)
         result = SecuritiesService.add_position(
-            ticker=form_data.get("ticker", "").upper(),
+            ticker=ticker,
             price=float(form_data.get("price", 0)),
             quantity=float(form_data.get("quantity", 0)),
             entry_type=EntryType.MANUAL,
-            asset_type=AssetType.STOCK,
+            asset_type=AssetType(asset_type_str),
             transaction_type=TransactionType.BUY,
             currency=Currency(form_data.get("currency", "EUR")),
         )
+
+        self.ticker_search = ""
+        self._ticker_suggestions = []
+        self.show_suggestions = False
+        self.selected_asset_type = "STOCK"
 
         if result.success:
             self.load_entries()

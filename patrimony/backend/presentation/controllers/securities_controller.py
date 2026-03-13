@@ -234,12 +234,26 @@ class SecuritiesController:
             "%H:%M" if is_intraday else ("%Y-%m" if config["days"] > 365 else "%d/%m")
         )
 
-        return [
-            {
-                "name": row["date"].strftime(date_fmt)
+        rows = []
+        last_valid_price = None
+        for row in price_df.iter_rows(named=True):
+            price = row["close_price"]
+            if price is not None and price == price and price > 0:
+                last_valid_price = price
+            elif last_valid_price is not None:
+                price = last_valid_price
+            else:
+                continue
+
+            date_str = (
+                row["date"].strftime(date_fmt)
                 if hasattr(row["date"], "strftime")
-                else str(row["date"]),
-                "price": round(row["close_price"] * df["total_quantity"][0], 2),
-            }
-            for row in price_df.iter_rows(named=True)
-        ]
+                else str(row["date"])
+            )
+            rows.append(
+                {
+                    "name": date_str,
+                    "price": round(price * df["total_quantity"][0], 2),
+                }
+            )
+        return rows
