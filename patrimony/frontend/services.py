@@ -29,7 +29,7 @@ from ..backend.presentation.controllers import (
 # ============================================================================
 
 
-@dataclass
+@dataclass(slots=True)
 class SecurityPosition:
     """Frontend model for individual security position."""
 
@@ -44,7 +44,7 @@ class SecurityPosition:
     asset_type: AssetType = AssetType.STOCK
 
 
-@dataclass
+@dataclass(slots=True)
 class SecurityTotal:
     """Frontend model for aggregated security positions."""
 

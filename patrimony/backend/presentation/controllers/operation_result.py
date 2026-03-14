@@ -2,7 +2,7 @@ from typing import Optional
 from dataclasses import dataclass
 
 
-@dataclass
+@dataclass(slots=True)
 class OperationResult:
     """Generic result for operations."""
 

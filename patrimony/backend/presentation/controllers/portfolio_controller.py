@@ -18,7 +18,7 @@ PERIOD_CONFIG = {
 }
 
 
-@dataclass
+@dataclass(slots=True)
 class PortfolioOverview:
     """Aggregated portfolio data with metrics."""
 
