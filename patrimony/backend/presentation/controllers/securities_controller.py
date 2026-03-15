@@ -5,11 +5,11 @@ import polars as pl
 
 from ...domain.entities import (
     AssetType,
-    Currency,
     EntryType,
     TransactionType,
 )
 from .operation_result import OperationResult
+from .currency_controller import CurrencyController
 from ..di_container import container
 
 logger = logging.getLogger(__name__)
@@ -50,7 +50,6 @@ class SecuritiesController:
         entry_type: EntryType,
         asset_type: AssetType,
         transaction_type: TransactionType,
-        currency: Currency,
         date: Optional[datetime] = None,
     ) -> OperationResult:
         """Add new position (buy or sell).
@@ -62,7 +61,6 @@ class SecuritiesController:
             entry_type: How entry was created (manual, API, etc.)
             asset_type: Type of asset (stock, crypto, etc.)
             transaction_type: Buy or sell
-            currency: Currency of transaction
             date: Transaction date (defaults to now)
 
         Returns:
@@ -79,7 +77,6 @@ class SecuritiesController:
                 entry_type=entry_type,
                 asset_type=asset_type,
                 transaction_type=transaction_type,
-                currency=currency,
                 date=date,
             )
 
@@ -122,7 +119,11 @@ class SecuritiesController:
             List of position dictionaries
         """
         df = self._securities_repo.get_all()
-        return df.to_dicts() if df is not None else []
+        if df is None:
+            return []
+        if "currency" in df.columns:
+            df = df.drop("currency")
+        return df.to_dicts()
 
     def get_positions_by_ticker(self, ticker: str) -> list[dict]:
         """Get all positions for specific ticker.
@@ -134,12 +135,17 @@ class SecuritiesController:
             List of position dictionaries
         """
         df = self._securities_repo.get_by_ticker(ticker)
-        return df.to_dicts() if df is not None else []
+        if df is None:
+            return []
+        if "currency" in df.columns:
+            df = df.drop("currency")
+        return df.to_dicts()
 
-    def get_aggregated_positions(self) -> list[dict]:
+    def get_aggregated_positions(self, user_currency: str = "EUR") -> list[dict]:
         """Get aggregated positions (total quantities, avg prices).
 
         Enriches data with current prices from price repository.
+        Converts all values to the user's default currency.
 
         Returns:
             List of aggregated position dictionaries with current prices
@@ -150,6 +156,20 @@ class SecuritiesController:
 
         # Enrich with current prices
         df = self._enrich_with_prices(df)
+
+        # Apply currency conversion
+        currency_ctrl = CurrencyController()
+        tickers = df["ticker"].to_list()
+        rates = currency_ctrl.get_rates_for_tickers(tickers, user_currency)
+        rate_list = pl.Series("_rate", [rates.get(t, 1.0) for t in tickers])
+        df = df.with_columns(
+            (pl.col("current_price") * rate_list).alias("current_price"),
+            (pl.col("avg_price") * rate_list).alias("avg_price"),
+        )
+        df = df.with_columns(
+            (pl.col("current_price") * pl.col("total_quantity")).alias("total_value")
+        )
+
         return df.to_dicts()
 
     def get_position_by_id(self, id: int) -> Optional[dict]:
@@ -218,7 +238,9 @@ class SecuritiesController:
             self._price_repo.sync_price_history([ticker], start)
             return self._price_repo.get_price_history([ticker], start, end)
 
-    def get_chart_data_ticker(self, ticker: str, period: str = "1M") -> list[dict]:
+    def get_chart_data_ticker(
+        self, ticker: str, period: str = "1M", user_currency: str = "EUR"
+    ) -> list[dict]:
         """Get time-series price data for a single ticker."""
         config = PERIOD_CONFIG.get(period, PERIOD_CONFIG["1M"])
         df = self._securities_repo.get_aggregated_positions_by_ticker(ticker)
@@ -229,6 +251,12 @@ class SecuritiesController:
         price_df = self._fetch_price_data(ticker, config, is_intraday)
         if price_df is None or price_df.is_empty():
             return []
+
+        # Get currency conversion rate
+        currency_ctrl = CurrencyController()
+        rate = currency_ctrl.get_rates_for_tickers([ticker], user_currency).get(
+            ticker, 1.0
+        )
 
         date_fmt = (
             "%H:%M" if is_intraday else ("%Y-%m" if config["days"] > 365 else "%d/%m")
@@ -253,7 +281,7 @@ class SecuritiesController:
             rows.append(
                 {
                     "name": date_str,
-                    "price": round(price * df["total_quantity"][0], 2),
+                    "price": round(price * df["total_quantity"][0] * rate, 2),
                 }
             )
         return rows

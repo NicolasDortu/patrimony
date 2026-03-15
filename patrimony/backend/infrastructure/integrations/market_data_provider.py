@@ -13,6 +13,7 @@ import polars as pl
 
 from ...domain.repositories import MarketDataProvider
 
+
 logger = logging.getLogger(__name__)
 
 
@@ -84,3 +85,13 @@ class YahooFinanceProvider(MarketDataProvider):
         except Exception as e:
             logger.warning("Error fetching price history for %s: %s", ticker, e)
         return pl.DataFrame(schema={"date": pl.Datetime, "close_price": pl.Float64})
+
+    def get_ticker_currency(self, ticker: str) -> Optional[str]:
+        """Fetch the native trading currency of a ticker from Yahoo Finance."""
+        try:
+            stock = yf.Ticker(ticker)
+            currency = stock.fast_info.get("currency")
+            return currency.upper() if currency else None
+        except Exception as e:
+            logger.warning("Error fetching currency for %s: %s", ticker, e)
+            return None

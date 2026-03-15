@@ -4,7 +4,7 @@ from datetime import datetime
 import polars as pl
 
 from ...domain.repositories import SecuritiesRepository
-from ...domain.entities import AssetType, Currency, EntryType, TransactionType
+from ...domain.entities import AssetType, EntryType, TransactionType
 from ..database.connection import DatabaseConnection
 
 
@@ -22,15 +22,14 @@ class SecuritiesRepositoryImpl(SecuritiesRepository):
         entry_type: EntryType,
         asset_type: AssetType,
         transaction_type: TransactionType,
-        currency: Currency,
         date: datetime,
     ) -> int:
         """Add a new position to the database."""
         result = self._conn.execute(
             """
             INSERT INTO positions
-            (ticker, price, quantity, entry_type, asset_type, transaction_type, currency, date)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            (ticker, price, quantity, entry_type, asset_type, transaction_type, date)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
             RETURNING id
             """,
             [
@@ -40,7 +39,6 @@ class SecuritiesRepositoryImpl(SecuritiesRepository):
                 entry_type.value,
                 asset_type.value,
                 transaction_type.value,
-                currency.value,
                 date,
             ],
         )

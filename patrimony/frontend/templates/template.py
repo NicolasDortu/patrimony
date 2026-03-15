@@ -59,6 +59,8 @@ class ThemeState(rx.State):
 
     scaling: str = "100%"
 
+    default_currency: str = "EUR"
+
     def _save(self) -> None:
         """Persist current settings to JSON."""
         data = {
@@ -66,6 +68,7 @@ class ThemeState(rx.State):
             "gray_color": self.gray_color,
             "radius": self.radius,
             "scaling": self.scaling,
+            "default_currency": self.default_currency,
         }
         _get_settings_path().write_text(json.dumps(data, indent=2))
 
@@ -79,6 +82,7 @@ class ThemeState(rx.State):
             self.gray_color = data.get("gray_color", self.gray_color)
             self.radius = data.get("radius", self.radius)
             self.scaling = data.get("scaling", self.scaling)
+            self.default_currency = data.get("default_currency", self.default_currency)
 
     @rx.event
     def set_scaling(self, value: str):
@@ -98,6 +102,11 @@ class ThemeState(rx.State):
     @rx.event
     def set_gray_color(self, value: str):
         self.gray_color = value
+        self._save()
+
+    @rx.event
+    def set_default_currency(self, value: str):
+        self.default_currency = value
         self._save()
 
 

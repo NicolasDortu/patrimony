@@ -6,6 +6,7 @@ from ..templates import template
 from ..views.pickers.color_picker import primary_color_picker, secondary_color_picker
 from ..views.pickers.radius_picker import radius_picker
 from ..views.pickers.scaling_picker import scaling_picker
+from ..views.pickers.currency_picker import currency_picker
 
 
 @template(route="/settings", title="Settings")
@@ -18,6 +19,8 @@ def settings() -> rx.Component:
     """
     return rx.vstack(
         rx.heading("Settings", size="5"),
+        # Default currency picker
+        currency_picker(),
         # Primary color picker
         rx.vstack(
             rx.hstack(

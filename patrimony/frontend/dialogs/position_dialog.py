@@ -1,6 +1,5 @@
 import reflex as rx
 
-from ..services import Currency
 from ..states.securities_total_state import TableStateTotal
 
 
@@ -87,13 +86,6 @@ def open_add_position_dialog(on_submit: callable) -> rx.Component:
                         type="number",
                         min="1",
                         step="1",
-                        required=True,
-                    ),
-                    rx.select(
-                        [currency.value for currency in Currency],
-                        placeholder="Currency",
-                        name="currency",
-                        default_value="EUR",
                         required=True,
                     ),
                     rx.flex(

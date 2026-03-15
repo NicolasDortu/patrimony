@@ -21,18 +21,6 @@ class DatabaseError(Exception):
         super().__init__(message)
 
 
-def _get_db_path() -> Path:
-    """Set the database path based on the environment and OS."""
-    if os.name == "nt":  # Windows
-        base = Path(os.environ.get("LOCALAPPDATA", Path.home()))
-    else:  # Unix-like systems
-        base = Path.home() / ".local" / "share"
-
-    db_dir = base / "patrimony" / "data"
-    db_dir.mkdir(parents=True, exist_ok=True)
-    return db_dir / "patrimony.duckdb"
-
-
 class DatabaseConnection:
     """Duckdb instantiation and connection management."""
 
@@ -48,10 +36,10 @@ class DatabaseConnection:
         self._load_reference_data()
 
     def _load_reference_data(self) -> None:
-        """Load securities reference table from CSV if empty."""
-        count = self.conn.execute(
-            "SELECT COUNT(*) FROM securities_reference"
-        ).fetchone()[0]
+        """Load tickers reference table from CSV if empty."""
+        count = self.conn.execute("SELECT COUNT(*) FROM tickers_reference").fetchone()[
+            0
+        ]
         if count > 0:
             return
 
@@ -62,7 +50,7 @@ class DatabaseConnection:
 
         df = pl.read_csv(str(csv_path), encoding="utf8-lossy")
         self.conn.execute(
-            "INSERT INTO securities_reference "
+            "INSERT INTO tickers_reference "
             "(ticker, name, asset_type, exchange, category, country) "
             "SELECT ticker, name, asset_type, exchange, category, country FROM df"
         )
@@ -116,3 +104,15 @@ class DatabaseConnection:
 
     def close_connection(self) -> None:
         self.conn.close()
+
+
+def _get_db_path() -> Path:
+    """Set the database path based on the environment and OS."""
+    if os.name == "nt":  # Windows
+        base = Path(os.environ.get("LOCALAPPDATA", Path.home()))
+    else:  # Unix-like systems
+        base = Path.home() / ".local" / "share"
+
+    db_dir = base / "patrimony" / "data"
+    db_dir.mkdir(parents=True, exist_ok=True)
+    return db_dir / "patrimony.duckdb"

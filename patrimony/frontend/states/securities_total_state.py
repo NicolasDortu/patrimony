@@ -8,9 +8,9 @@ from ..services import (
     SecurityTotal,
     EntryType,
     TransactionType,
-    Currency,
     AssetType,
 )
+from ..templates import ThemeState
 
 
 class TableStateTotal(rx.State):
@@ -118,8 +118,11 @@ class TableStateTotal(rx.State):
         self.offset = (self.total_pages - 1) * self.limit
 
     @rx.event
-    def load_entries(self) -> None:
-        positions = SecuritiesService.get_aggregated_positions()
+    async def load_entries(self) -> None:
+        theme_state = await self.get_state(ThemeState)
+        positions = SecuritiesService.get_aggregated_positions(
+            theme_state.default_currency
+        )
         self.items = [SecurityTotal(**pos) for pos in positions]
         self.total_items = len(self.items)
 
@@ -165,7 +168,7 @@ class TableStateTotal(rx.State):
         return self._ticker_suggestions
 
     @rx.event
-    def add_stock(self, form_data: dict) -> None:
+    async def add_stock(self, form_data: dict) -> None:
         """Add a new position from form data."""
         ticker = form_data.get("ticker", self.ticker_search).upper()
         asset_type_str = form_data.get("asset_type", self.selected_asset_type)
@@ -176,7 +179,6 @@ class TableStateTotal(rx.State):
             entry_type=EntryType.MANUAL,
             asset_type=AssetType(asset_type_str),
             transaction_type=TransactionType.BUY,
-            currency=Currency(form_data.get("currency", "EUR")),
         )
 
         self.ticker_search = ""
@@ -185,13 +187,13 @@ class TableStateTotal(rx.State):
         self.selected_asset_type = "STOCK"
 
         if result.success:
-            self.load_entries()
+            await self.load_entries()
             return rx.toast.success(result.message, position="top-center")
         else:
             return rx.toast.error(result.message, position="top-center")
 
     @rx.event
-    def delete_stock(self, id: Union[int, dict]) -> None:
+    async def delete_stock(self, id: Union[int, dict]) -> None:
         """Delete a stock position by ID
         args:
             id: The ID of the stock position to delete. Can be an int or a dict.
@@ -202,7 +204,7 @@ class TableStateTotal(rx.State):
         result = SecuritiesService.delete_position(id)
 
         if result.success:
-            self.load_entries()
+            await self.load_entries()
             return rx.toast.success(result.message, position="top-center")
         else:
             return rx.toast.error(result.message, position="top-center")

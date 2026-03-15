@@ -25,18 +25,7 @@ class CashController:
         balance: float,
         last_updated: Optional[datetime] = None,
     ) -> OperationResult:
-        """Add new cash account.
-
-        Args:
-            bank: Bank name
-            account_number: Account identifier
-            currency: Currency enum
-            balance: Current balance
-            last_updated: Last update timestamp (defaults to now)
-
-        Returns:
-            CashOperationResult with success status and new ID
-        """
+        """Add new cash account."""
         try:
             if last_updated is None:
                 last_updated = datetime.now()
@@ -68,18 +57,8 @@ class CashController:
         currency: Currency,
         last_updated: Optional[datetime] = None,
     ) -> OperationResult:
-        """Update existing cash account.
+        """Update existing cash account."""
 
-        Args:
-            id: Cash account ID
-            bank: Bank name
-            account_number: Account identifier
-            currency: Currency enum
-            last_updated: Last update timestamp (defaults to now)
-
-        Returns:
-            OperationResult with success status
-        """
         try:
             if last_updated is None:
                 last_updated = datetime.now()
@@ -103,14 +82,7 @@ class CashController:
             )
 
     def delete_cash(self, id: int) -> OperationResult:
-        """Delete cash account by ID.
-
-        Args:
-            id: Cash account ID
-
-        Returns:
-            OperationResult with success status
-        """
+        """Delete cash account by ID."""
         try:
             self._cash_repo.delete(id)
             return OperationResult(
@@ -134,9 +106,6 @@ class CashController:
 
     def get_cash_by_id(self, id: int) -> Optional[dict]:
         """Get single cash account by ID.
-
-        Args:
-            id: Cash account ID
 
         Returns:
             Cash account dictionary or None if not found

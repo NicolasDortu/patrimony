@@ -21,6 +21,7 @@ from ..backend.presentation.controllers import (
     PortfolioController,
     PortfolioOverview,
     ReferenceController,
+    CurrencyController,
 )
 
 
@@ -39,7 +40,6 @@ class SecurityPosition:
     quantity: float = 1.0
     entry_type: EntryType = EntryType.MANUAL
     transaction_type: TransactionType = TransactionType.BUY
-    currency: Currency = Currency.EUR
     date: datetime = field(default_factory=datetime.now)
     asset_type: AssetType = AssetType.STOCK
 
@@ -163,7 +163,6 @@ class SecuritiesService:
         entry_type: EntryType,
         asset_type: AssetType,
         transaction_type: TransactionType,
-        currency: Currency,
         date: Optional[datetime] = None,
     ) -> OperationResult:
         """Add new security position."""
@@ -174,7 +173,6 @@ class SecuritiesService:
             entry_type,
             asset_type,
             transaction_type,
-            currency,
             date,
         )
 
@@ -194,14 +192,18 @@ class SecuritiesService:
         return SecuritiesController().get_positions_by_ticker(ticker)
 
     @staticmethod
-    def get_aggregated_positions() -> list[dict]:
+    def get_aggregated_positions(user_currency: str = "EUR") -> list[dict]:
         """Get aggregated positions (totals)."""
-        return SecuritiesController().get_aggregated_positions()
+        return SecuritiesController().get_aggregated_positions(user_currency)
 
     @staticmethod
-    def get_chart_data_ticker(ticker: str, period: str = "1M") -> list[dict]:
+    def get_chart_data_ticker(
+        ticker: str, period: str = "1M", user_currency: str = "EUR"
+    ) -> list[dict]:
         """Get chart data for a single ticker."""
-        return SecuritiesController().get_chart_data_ticker(ticker, period)
+        return SecuritiesController().get_chart_data_ticker(
+            ticker, period, user_currency
+        )
 
 
 # ============================================================================
@@ -213,14 +215,14 @@ class PortfolioService:
     """Frontend service for portfolio operations."""
 
     @staticmethod
-    def get_portfolio_overview() -> PortfolioOverview:
+    def get_portfolio_overview(user_currency: str = "EUR") -> PortfolioOverview:
         """Get complete portfolio overview."""
-        return PortfolioController().get_portfolio_overview()
+        return PortfolioController().get_portfolio_overview(user_currency)
 
     @staticmethod
-    def get_chart_data(period: str = "1M") -> list[dict]:
+    def get_chart_data(period: str = "1M", user_currency: str = "EUR") -> list[dict]:
         """Get chart data for the entire portfolio."""
-        return PortfolioController().get_chart_data(period)
+        return PortfolioController().get_chart_data(period, user_currency)
 
 
 # ============================================================================
@@ -235,3 +237,17 @@ class SecuritiesReferenceService:
     def search(query: str, limit: int = 10) -> list[dict]:
         """Search securities reference by ticker or name."""
         return ReferenceController().search(query, limit)
+
+
+# ============================================================================
+# BACKEND INTERFACE - Currency Operations
+# ============================================================================
+
+
+class CurrencyService:
+    """Frontend service for currency operations."""
+
+    @staticmethod
+    def get_exchange_rate(from_currency: str, to_currency: str) -> float:
+        """Get exchange rate between two currencies."""
+        return CurrencyController().get_exchange_rate(from_currency, to_currency)

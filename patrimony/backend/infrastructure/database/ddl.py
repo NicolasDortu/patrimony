@@ -10,7 +10,6 @@ CREATE_POSITIONS_TABLE = """
         entry_type VARCHAR NOT NULL,
         asset_type VARCHAR NOT NULL,
         transaction_type VARCHAR NOT NULL DEFAULT 'BUY',
-        currency VARCHAR DEFAULT 'EUR',
         date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
     CREATE INDEX IF NOT EXISTS idx_positions_ticker ON positions (ticker);
@@ -96,8 +95,8 @@ CREATE_CASH_BALANCE_VIEW = """
     )
 """
 
-CREATE_SECURITIES_REFERENCE_TABLE = """
-CREATE TABLE IF NOT EXISTS securities_reference (
+CREATE_TICKERS_REFERENCE_TABLE = """
+CREATE TABLE IF NOT EXISTS tickers_reference (
     ticker VARCHAR PRIMARY KEY,
     name VARCHAR,
     asset_type VARCHAR,
@@ -106,8 +105,26 @@ CREATE TABLE IF NOT EXISTS securities_reference (
     country VARCHAR
 );
 
-CREATE INDEX IF NOT EXISTS idx_ref_name ON securities_reference(name);
-CREATE INDEX IF NOT EXISTS idx_ref_asset_type ON securities_reference(asset_type);
+CREATE INDEX IF NOT EXISTS idx_ref_name ON tickers_reference(name);
+CREATE INDEX IF NOT EXISTS idx_ref_asset_type ON tickers_reference(asset_type);
+"""
+
+CREATE_TICKER_CURRENCY_TABLE = """
+CREATE TABLE IF NOT EXISTS ticker_currency (
+    ticker VARCHAR PRIMARY KEY,
+    currency VARCHAR NOT NULL,
+    last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+"""
+
+CREATE_EXCHANGE_RATE_CACHE_TABLE = """
+CREATE TABLE IF NOT EXISTS exchange_rate_cache (
+    from_currency VARCHAR NOT NULL,
+    to_currency VARCHAR NOT NULL,
+    rate DOUBLE NOT NULL,
+    last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (from_currency, to_currency)
+);
 """
 
 DDL_COMMANDS = [
@@ -118,5 +135,7 @@ DDL_COMMANDS = [
     CREATE_CASH_TABLE,
     CREATE_BALANCE_OPERATIONS_TABLE,
     CREATE_CASH_BALANCE_VIEW,
-    CREATE_SECURITIES_REFERENCE_TABLE,
+    CREATE_TICKERS_REFERENCE_TABLE,
+    CREATE_TICKER_CURRENCY_TABLE,
+    CREATE_EXCHANGE_RATE_CACHE_TABLE,
 ]

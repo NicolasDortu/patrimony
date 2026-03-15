@@ -11,6 +11,7 @@ from .securities_controller import SecuritiesController
 from .price_controller import PriceController
 from .portfolio_controller import PortfolioController, PortfolioOverview
 from .reference_controller import ReferenceController
+from .currency_controller import CurrencyController
 
 __all__ = [
     "OperationResult",
@@ -20,4 +21,5 @@ __all__ = [
     "PortfolioController",
     "PortfolioOverview",
     "ReferenceController",
+    "CurrencyController",
 ]

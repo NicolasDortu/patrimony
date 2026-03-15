@@ -7,9 +7,9 @@ from ..services import (
     SecurityPosition,
     EntryType,
     TransactionType,
-    Currency,
     AssetType,
 )
+from ..templates import ThemeState
 
 
 class TableStateDetails(rx.State):
@@ -31,12 +31,12 @@ class TableStateDetails(rx.State):
     stock_chart_data: list[dict] = []
 
     @rx.event
-    def on_page_load(self) -> None:
+    async def on_page_load(self) -> None:
         """Handle page load - get ticker from URL and load entries."""
         ticker = self.router.url.query_parameters.get("ticker", "")
         self.ticker = ticker
         self.load_entries()
-        self._load_chart_data()
+        await self._load_chart_data()
 
     @rx.event
     def set_ticker(self, ticker: str) -> None:
@@ -137,7 +137,6 @@ class TableStateDetails(rx.State):
             entry_type=EntryType.MANUAL,
             asset_type=AssetType.STOCK,
             transaction_type=TransactionType.BUY,
-            currency=Currency(form_data.get("currency", "EUR")),
         )
 
         if result.success:
@@ -174,11 +173,12 @@ class TableStateDetails(rx.State):
         data = str(header + "\n" + "\n".join(rows))
         return rx.download(data=data, filename="positions.csv")
 
-    def _load_chart_data(self):
+    async def _load_chart_data(self):
         """Fetch stock price history for the chart."""
         if self.ticker:
+            theme_state = await self.get_state(ThemeState)
             self.stock_chart_data = SecuritiesService.get_chart_data_ticker(
-                self.ticker, self.selected_period
+                self.ticker, self.selected_period, theme_state.default_currency
             )
         else:
             self.stock_chart_data = []
@@ -189,4 +189,4 @@ class TableStateDetails(rx.State):
         if isinstance(period, list):
             period = period[0] if period else "1Y"
         self.selected_period = period
-        self._load_chart_data()
+        await self._load_chart_data()

@@ -20,7 +20,7 @@ class ReferenceRepositoryImpl(ReferenceRepository):
         result = self._conn.execute(
             """
             SELECT ticker, name, asset_type, exchange, category, country
-            FROM securities_reference
+            FROM tickers_reference
             WHERE LOWER(ticker) LIKE ? OR LOWER(name) LIKE ?
             ORDER BY
                 CASE

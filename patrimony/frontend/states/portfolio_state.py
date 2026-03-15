@@ -5,6 +5,7 @@ from typing import Literal
 import reflex as rx
 
 from ..services import PortfolioService
+from ..templates import ThemeState
 
 
 AssetFilter = Literal["all", "stocks", "etfs", "crypto", "commodity", "cash"]
@@ -33,9 +34,12 @@ class PortfolioState(rx.State):
     ####################
     ### Wealth Chart ###
     ####################
-    def _load_chart_data(self):
+    async def _load_chart_data(self):
         """Fetch price history and build chart data."""
-        self._chart_data = PortfolioService.get_chart_data(self.selected_period)
+        theme_state = await self.get_state(ThemeState)
+        self._chart_data = PortfolioService.get_chart_data(
+            self.selected_period, theme_state.default_currency
+        )
 
     @rx.var
     def get_chart_data(self) -> list[dict]:
@@ -51,7 +55,7 @@ class PortfolioState(rx.State):
     async def set_period(self, period: str | list[str]):
         """Change time period and refresh chart data."""
         self.selected_period = period
-        self._load_chart_data()
+        await self._load_chart_data()
 
     @rx.event
     def toggle_chart_type(self):
@@ -167,7 +171,10 @@ class PortfolioState(rx.State):
     @rx.event
     async def load_portfolio_data(self):
         """Load all portfolio data from models service."""
-        portfolio_data = PortfolioService.get_portfolio_overview()
+        theme_state = await self.get_state(ThemeState)
+        portfolio_data = PortfolioService.get_portfolio_overview(
+            theme_state.default_currency
+        )
 
         self._stocks_total_data = portfolio_data.securities_total
         self._cash_data = portfolio_data.cash_entries
@@ -178,4 +185,4 @@ class PortfolioState(rx.State):
         self.stocks_value = portfolio_data.securities_value
         self.cash_value = portfolio_data.cash_value
 
-        self._load_chart_data()
+        await self._load_chart_data()

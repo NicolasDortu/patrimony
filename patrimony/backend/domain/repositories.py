@@ -1,11 +1,12 @@
 from abc import ABC, abstractmethod
 from datetime import datetime
 
-from .entities import AssetType, Currency, TransactionType, EntryType
+from .entities import AssetType, Currency, EntryType, TransactionType
 
 
-class Repository(ABC):
-    """Base repository interface following Repository Pattern."""
+### Base repository interfaces for data access abstraction. ###
+class BaseRepository(ABC):
+    """Base repository interface methods."""
 
     @abstractmethod
     def get_all(self) -> object:
@@ -23,7 +24,47 @@ class Repository(ABC):
         pass
 
 
-class SecuritiesRepository(Repository, ABC):
+class BasePriceRepository(ABC):
+    """Base repository for price data."""
+
+    @abstractmethod
+    def get_current_price(self, ticker: str) -> float:
+        """Get current price for a ticker."""
+        pass
+
+    @abstractmethod
+    def get_price_history(
+        self,
+        ticker: str,
+        start_date: datetime = None,
+        end_date: datetime = None,
+        interval: str = "1d",
+    ) -> object:
+        """Fetch price history for a ticker.
+
+        Args:
+            ticker: Stock ticker symbol
+            start_date: Start of date range (inclusive)
+            end_date: End of date range (inclusive)
+            interval: Data interval (e.g. '5m', '1d', '1wk')
+
+        Returns:
+            DataFrame with columns: date, close
+        """
+        pass
+
+
+class BaseCurrencyRepository(ABC):
+    """Base repository for currency data."""
+
+    @abstractmethod
+    def get_ticker_currency(self, ticker: str) -> float:
+        """Get currency for a ticker."""
+        pass
+
+
+### Repositories for specific domains (securities, cash, market data, etc.) ###
+class SecuritiesRepository(BaseRepository, ABC):
     """Repository for securities (stocks, crypto, ETFs, bonds, ...).
 
     Extends base repository with security-specific operations.
@@ -38,7 +79,6 @@ class SecuritiesRepository(Repository, ABC):
         entry_type: EntryType,
         asset_type: AssetType,
         transaction_type: TransactionType,
-        currency: Currency,
         date: datetime,
     ) -> int:
         """Add a new position and return its id."""
@@ -55,11 +95,56 @@ class SecuritiesRepository(Repository, ABC):
         pass
 
 
-class CashRepository(Repository, ABC):
-    """Repository for cash accounts.
+class CashOperationRepository(ABC):
+    """Cash Methods related to cash operations (deposits, withdrawals, transfers)."""
 
-    Specific interface for cash-related operations.
-    """
+    @abstractmethod
+    def add_operation_balance(
+        self,
+        account_number: str,
+        amount: float,
+        title: str,
+        operation_date: datetime,
+        entry_type: EntryType = EntryType.MANUAL,
+    ) -> int:
+        """Record a cash operation on the balance and return the operation ID."""
+        pass
+
+    @abstractmethod
+    def get_operations_by_account(self, account_number: str) -> object:
+        """Get all balance operations for a specific account."""
+        pass
+
+    @abstractmethod
+    def get_all_operations(self) -> object:
+        """Get all balance operations."""
+        pass
+
+    @abstractmethod
+    def update_operation_by_id(
+        self,
+        id: int,
+        amount: float,
+        title: str,
+        operation_date: datetime,
+        entry_type: EntryType,
+    ) -> None:
+        """Update a balance operation by ID."""
+        pass
+
+    @abstractmethod
+    def delete_operation_by_id(self, id: int) -> None:
+        """Delete a balance operation by ID."""
+        pass
+
+    @abstractmethod
+    def get_cash_balance_history(self) -> object:
+        """Get cash balance history over time for all accounts by summing the operations."""
+        pass
+
+
+class CashRepository(BaseRepository, CashOperationRepository, ABC):
+    """Repository for cash accounts."""
 
     @abstractmethod
     def add_cash(
@@ -89,89 +174,12 @@ class CashRepository(Repository, ABC):
         """Get the current balance of a cash account."""
         pass
 
-    @abstractmethod
-    def add_operation_balance(
-        self,
-        account_number: str,
-        amount: float,
-        title: str,
-        operation_date: datetime,
-        entry_type: EntryType = EntryType.MANUAL,
-    ) -> int:
-        """Record a cash operation on the balance and return the operation ID."""
-        pass
 
-    @abstractmethod
-    def get_operations_by_account(self, account_number: str) -> object:
-        """Get all balance operations for a specific account."""
-        pass
-
-    @abstractmethod
-    def get_all_operations(self) -> object:
-        """Get all balance operations."""
-        pass
-
-    @abstractmethod
-    def get_cash_balance_history(self) -> object:
-        """Get cash balance history over time for all accounts."""
-        pass
-
-    @abstractmethod
-    def update_operation_by_id(
-        self,
-        id: int,
-        amount: float,
-        title: str,
-        operation_date: datetime,
-        entry_type: EntryType,
-    ) -> None:
-        """Update a balance operation by ID."""
-        pass
-
-    @abstractmethod
-    def delete_operation_by_id(self, id: int) -> None:
-        """Delete a balance operation by ID."""
-        pass
-
-
-class MarketDataProvider(ABC):
+class MarketDataProvider(BasePriceRepository, BaseCurrencyRepository, ABC):
     """Interface for external market data providers.
 
     Generic abstraction for market data providers (Yahoo Finance, Alpha Vantage, etc.)
     """
-
-    @abstractmethod
-    def get_current_price(self, ticker: str) -> float:
-        """Fetch current price for a ticker.
-
-        Args:
-            ticker: Stock ticker symbol
-
-        Returns:
-            Current price or None if unavailable
-        """
-        pass
-
-    @abstractmethod
-    def get_price_history(
-        self,
-        ticker: str,
-        start_date: datetime = None,
-        end_date: datetime = None,
-        interval: str = "1d",
-    ) -> object:
-        """Fetch price history for a ticker.
-
-        Args:
-            ticker: Stock ticker symbol
-            start_date: Start of date range (inclusive)
-            end_date: End of date range (inclusive)
-            interval: Data interval (e.g. '5m', '1d', '1wk')
-
-        Returns:
-            DataFrame with columns: date, close
-        """
-        pass
 
     @abstractmethod
     def get_price_history_period(
@@ -193,13 +201,8 @@ class MarketDataProvider(ABC):
         pass
 
 
-class PriceRepository(ABC):
+class PriceRepository(BasePriceRepository, ABC):
     """Repository for asset price data."""
-
-    @abstractmethod
-    def get_current_price(self, ticker: str) -> float:
-        """Get current price for a ticker."""
-        pass
 
     @abstractmethod
     def cache_price(self, ticker: str, price: float, timestamp: datetime) -> None:
@@ -212,15 +215,33 @@ class PriceRepository(ABC):
         pass
 
     @abstractmethod
-    def get_price_history(
-        self, tickers: list[str], start_date: datetime, end_date: datetime
-    ) -> object:
-        """Get stored price history for tickers within a date range."""
+    def sync_price_history(
+        self, tickers: list[str], start_date: datetime, period: str = "1d"
+    ) -> None:
+        """Fetch and store missing price history data for tickers."""
+        pass
+
+
+class CurrencyRepository(BaseCurrencyRepository, ABC):
+    """Repository for currency data (ticker currencies and exchange rates)."""
+
+    @abstractmethod
+    def set_ticker_currency(self, ticker: str, currency: str) -> None:
+        """Cache a ticker's native currency."""
         pass
 
     @abstractmethod
-    def sync_price_history(self, tickers: list[str], start_date: datetime) -> None:
-        """Fetch and store missing price history data for tickers."""
+    def get_exchange_rate(
+        self, from_currency: str, to_currency: str, max_age_minutes: int = 60
+    ) -> float | None:
+        """Get cached exchange rate if fresh enough."""
+        pass
+
+    @abstractmethod
+    def set_exchange_rate(
+        self, from_currency: str, to_currency: str, rate: float
+    ) -> None:
+        """Cache an exchange rate."""
         pass
 
 
