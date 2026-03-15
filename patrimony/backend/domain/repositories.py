@@ -200,6 +200,11 @@ class MarketDataProvider(BasePriceRepository, BaseCurrencyRepository, ABC):
         """
         pass
 
+    @abstractmethod
+    def get_exchange_rate(self, from_currency: str, to_currency: str) -> float | None:
+        """Fetch the exchange rate from from_currency to to_currency."""
+        pass
+
 
 class PriceRepository(BasePriceRepository, ABC):
     """Repository for asset price data."""

@@ -2,6 +2,7 @@ from dependency_injector import containers, providers
 
 from ..infrastructure.database.connection import DatabaseConnection
 from ..infrastructure.integrations import YahooFinanceProvider
+from ..domain.services import CurrencyService
 from ..infrastructure.repositories import (
     CashRepositoryImpl,
     SecuritiesRepositoryImpl,
@@ -56,6 +57,13 @@ class Container(containers.DeclarativeContainer):
     currency_repository = providers.Factory(
         CurrencyRepositoryImpl,
         connection=database,
+    )
+
+    # Domain Services
+    currency_service = providers.Factory(
+        CurrencyService,
+        currency_repo=currency_repository,
+        market_data_provider=market_data_provider,
     )
 
 

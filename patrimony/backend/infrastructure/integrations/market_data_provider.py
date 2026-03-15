@@ -95,3 +95,10 @@ class YahooFinanceProvider(MarketDataProvider):
         except Exception as e:
             logger.warning("Error fetching currency for %s: %s", ticker, e)
             return None
+
+    def get_exchange_rate(
+        self, from_currency: str, to_currency: str
+    ) -> Optional[float]:
+        """Fetch exchange rate using yfinance's {FROM}{TO}=X ticker format."""
+        rate_ticker = f"{from_currency.upper()}{to_currency.upper()}=X"
+        return self.get_current_price(rate_ticker)

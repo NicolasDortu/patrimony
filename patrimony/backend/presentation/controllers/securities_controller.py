@@ -9,7 +9,6 @@ from ...domain.entities import (
     TransactionType,
 )
 from .operation_result import OperationResult
-from .currency_controller import CurrencyController
 from ..di_container import container
 
 logger = logging.getLogger(__name__)
@@ -41,6 +40,11 @@ class SecuritiesController:
     def _market_data(self):
         """Get market data provider from DI container."""
         return container.market_data_provider()
+
+    @property
+    def _currency_service(self):
+        """Get currency service from DI container."""
+        return container.currency_service()
 
     def add_position(
         self,
@@ -158,9 +162,8 @@ class SecuritiesController:
         df = self._enrich_with_prices(df)
 
         # Apply currency conversion
-        currency_ctrl = CurrencyController()
         tickers = df["ticker"].to_list()
-        rates = currency_ctrl.get_rates_for_tickers(tickers, user_currency)
+        rates = self._currency_service.get_rates_for_tickers(tickers, user_currency)
         rate_list = pl.Series("_rate", [rates.get(t, 1.0) for t in tickers])
         df = df.with_columns(
             (pl.col("current_price") * rate_list).alias("current_price"),
@@ -253,10 +256,9 @@ class SecuritiesController:
             return []
 
         # Get currency conversion rate
-        currency_ctrl = CurrencyController()
-        rate = currency_ctrl.get_rates_for_tickers([ticker], user_currency).get(
-            ticker, 1.0
-        )
+        rate = self._currency_service.get_rates_for_tickers(
+            [ticker], user_currency
+        ).get(ticker, 1.0)
 
         date_fmt = (
             "%H:%M" if is_intraday else ("%Y-%m" if config["days"] > 365 else "%d/%m")

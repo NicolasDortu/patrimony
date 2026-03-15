@@ -5,8 +5,7 @@ from datetime import date, datetime, timedelta
 from typing import Optional
 import polars as pl
 
-from ...domain.services import MetricsCalculator
-from .currency_controller import CurrencyController
+from ...domain.services import CurrencyService, MetricsCalculator
 from ..di_container import container
 
 PERIOD_CONFIG = {
@@ -51,6 +50,10 @@ class PortfolioController:
     def _market_data(self):
         return container.market_data_provider()
 
+    @property
+    def _currency_service(self):
+        return container.currency_service()
+
     # Portfolio Overview Methods
     def _to_dicts(self, df: Optional[pl.DataFrame]) -> list[dict]:
         """Safely convert DataFrame to list of dicts."""
@@ -91,18 +94,18 @@ class PortfolioController:
         self,
         df: Optional[pl.DataFrame],
         user_currency: str | None = None,
-        currency_ctrl: CurrencyController | None = None,
+        currency_svc: CurrencyService | None = None,
     ) -> float:
         """Calculate total cash balance, optionally converting to user currency."""
         if df is None or df.is_empty():
             return 0.0
-        if user_currency and currency_ctrl and "currency" in df.columns:
+        if user_currency and currency_svc and "currency" in df.columns:
             total = 0.0
             rate_cache: dict[str, float] = {}
             for row in df.iter_rows(named=True):
                 cash_curr = row.get("currency", "EUR")
                 if cash_curr not in rate_cache:
-                    rate_cache[cash_curr] = currency_ctrl.get_exchange_rate(
+                    rate_cache[cash_curr] = currency_svc.get_exchange_rate(
                         cash_curr, user_currency
                     )
                 total += row["balance"] * rate_cache[cash_curr]
@@ -112,7 +115,7 @@ class PortfolioController:
     def _build_cash_timeline(
         self,
         user_currency: str | None = None,
-        currency_ctrl: CurrencyController | None = None,
+        currency_svc: CurrencyService | None = None,
     ) -> dict:
         """Build a timeline of total cash balance keyed by date.
 
@@ -127,7 +130,7 @@ class PortfolioController:
         # Build account -> currency mapping for conversion
         account_currencies: dict[str, str] = {}
         rate_cache: dict[str, float] = {}
-        if user_currency and currency_ctrl:
+        if user_currency and currency_svc:
             all_cash = self._cash_repo.get_all()
             if all_cash is not None and not all_cash.is_empty():
                 for row in all_cash.iter_rows(named=True):
@@ -142,10 +145,10 @@ class PortfolioController:
             key = row["account_number"]
             balance = row["balance"]
 
-            if user_currency and currency_ctrl:
+            if user_currency and currency_svc:
                 cash_curr = account_currencies.get(key, "EUR")
                 if cash_curr not in rate_cache:
-                    rate_cache[cash_curr] = currency_ctrl.get_exchange_rate(
+                    rate_cache[cash_curr] = currency_svc.get_exchange_rate(
                         cash_curr, user_currency
                     )
                 balance *= rate_cache[cash_curr]
@@ -158,7 +161,7 @@ class PortfolioController:
 
     def get_portfolio_overview(self, user_currency: str = "EUR") -> PortfolioOverview:
         """Get complete portfolio overview with all metrics."""
-        currency_ctrl = CurrencyController()
+        currency_svc = self._currency_service
 
         # Securities
         securities_df = self._securities_repo.get_aggregated_positions()
@@ -167,7 +170,7 @@ class PortfolioController:
 
             # Apply currency conversion
             tickers = securities_df["ticker"].to_list()
-            rates = currency_ctrl.get_rates_for_tickers(tickers, user_currency)
+            rates = currency_svc.get_rates_for_tickers(tickers, user_currency)
             rate_list = pl.Series("_rate", [rates.get(t, 1.0) for t in tickers])
             securities_df = securities_df.with_columns(
                 (pl.col("current_price") * rate_list).alias("current_price"),
@@ -185,7 +188,7 @@ class PortfolioController:
 
         # Cash
         cash_df = self._cash_repo.get_all()
-        cash_value = self._calculate_cash_value(cash_df, user_currency, currency_ctrl)
+        cash_value = self._calculate_cash_value(cash_df, user_currency, currency_svc)
 
         return PortfolioOverview(
             securities_total=self._to_dicts(securities_df),
@@ -343,19 +346,19 @@ class PortfolioController:
     ) -> list[dict]:
         """Build time-series chart data for the entire portfolio."""
         config = PERIOD_CONFIG.get(period, PERIOD_CONFIG["1M"])
-        currency_ctrl = CurrencyController()
+        currency_svc = self._currency_service
 
         securities = self._get_all_securities()
         current_cash = self._calculate_cash_value(
-            self._cash_repo.get_all(), user_currency, currency_ctrl
+            self._cash_repo.get_all(), user_currency, currency_svc
         )
-        cash_timeline = self._build_cash_timeline(user_currency, currency_ctrl)
+        cash_timeline = self._build_cash_timeline(user_currency, currency_svc)
 
         if not securities:
             return []
 
         # Get exchange rates for all tickers
-        rates = currency_ctrl.get_rates_for_tickers(
+        rates = currency_svc.get_rates_for_tickers(
             list(securities.keys()), user_currency
         )
 
