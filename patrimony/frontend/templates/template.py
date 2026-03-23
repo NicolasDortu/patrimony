@@ -9,6 +9,7 @@ from typing import Callable
 
 import reflex as rx
 
+from ..services import CurrencyService
 from ..styles import styles
 from ..components.navbar import navbar
 from ..components.sidebar import sidebar
@@ -60,6 +61,11 @@ class ThemeState(rx.State):
     scaling: str = "100%"
 
     default_currency: str = "EUR"
+
+    @rx.var
+    def currency_symbol(self) -> str:
+        """Get the display symbol for the selected currency."""
+        return CurrencyService.get_currency_symbol(self.default_currency)
 
     def _save(self) -> None:
         """Persist current settings to JSON."""

@@ -3,6 +3,7 @@ import reflex as rx
 from .common import header_cell
 from ...states.securities_details_state import TableStateDetails
 from ...services import SecurityPosition
+from ...templates import ThemeState
 
 
 def _show_item(item: SecurityPosition, index: int) -> rx.Component:
@@ -19,7 +20,7 @@ def _show_item(item: SecurityPosition, index: int) -> rx.Component:
     return rx.table.row(
         rx.table.row_header_cell(item.id),
         rx.table.cell(item.ticker),
-        rx.table.cell(f"${item.price:.2f}"),
+        rx.table.cell(ThemeState.currency_symbol + f"{item.price:.2f}"),
         rx.table.cell(item.quantity),
         rx.table.cell(item.date),
         rx.table.cell(

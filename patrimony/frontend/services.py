@@ -14,6 +14,7 @@ from ..backend.domain.entities import (
     EntryType,
     TransactionType,
 )
+
 from ..backend.presentation.controllers import (
     OperationResult,
     CashController,
@@ -251,3 +252,11 @@ class CurrencyService:
     def get_exchange_rate(from_currency: str, to_currency: str) -> float:
         """Get exchange rate between two currencies."""
         return CurrencyController().get_exchange_rate(from_currency, to_currency)
+
+    @staticmethod
+    def get_currency_symbol(currency_code: str) -> str:
+        """Get the display symbol for a currency code."""
+        try:
+            return Currency(currency_code).symbols
+        except ValueError:
+            return currency_code

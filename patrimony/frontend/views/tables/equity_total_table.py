@@ -4,6 +4,7 @@ from .common import header_cell
 from ...states.securities_total_state import TableStateTotal
 from ...services import SecurityTotal
 from ...dialogs import open_add_position_dialog
+from ...templates import ThemeState
 
 
 def _show_item(item: SecurityTotal, index: int) -> rx.Component:
@@ -20,8 +21,8 @@ def _show_item(item: SecurityTotal, index: int) -> rx.Component:
     return rx.table.row(
         rx.table.cell(item.ticker),
         rx.table.cell(item.total_quantity),
-        rx.table.cell(f"${item.current_price:.2f}"),
-        rx.table.cell(f"${item.total_value:.2f}"),
+        rx.table.cell(ThemeState.currency_symbol + f"{item.current_price:.2f}"),
+        rx.table.cell(ThemeState.currency_symbol + f"{item.total_value:.2f}"),
         rx.table.cell(
             rx.icon_button(
                 rx.icon("arrow_right_to_line", size=22),

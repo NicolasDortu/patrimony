@@ -19,6 +19,7 @@ def stats_card(
     value: float,
     return_pct: float,
     icon: str,
+    currency_symbol: str = "$",
 ) -> rx.Component:
     """Card with value, return percentage and icon"""
     return rx.card(
@@ -31,7 +32,7 @@ def stats_card(
                 ),
                 rx.vstack(
                     rx.heading(
-                        f"${value:,.2f}",
+                        currency_symbol + f"{value:,.2f}",
                         size="6",
                         weight="bold",
                     ),

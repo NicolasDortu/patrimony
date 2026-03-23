@@ -347,6 +347,7 @@ class PortfolioController:
         """Build time-series chart data for the entire portfolio."""
         config = PERIOD_CONFIG.get(period, PERIOD_CONFIG["1M"])
         currency_svc = self._currency_service
+        is_intraday = period == "1D"
 
         securities = self._get_all_securities()
         current_cash = self._calculate_cash_value(
@@ -354,20 +355,45 @@ class PortfolioController:
         )
         cash_timeline = self._build_cash_timeline(user_currency, currency_svc)
 
-        if not securities:
-            return []
+        rates = {}
+        ticker_data = {}
+        all_dates = []
 
-        # Get exchange rates for all tickers
-        rates = currency_svc.get_rates_for_tickers(
-            list(securities.keys()), user_currency
-        )
+        if securities:
+            rates = currency_svc.get_rates_for_tickers(
+                list(securities.keys()), user_currency
+            )
+            ticker_data, all_dates = self._fetch_ticker_prices(
+                list(securities.keys()), config, is_intraday
+            )
 
-        is_intraday = period == "1D"
-        ticker_data, all_dates = self._fetch_ticker_prices(
-            list(securities.keys()), config, is_intraday
-        )
+        # For cash-only portfolios, build date range from cash timeline
+        if not all_dates and cash_timeline:
+            start_date = (datetime.now() - timedelta(days=config["days"])).date()
+            all_dates = sorted(
+                {
+                    d.date() if hasattr(d, "date") else d
+                    for d in cash_timeline
+                    if (d.date() if hasattr(d, "date") else d) >= start_date
+                }
+            )
 
-        if not ticker_data:
+        # Add today's data point for non-intraday charts
+        if not is_intraday:
+            today = datetime.now().date()
+            existing = (
+                {d.date() if hasattr(d, "date") else d for d in all_dates}
+                if all_dates
+                else set()
+            )
+            if today not in existing:
+                for ticker in securities:
+                    price = self._price_repo.get_current_price(ticker)
+                    if price:
+                        ticker_data.setdefault(ticker, {})[today] = price
+                all_dates.append(today)
+
+        if not all_dates:
             return []
 
         date_fmt = (

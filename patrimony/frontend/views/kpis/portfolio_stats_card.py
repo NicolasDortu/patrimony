@@ -2,6 +2,7 @@ import reflex as rx
 
 from ...components.card import stats_card
 from ...states.portfolio_state import PortfolioState
+from ...templates import ThemeState
 
 
 def portfolio_kpi_cards() -> rx.Component:
@@ -12,18 +13,21 @@ def portfolio_kpi_cards() -> rx.Component:
             value=PortfolioState.total_value,
             return_pct=PortfolioState.total_return,
             icon="wallet",
+            currency_symbol=ThemeState.currency_symbol,
         ),
         stats_card(
             stat_name="Stocks Value",
             value=PortfolioState.stocks_value,
             return_pct=PortfolioState.total_return,
             icon="trending-up",
+            currency_symbol=ThemeState.currency_symbol,
         ),
         stats_card(
             stat_name="Cash Holdings",
             value=PortfolioState.cash_value,
             return_pct=0,
             icon="banknote",
+            currency_symbol=ThemeState.currency_symbol,
         ),
         gap="1rem",
         grid_template_columns=[

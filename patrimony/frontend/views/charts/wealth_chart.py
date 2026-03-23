@@ -25,7 +25,7 @@ def _wealth_area_chart() -> rx.Component:
             ),
         ),
         rx.cond(
-            (PortfolioState.asset_filter == "all")
+            ((PortfolioState.asset_filter == "all") & PortfolioState.has_stocks)
             | (PortfolioState.asset_filter == "stocks"),
             rx.recharts.area(
                 data_key="Stocks",
@@ -35,7 +35,7 @@ def _wealth_area_chart() -> rx.Component:
             ),
         ),
         rx.cond(
-            (PortfolioState.asset_filter == "all")
+            ((PortfolioState.asset_filter == "all") & PortfolioState.has_etfs)
             | (PortfolioState.asset_filter == "etfs"),
             rx.recharts.area(
                 data_key="ETFs",
@@ -45,7 +45,7 @@ def _wealth_area_chart() -> rx.Component:
             ),
         ),
         rx.cond(
-            (PortfolioState.asset_filter == "all")
+            ((PortfolioState.asset_filter == "all") & PortfolioState.has_crypto)
             | (PortfolioState.asset_filter == "crypto"),
             rx.recharts.area(
                 data_key="Crypto",
@@ -55,7 +55,7 @@ def _wealth_area_chart() -> rx.Component:
             ),
         ),
         rx.cond(
-            (PortfolioState.asset_filter == "all")
+            ((PortfolioState.asset_filter == "all") & PortfolioState.has_commodity)
             | (PortfolioState.asset_filter == "commodity"),
             rx.recharts.area(
                 data_key="Commodity",
@@ -65,7 +65,7 @@ def _wealth_area_chart() -> rx.Component:
             ),
         ),
         rx.cond(
-            (PortfolioState.asset_filter == "all")
+            ((PortfolioState.asset_filter == "all") & PortfolioState.has_cash)
             | (PortfolioState.asset_filter == "cash"),
             rx.recharts.area(
                 data_key="Cash",
@@ -96,7 +96,7 @@ def _wealth_bar_chart() -> rx.Component:
             ),
         ),
         rx.cond(
-            (PortfolioState.asset_filter == "all")
+            ((PortfolioState.asset_filter == "all") & PortfolioState.has_stocks)
             | (PortfolioState.asset_filter == "stocks"),
             rx.recharts.bar(
                 data_key="Stocks",
@@ -104,7 +104,7 @@ def _wealth_bar_chart() -> rx.Component:
             ),
         ),
         rx.cond(
-            (PortfolioState.asset_filter == "all")
+            ((PortfolioState.asset_filter == "all") & PortfolioState.has_etfs)
             | (PortfolioState.asset_filter == "etfs"),
             rx.recharts.bar(
                 data_key="ETFs",
@@ -112,7 +112,7 @@ def _wealth_bar_chart() -> rx.Component:
             ),
         ),
         rx.cond(
-            (PortfolioState.asset_filter == "all")
+            ((PortfolioState.asset_filter == "all") & PortfolioState.has_crypto)
             | (PortfolioState.asset_filter == "crypto"),
             rx.recharts.bar(
                 data_key="Crypto",
@@ -120,7 +120,7 @@ def _wealth_bar_chart() -> rx.Component:
             ),
         ),
         rx.cond(
-            (PortfolioState.asset_filter == "all")
+            ((PortfolioState.asset_filter == "all") & PortfolioState.has_commodity)
             | (PortfolioState.asset_filter == "commodity"),
             rx.recharts.bar(
                 data_key="Commodity",
@@ -128,7 +128,7 @@ def _wealth_bar_chart() -> rx.Component:
             ),
         ),
         rx.cond(
-            (PortfolioState.asset_filter == "all")
+            ((PortfolioState.asset_filter == "all") & PortfolioState.has_cash)
             | (PortfolioState.asset_filter == "cash"),
             rx.recharts.bar(
                 data_key="Cash",
@@ -170,12 +170,10 @@ def _chart_type_toggle() -> rx.Component:
 def _asset_filter_control() -> rx.Component:
     """Segmented control for filtering asset types."""
     return rx.segmented_control.root(
-        rx.segmented_control.item("All", value="all"),
-        rx.segmented_control.item("Stocks", value="stocks"),
-        rx.segmented_control.item("ETFs", value="etfs"),
-        rx.segmented_control.item("Crypto", value="crypto"),
-        rx.segmented_control.item("Commodity", value="commodity"),
-        rx.segmented_control.item("Cash", value="cash"),
+        rx.foreach(
+            PortfolioState.available_filters,
+            lambda f: rx.segmented_control.item(f["label"], value=f["value"]),
+        ),
         default_value="all",
         value=PortfolioState.asset_filter,
         on_change=PortfolioState.set_asset_filter,

@@ -2,6 +2,7 @@ import reflex as rx
 
 from ...components.card import card
 from ...states.portfolio_state import PortfolioState
+from ...templates import ThemeState
 
 
 def allocation_pie_chart() -> rx.Component:
@@ -45,7 +46,7 @@ def allocation_breakdown() -> rx.Component:
                         weight="bold",
                     ),
                     rx.text(
-                        f"€{item['value']:,.2f}",
+                        ThemeState.currency_symbol + f"{item['value']:,.2f}",
                         size="2",
                         color=rx.color("gray", 10),
                     ),

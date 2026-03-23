@@ -32,6 +32,47 @@ class PortfolioState(rx.State):
     cash_value: float = 0.0
 
     ####################
+    ### Asset types  ###
+    ####################
+    @rx.var
+    def has_stocks(self) -> bool:
+        return any(s.get("asset_type") == "STOCK" for s in self._stocks_total_data)
+
+    @rx.var
+    def has_etfs(self) -> bool:
+        return any(s.get("asset_type") == "ETF" for s in self._stocks_total_data)
+
+    @rx.var
+    def has_crypto(self) -> bool:
+        return any(s.get("asset_type") == "CRYPTO" for s in self._stocks_total_data)
+
+    @rx.var
+    def has_commodity(self) -> bool:
+        return any(s.get("asset_type") == "COMMODITY" for s in self._stocks_total_data)
+
+    @rx.var
+    def has_cash(self) -> bool:
+        return self.cash_value > 0
+
+    @rx.var
+    def available_filters(self) -> list[dict]:
+        """Filter options based on owned asset types."""
+        filters = [{"label": "All", "value": "all"}]
+        type_config = [
+            ("STOCK", "Stocks", "stocks"),
+            ("ETF", "ETFs", "etfs"),
+            ("CRYPTO", "Crypto", "crypto"),
+            ("COMMODITY", "Commodity", "commodity"),
+        ]
+        owned = {s.get("asset_type") for s in self._stocks_total_data}
+        for at, label, value in type_config:
+            if at in owned:
+                filters.append({"label": label, "value": value})
+        if self.cash_value > 0:
+            filters.append({"label": "Cash", "value": "cash"})
+        return filters
+
+    ####################
     ### Wealth Chart ###
     ####################
     async def _load_chart_data(self):

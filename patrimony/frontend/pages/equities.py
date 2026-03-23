@@ -10,11 +10,10 @@ from ..views.tables.equity_total_table import main_table
 def _asset_type_filter() -> rx.Component:
     """Segmented control for filtering by asset type."""
     return rx.segmented_control.root(
-        rx.segmented_control.item("All", value="all"),
-        rx.segmented_control.item("Stocks", value="STOCK"),
-        rx.segmented_control.item("ETFs", value="ETF"),
-        rx.segmented_control.item("Crypto", value="CRYPTO"),
-        rx.segmented_control.item("Commodity", value="COMMODITY"),
+        rx.foreach(
+            TableStateTotal.available_asset_filters,
+            lambda f: rx.segmented_control.item(f["label"], value=f["value"]),
+        ),
         default_value="all",
         value=TableStateTotal.selected_asset_filter,
         on_change=TableStateTotal.set_asset_filter,

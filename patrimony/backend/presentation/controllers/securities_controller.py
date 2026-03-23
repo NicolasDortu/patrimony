@@ -286,4 +286,20 @@ class SecuritiesController:
                     "price": round(price * df["total_quantity"][0] * rate, 2),
                 }
             )
+
+        # Add today's data point for non-intraday charts
+        if not is_intraday and rows:
+            today_str = datetime.now().strftime(date_fmt)
+            if rows[-1]["name"] != today_str:
+                current_price = self._price_repo.get_current_price(ticker)
+                if current_price and current_price > 0:
+                    rows.append(
+                        {
+                            "name": today_str,
+                            "price": round(
+                                current_price * df["total_quantity"][0] * rate, 2
+                            ),
+                        }
+                    )
+
         return rows

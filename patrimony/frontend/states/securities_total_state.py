@@ -44,6 +44,22 @@ class TableStateTotal(rx.State):
         self.sort_value = value
 
     @rx.var
+    def available_asset_filters(self) -> list[dict]:
+        """Filter options based on owned asset types."""
+        filters = [{"label": "All", "value": "all"}]
+        type_config = [
+            ("STOCK", "Stocks", "STOCK"),
+            ("ETF", "ETFs", "ETF"),
+            ("CRYPTO", "Crypto", "CRYPTO"),
+            ("COMMODITY", "Commodity", "COMMODITY"),
+        ]
+        owned = {item.asset_type.upper() for item in self.items}
+        for at, label, value in type_config:
+            if at in owned:
+                filters.append({"label": label, "value": value})
+        return filters
+
+    @rx.var
     def filtered_sorted_items(self) -> list[SecurityTotal]:
         items = self.items
 
