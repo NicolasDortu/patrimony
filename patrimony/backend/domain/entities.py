@@ -1,4 +1,18 @@
+from dataclasses import dataclass
 from enum import StrEnum
+
+
+@dataclass(slots=True)
+class PortfolioOverview:
+    """Aggregated portfolio data with metrics."""
+
+    securities_total: list[dict]
+    cash_entries: list[dict]
+    total_value: float
+    total_invested: float
+    total_return: float
+    securities_value: float
+    cash_value: float
 
 
 class AssetType(StrEnum):

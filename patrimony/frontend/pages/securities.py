@@ -4,7 +4,7 @@ import reflex as rx
 
 from ..states.securities_total_state import TableStateTotal
 from ..templates import template
-from ..views.tables.equity_total_table import main_table
+from ..views.tables.securities_total_table import main_table
 
 
 def _asset_type_filter() -> rx.Component:
@@ -20,12 +20,12 @@ def _asset_type_filter() -> rx.Component:
     )
 
 
-@template(route="/equities", title="Equities", on_load=TableStateTotal.load_entries)
-def equities() -> rx.Component:
-    """The equities page.
+@template(route="/securities", title="Securities", on_load=TableStateTotal.load_entries)
+def securities() -> rx.Component:
+    """The securities page.
 
     Returns:
-        The UI for the equities page.
+        The UI for the securities page.
     """
     return rx.vstack(
         rx.hstack(

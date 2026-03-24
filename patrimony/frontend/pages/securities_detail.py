@@ -6,11 +6,11 @@ from ..components.card import card
 from ..dialogs import open_add_position_dialog
 from ..states.securities_details_state import TableStateDetails
 from ..templates import template
-from ..views.tables.equity_details_table import main_table
+from ..views.tables.securities_details_table import main_table
 from ..views.charts.stock_chart import stock_chart
 
 
-class EquityDetailState(rx.State):
+class SecuritiesDetailState(rx.State):
     @rx.event
     def on_load(self):
         # Get ticker from URL query params
@@ -20,15 +20,15 @@ class EquityDetailState(rx.State):
 
 
 @template(
-    route="/equity_detail",
-    title="Equity Detail",
+    route="/securities_detail",
+    title="Securities Detail",
     on_load=[TableStateDetails.on_page_load],
 )
-def equity_detail() -> rx.Component:
-    """The equity detail page.
+def securities_detail() -> rx.Component:
+    """The securities detail page.
 
     Returns:
-        The UI for the equity detail page.
+        The UI for the securities detail page.
     """
     return rx.vstack(
         rx.heading(f"Details for {TableStateDetails.ticker}", size="5"),

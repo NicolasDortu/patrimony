@@ -1,15 +1,11 @@
-"""Reference Controller - Search securities reference data."""
-
-from ..di_container import container
+"""Reference Controller - Thin delegate to ReferenceRepository."""
 
 
 class ReferenceController:
     """Controller for securities reference data."""
 
-    @property
-    def _reference_repo(self):
-        """Get reference repository from DI container."""
-        return container.reference_repository()
+    def __init__(self, reference_repo):
+        self._reference_repo = reference_repo
 
     def search(self, query: str, limit: int = 10) -> list[dict]:
         """Search securities reference by ticker or name."""

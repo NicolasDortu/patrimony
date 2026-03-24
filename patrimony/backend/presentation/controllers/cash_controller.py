@@ -1,10 +1,12 @@
+"""Cash Controller - Thin delegate to CashRepository."""
+
 import logging
 from datetime import datetime
 from typing import Optional
 
 from ...domain.entities import Currency, EntryType
+from ...domain.repositories import CashRepository
 from .operation_result import OperationResult
-from ..di_container import container
 
 logger = logging.getLogger(__name__)
 
@@ -12,10 +14,8 @@ logger = logging.getLogger(__name__)
 class CashController:
     """Controller for cash account operations."""
 
-    @property
-    def _cash_repo(self):
-        """Get cash repository from DI container."""
-        return container.cash_repository()
+    def __init__(self, cash_repo: CashRepository):
+        self._cash_repo = cash_repo
 
     def add_cash(
         self,

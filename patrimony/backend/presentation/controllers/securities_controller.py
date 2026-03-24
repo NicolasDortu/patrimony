@@ -1,50 +1,27 @@
-import logging
-from datetime import datetime, timedelta
-from typing import Optional
-import polars as pl
+"""Securities Controller - Thin delegate to repositories and SecuritiesService."""
 
-from ...domain.entities import (
-    AssetType,
-    EntryType,
-    TransactionType,
-)
+import logging
+from datetime import datetime
+from typing import Optional
+
+from ...domain.entities import AssetType, EntryType, TransactionType
+from ...domain.repositories import SecuritiesRepository
+from ...domain.services.securities_service import SecuritiesService
 from .operation_result import OperationResult
-from ..di_container import container
 
 logger = logging.getLogger(__name__)
-
-PERIOD_CONFIG = {
-    "1D": {"days": 1, "period": "1d", "interval": "5m"},
-    "5D": {"days": 5, "period": "5d", "interval": "1d"},
-    "1M": {"days": 30, "period": "1mo", "interval": "1d"},
-    "6M": {"days": 180, "period": "6mo", "interval": "1d"},
-    "1Y": {"days": 365, "period": "1y", "interval": "1d"},
-    "5Y": {"days": 1825, "period": "5y", "interval": "1wk"},
-}
 
 
 class SecuritiesController:
     """Controller for securities (stocks, crypto, ETFs, bonds) operations."""
 
-    @property
-    def _securities_repo(self):
-        """Get securities repository from DI container."""
-        return container.securities_repository()
-
-    @property
-    def _price_repo(self):
-        """Get price repository from DI container."""
-        return container.price_repository()
-
-    @property
-    def _market_data(self):
-        """Get market data provider from DI container."""
-        return container.market_data_provider()
-
-    @property
-    def _currency_service(self):
-        """Get currency service from DI container."""
-        return container.currency_service()
+    def __init__(
+        self,
+        securities_repo: SecuritiesRepository,
+        securities_service: SecuritiesService,
+    ):
+        self._securities_repo = securities_repo
+        self._service = securities_service
 
     def add_position(
         self,
@@ -56,20 +33,7 @@ class SecuritiesController:
         transaction_type: TransactionType,
         date: Optional[datetime] = None,
     ) -> OperationResult:
-        """Add new position (buy or sell).
-
-        Args:
-            ticker: Ticker symbol
-            price: Price per unit
-            quantity: Number of units
-            entry_type: How entry was created (manual, API, etc.)
-            asset_type: Type of asset (stock, crypto, etc.)
-            transaction_type: Buy or sell
-            date: Transaction date (defaults to now)
-
-        Returns:
-            OperationResult with success status and new position ID
-        """
+        """Add new position (buy or sell)."""
         try:
             if date is None:
                 date = datetime.now()
@@ -96,14 +60,7 @@ class SecuritiesController:
             )
 
     def delete_position(self, id: int) -> OperationResult:
-        """Delete position by ID.
-
-        Args:
-            id: Position ID
-
-        Returns:
-            OperationResult with success status
-        """
+        """Delete position by ID."""
         try:
             self._securities_repo.delete(id)
             return OperationResult(
@@ -117,11 +74,7 @@ class SecuritiesController:
             )
 
     def get_all_positions(self) -> list[dict]:
-        """Get all individual positions.
-
-        Returns:
-            List of position dictionaries
-        """
+        """Get all individual positions."""
         df = self._securities_repo.get_all()
         if df is None:
             return []
@@ -130,14 +83,7 @@ class SecuritiesController:
         return df.to_dicts()
 
     def get_positions_by_ticker(self, ticker: str) -> list[dict]:
-        """Get all positions for specific ticker.
-
-        Args:
-            ticker: Ticker symbol
-
-        Returns:
-            List of position dictionaries
-        """
+        """Get all positions for specific ticker."""
         df = self._securities_repo.get_by_ticker(ticker)
         if df is None:
             return []
@@ -146,160 +92,18 @@ class SecuritiesController:
         return df.to_dicts()
 
     def get_aggregated_positions(self, user_currency: str = "EUR") -> list[dict]:
-        """Get aggregated positions (total quantities, avg prices).
-
-        Enriches data with current prices from price repository.
-        Converts all values to the user's default currency.
-
-        Returns:
-            List of aggregated position dictionaries with current prices
-        """
-        df = self._securities_repo.get_aggregated_positions()
-        if df is None:
-            return []
-
-        # Enrich with current prices
-        df = self._enrich_with_prices(df)
-
-        # Apply currency conversion
-        tickers = df["ticker"].to_list()
-        rates = self._currency_service.get_rates_for_tickers(tickers, user_currency)
-        rate_list = pl.Series("_rate", [rates.get(t, 1.0) for t in tickers])
-        df = df.with_columns(
-            (pl.col("current_price") * rate_list).alias("current_price"),
-            (pl.col("avg_price") * rate_list).alias("avg_price"),
-        )
-        df = df.with_columns(
-            (pl.col("current_price") * pl.col("total_quantity")).alias("total_value")
-        )
-
-        return df.to_dicts()
+        """Get aggregated positions enriched with current prices."""
+        return self._service.get_aggregated_positions(user_currency)
 
     def get_position_by_id(self, id: int) -> Optional[dict]:
-        """Get single position by ID.
-
-        Args:
-            id: Position ID
-
-        Returns:
-            Position dictionary or None if not found
-        """
+        """Get single position by ID."""
         df = self._securities_repo.get_by_id(id)
         if df is not None:
             return df.to_dicts()[0]
         return None
 
-    def validate_ticker(self, ticker: str) -> bool:
-        # TODO: Implement actual validation logic
-        pass
-
-    def _enrich_with_prices(self, df: pl.DataFrame) -> pl.DataFrame:
-        """Enrich DataFrame with current prices.
-
-        Args:
-            df: DataFrame with ticker column
-
-        Returns:
-            DataFrame with added current_price column
-        """
-        if "ticker" not in df.columns:
-            return df
-
-        # Fetch current prices for all tickers
-        prices = []
-        for ticker in df["ticker"].to_list():
-            try:
-                price = self._price_repo.get_current_price(ticker)
-                prices.append(price)
-            except Exception as e:
-                logger.error("Error fetching price for %s: %s", ticker, e)
-                prices.append(None)
-
-        # Add prices as new column and recompute total_value
-        df = df.with_columns(pl.Series("current_price", prices))
-        if "total_quantity" in df.columns:
-            df = df.with_columns(
-                (pl.col("current_price") * pl.col("total_quantity")).alias(
-                    "total_value"
-                )
-            )
-
-        return df
-
-    # Chart methods
-    def _fetch_price_data(
-        self, ticker: str, config: dict, is_intraday: bool
-    ) -> Optional[pl.DataFrame]:
-        """Fetch price data from live API (intraday) or cache (daily)."""
-        if is_intraday:
-            return self._market_data.get_price_history_period(
-                ticker, period=config["period"], interval=config["interval"]
-            )
-        else:
-            start = datetime.now() - timedelta(days=config["days"])
-            end = datetime.now()
-            self._price_repo.sync_price_history([ticker], start)
-            return self._price_repo.get_price_history([ticker], start, end)
-
     def get_chart_data_ticker(
         self, ticker: str, period: str = "1M", user_currency: str = "EUR"
     ) -> list[dict]:
         """Get time-series price data for a single ticker."""
-        config = PERIOD_CONFIG.get(period, PERIOD_CONFIG["1M"])
-        df = self._securities_repo.get_aggregated_positions_by_ticker(ticker)
-        if df is None or df.is_empty():
-            return []
-
-        is_intraday = period == "1D"
-        price_df = self._fetch_price_data(ticker, config, is_intraday)
-        if price_df is None or price_df.is_empty():
-            return []
-
-        # Get currency conversion rate
-        rate = self._currency_service.get_rates_for_tickers(
-            [ticker], user_currency
-        ).get(ticker, 1.0)
-
-        date_fmt = (
-            "%H:%M" if is_intraday else ("%Y-%m" if config["days"] > 365 else "%d/%m")
-        )
-
-        rows = []
-        last_valid_price = None
-        for row in price_df.iter_rows(named=True):
-            price = row["close_price"]
-            if price is not None and price == price and price > 0:
-                last_valid_price = price
-            elif last_valid_price is not None:
-                price = last_valid_price
-            else:
-                continue
-
-            date_str = (
-                row["date"].strftime(date_fmt)
-                if hasattr(row["date"], "strftime")
-                else str(row["date"])
-            )
-            rows.append(
-                {
-                    "name": date_str,
-                    "price": round(price * df["total_quantity"][0] * rate, 2),
-                }
-            )
-
-        # Add today's data point for non-intraday charts
-        if not is_intraday and rows:
-            today_str = datetime.now().strftime(date_fmt)
-            if rows[-1]["name"] != today_str:
-                current_price = self._price_repo.get_current_price(ticker)
-                if current_price and current_price > 0:
-                    rows.append(
-                        {
-                            "name": today_str,
-                            "price": round(
-                                current_price * df["total_quantity"][0] * rate, 2
-                            ),
-                        }
-                    )
-
-        return rows
+        return self._service.get_chart_data_ticker(ticker, period, user_currency)

@@ -1,18 +1,16 @@
-"""Price Controller - Handles fetching and caching asset prices from external providers."""
+"""Price Controller - Thin delegate to PriceRepository."""
 
 from typing import Optional
 
+from ...domain.repositories import PriceRepository
 from .operation_result import OperationResult
-from ..di_container import container
 
 
 class PriceController:
     """Controller for price-related operations."""
 
-    @property
-    def _price_repo(self):
-        """Get price repository from DI container."""
-        return container.price_repository()
+    def __init__(self, price_repo: PriceRepository):
+        self._price_repo = price_repo
 
     def get_current_price(self, ticker: str) -> OperationResult:
         """Get current price for a ticker.

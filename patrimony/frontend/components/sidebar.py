@@ -74,7 +74,7 @@ def sidebar_item(text: str, url: str) -> rx.Component:
             rx.match(
                 text,
                 ("Overview", sidebar_item_icon("home")),
-                ("Equities", sidebar_item_icon("table-2")),
+                ("Securities", sidebar_item_icon("table-2")),
                 ("Cash", sidebar_item_icon("wallet")),
                 ("Connectors", sidebar_item_icon("plug")),
                 ("Settings", sidebar_item_icon("settings")),
@@ -128,14 +128,14 @@ def sidebar() -> rx.Component:
 
     ordered_page_routes = [
         "/",
-        "/equities",
+        "/securities",
         "/cash",
         "/connectors",
         "/settings",
     ]
 
     # Exclude unwanted routes from navigation
-    excluded_routes = {"/about", "/equity_detail", "/cash_operations"}
+    excluded_routes = {"/about", "/securities_detail", "/cash_operations"}
 
     pages = [
         page_dict

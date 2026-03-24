@@ -1,14 +1,13 @@
-"""Currency Controller - Thin wrapper around CurrencyService."""
+"""Currency Controller - Thin delegate to CurrencyService."""
 
-from ..di_container import container
+from ...domain.services.currency_service import CurrencyService
 
 
 class CurrencyController:
     """Controller for currency conversion operations."""
 
-    @property
-    def _currency_service(self):
-        return container.currency_service()
+    def __init__(self, currency_service: CurrencyService):
+        self._currency_service = currency_service
 
     def get_ticker_currency(self, ticker: str) -> str:
         return self._currency_service.get_ticker_currency(ticker)

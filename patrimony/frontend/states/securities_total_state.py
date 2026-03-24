@@ -238,4 +238,4 @@ class TableStateTotal(rx.State):
 
     @rx.event
     def open_detail_view(self, ticker: str):
-        return rx.redirect(f"/equity_detail?ticker={ticker}")
+        return rx.redirect(f"/securities_detail?ticker={ticker}")
