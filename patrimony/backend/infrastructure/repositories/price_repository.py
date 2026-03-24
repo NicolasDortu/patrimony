@@ -9,7 +9,8 @@ from datetime import datetime, timedelta
 
 import polars as pl
 
-from ...domain.repositories import PriceRepository, MarketDataProvider
+from ...domain.interfaces import MarketDataProvider
+from ...domain.repositories import PriceRepository
 from ..database.connection import DatabaseConnection
 
 logger = logging.getLogger(__name__)

@@ -6,8 +6,8 @@ from enum import StrEnum
 class PortfolioOverview:
     """Aggregated portfolio data with metrics."""
 
-    securities_total: list[dict]
-    cash_entries: list[dict]
+    securities_total: object
+    cash_entries: object
     total_value: float
     total_invested: float
     total_return: float

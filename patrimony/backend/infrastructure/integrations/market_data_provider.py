@@ -1,7 +1,7 @@
 """External market data provider implementations.
 
 This module contains concrete implementations of the MarketDataProvider interface
-for different data sources (Yahoo Finance, Alpha Vantage, etc.).
+for different data sources (Yahoo Finance, Alpha Vantage, etc.). Only Yfinance is implemented for now.
 """
 
 import logging
@@ -11,7 +11,7 @@ import yfinance as yf
 from typing import Optional
 import polars as pl
 
-from ...domain.repositories import MarketDataProvider
+from ...domain.interfaces import MarketDataProvider
 
 
 logger = logging.getLogger(__name__)

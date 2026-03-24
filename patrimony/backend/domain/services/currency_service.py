@@ -2,7 +2,8 @@
 
 import logging
 
-from ..repositories import CurrencyRepository, MarketDataProvider
+from ..interfaces import MarketDataProvider
+from ..repositories import CurrencyRepository
 
 logger = logging.getLogger(__name__)
 

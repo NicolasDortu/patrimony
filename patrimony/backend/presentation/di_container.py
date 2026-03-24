@@ -12,12 +12,6 @@ from ..infrastructure.repositories import (
     ReferenceRepositoryImpl,
     CurrencyRepositoryImpl,
 )
-from .controllers.cash_controller import CashController
-from .controllers.securities_controller import SecuritiesController
-from .controllers.portfolio_controller import PortfolioController
-from .controllers.price_controller import PriceController
-from .controllers.reference_controller import ReferenceController
-from .controllers.currency_controller import CurrencyController
 
 
 class Container(containers.DeclarativeContainer):
@@ -26,9 +20,9 @@ class Container(containers.DeclarativeContainer):
     Manages lifecycle of all layers:
     - Infrastructure (database, external services, repositories)
     - Domain services (business logic)
-    - Presentation controllers (thin delegates)
 
-    Controllers receive their dependencies via constructor injection.
+    The frontend service layer (frontend/services.py) consumes
+    repositories and domain services directly from here.
     """
 
     # Infrastructure Layer - Singletons
@@ -86,38 +80,6 @@ class Container(containers.DeclarativeContainer):
         price_repo=price_repository,
         currency_service=currency_service,
         market_data=market_data_provider,
-    )
-
-    # Presentation Layer - Controllers
-    cash_controller = providers.Factory(
-        CashController,
-        cash_repo=cash_repository,
-    )
-
-    securities_controller = providers.Factory(
-        SecuritiesController,
-        securities_repo=securities_repository,
-        securities_service=securities_service,
-    )
-
-    portfolio_controller = providers.Factory(
-        PortfolioController,
-        portfolio_service=portfolio_service,
-    )
-
-    price_controller = providers.Factory(
-        PriceController,
-        price_repo=price_repository,
-    )
-
-    reference_controller = providers.Factory(
-        ReferenceController,
-        reference_repo=reference_repository,
-    )
-
-    currency_controller = providers.Factory(
-        CurrencyController,
-        currency_service=currency_service,
     )
 
 

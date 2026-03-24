@@ -11,8 +11,8 @@ from typing import Optional
 import polars as pl
 
 from ..constants import PERIOD_CONFIG
+from ..interfaces import MarketDataProvider
 from ..repositories import (
-    MarketDataProvider,
     PriceRepository,
     SecuritiesRepository,
 )
@@ -36,15 +36,17 @@ class SecuritiesService:
         self._currency_service = currency_service
         self._market_data = market_data
 
-    def get_aggregated_positions(self, user_currency: str = "EUR") -> list[dict]:
+    def get_aggregated_positions(
+        self, user_currency: str = "EUR"
+    ) -> Optional[pl.DataFrame]:
         """Get aggregated positions enriched with current prices and currency-converted."""
         df = self._securities_repo.get_aggregated_positions()
         if df is None or df.is_empty():
-            return []
+            return None
 
         df = self._enrich_with_prices(df)
         df = self._apply_currency_conversion(df, user_currency)
-        return df.to_dicts()
+        return df
 
     def get_chart_data_ticker(
         self, ticker: str, period: str = "1M", user_currency: str = "EUR"

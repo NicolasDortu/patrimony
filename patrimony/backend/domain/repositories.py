@@ -2,9 +2,9 @@ from abc import ABC, abstractmethod
 from datetime import datetime
 
 from .entities import AssetType, Currency, EntryType, TransactionType
+from .interfaces import CurrencyProvider, PriceProvider
 
 
-### Base repository interfaces for data access abstraction. ###
 class BaseRepository(ABC):
     """Base repository interface methods."""
 
@@ -21,45 +21,6 @@ class BaseRepository(ABC):
     @abstractmethod
     def delete(self, id: int) -> None:
         """Delete entity by ID."""
-        pass
-
-
-class BasePriceRepository(ABC):
-    """Base repository for price data."""
-
-    @abstractmethod
-    def get_current_price(self, ticker: str) -> float:
-        """Get current price for a ticker."""
-        pass
-
-    @abstractmethod
-    def get_price_history(
-        self,
-        ticker: str,
-        start_date: datetime = None,
-        end_date: datetime = None,
-        interval: str = "1d",
-    ) -> object:
-        """Fetch price history for a ticker.
-
-        Args:
-            ticker: Stock ticker symbol
-            start_date: Start of date range (inclusive)
-            end_date: End of date range (inclusive)
-            interval: Data interval (e.g. '5m', '1d', '1wk')
-
-        Returns:
-            DataFrame with columns: date, close
-        """
-        pass
-
-
-class BaseCurrencyRepository(ABC):
-    """Base repository for currency data."""
-
-    @abstractmethod
-    def get_ticker_currency(self, ticker: str) -> float:
-        """Get currency for a ticker."""
         pass
 
 
@@ -175,38 +136,7 @@ class CashRepository(BaseRepository, CashOperationRepository, ABC):
         pass
 
 
-class MarketDataProvider(BasePriceRepository, BaseCurrencyRepository, ABC):
-    """Interface for external market data providers.
-
-    Generic abstraction for market data providers (Yahoo Finance, Alpha Vantage, etc.)
-    """
-
-    @abstractmethod
-    def get_price_history_period(
-        self,
-        ticker: str,
-        period: str = None,
-        interval: str = "1d",
-    ) -> object:
-        """Fetch price history for a ticker using period instead of dates.
-
-        Args:
-            ticker: Stock ticker symbol
-            period: yfinance period string (e.g. '1d', '1mo', '1y')
-            interval: Data interval (e.g. '5m', '1d', '1wk')
-
-        Returns:
-            DataFrame with columns: date, close
-        """
-        pass
-
-    @abstractmethod
-    def get_exchange_rate(self, from_currency: str, to_currency: str) -> float | None:
-        """Fetch the exchange rate from from_currency to to_currency."""
-        pass
-
-
-class PriceRepository(BasePriceRepository, ABC):
+class PriceRepository(PriceProvider, ABC):
     """Repository for asset price data."""
 
     @abstractmethod
@@ -227,7 +157,7 @@ class PriceRepository(BasePriceRepository, ABC):
         pass
 
 
-class CurrencyRepository(BaseCurrencyRepository, ABC):
+class CurrencyRepository(CurrencyProvider, ABC):
     """Repository for currency data (ticker currencies and exchange rates)."""
 
     @abstractmethod

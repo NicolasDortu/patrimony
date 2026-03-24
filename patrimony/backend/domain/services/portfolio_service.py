@@ -12,9 +12,9 @@ import polars as pl
 
 from ..constants import ASSET_TYPE_LABELS, PERIOD_CONFIG
 from ..entities import PortfolioOverview
+from ..interfaces import MarketDataProvider
 from ..repositories import (
     CashRepository,
-    MarketDataProvider,
     PriceRepository,
     SecuritiesRepository,
 )
@@ -61,8 +61,8 @@ class PortfolioService:
         cash_value = self._calculate_cash_value(cash_df, user_currency)
 
         return PortfolioOverview(
-            securities_total=self._to_dicts(securities_df),
-            cash_entries=self._to_dicts(cash_df),
+            securities_total=securities_df,
+            cash_entries=cash_df,
             total_value=securities_value + cash_value,
             total_invested=total_invested,
             total_return=total_return,
@@ -141,12 +141,6 @@ class PortfolioService:
         )
 
     # -- Internal helpers ----------------------------------------------------
-
-    @staticmethod
-    def _to_dicts(df: Optional[pl.DataFrame]) -> list[dict]:
-        if df is None or df.is_empty():
-            return []
-        return df.to_dicts()
 
     def _enrich_with_prices(self, df: pl.DataFrame) -> pl.DataFrame:
         if df is None or df.is_empty() or "ticker" not in df.columns:

@@ -1,9 +1,10 @@
 """Service Layer - Single interface between frontend and backend.
 
-This module is the ONLY frontend module that accesses backend (controllers and entities).
+This module is the ONLY frontend module that accesses the backend.
 States and components should only import from this file, never directly from backend.
 """
 
+import logging
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Optional
@@ -15,14 +16,23 @@ from ..backend.domain.entities import (
     PortfolioOverview,
     TransactionType,
 )
-
-from ..backend.presentation.controllers import OperationResult
 from ..backend.presentation.di_container import container
+
+logger = logging.getLogger(__name__)
 
 
 # ============================================================================
 # FRONTEND DATA MODELS
 # ============================================================================
+
+
+@dataclass(slots=True)
+class OperationResult:
+    """Generic result for mutation operations."""
+
+    success: bool
+    message: str
+    data: Optional[dict] = None
 
 
 @dataclass(slots=True)
@@ -68,9 +78,26 @@ class CashService:
         last_updated: Optional[datetime] = None,
     ) -> OperationResult:
         """Add new cash account."""
-        return container.cash_controller().add_cash(
-            bank, account_number, currency, balance, last_updated
-        )
+        try:
+            if last_updated is None:
+                last_updated = datetime.now()
+            cash_id = container.cash_repository().add_cash(
+                bank=bank,
+                account_number=account_number,
+                currency=currency,
+                balance=balance,
+                last_updated=last_updated,
+            )
+            return OperationResult(
+                success=True,
+                message="Bank account added successfully",
+                data={"id": cash_id},
+            )
+        except Exception as e:
+            return OperationResult(
+                success=False,
+                message=f"Failed to add bank account: {e}",
+            )
 
     @staticmethod
     def update_cash(
@@ -81,19 +108,46 @@ class CashService:
         last_updated: Optional[datetime] = None,
     ) -> OperationResult:
         """Update existing cash account."""
-        return container.cash_controller().update_cash(
-            id, bank, account_number, currency, last_updated
-        )
+        try:
+            if last_updated is None:
+                last_updated = datetime.now()
+            container.cash_repository().update_cash(
+                id=id,
+                bank=bank,
+                account_number=account_number,
+                currency=currency,
+                last_updated=last_updated,
+            )
+            return OperationResult(
+                success=True,
+                message=f"Account {id} updated successfully",
+            )
+        except Exception as e:
+            return OperationResult(
+                success=False,
+                message=f"Failed to update account {id}: {e}",
+            )
 
     @staticmethod
     def delete_cash(id: int) -> OperationResult:
         """Delete cash account."""
-        return container.cash_controller().delete_cash(id)
+        try:
+            container.cash_repository().delete(id)
+            return OperationResult(
+                success=True,
+                message=f"Account {id} deleted successfully",
+            )
+        except Exception as e:
+            return OperationResult(
+                success=False,
+                message=f"Failed to delete account {id}: {e}",
+            )
 
     @staticmethod
     def get_all_cash() -> list[dict]:
         """Get all cash accounts."""
-        return container.cash_controller().get_all_cash()
+        df = container.cash_repository().get_all()
+        return df.to_dicts() if df is not None else []
 
     @staticmethod
     def add_operation_balance(
@@ -104,19 +158,47 @@ class CashService:
         entry_type: EntryType = EntryType.MANUAL,
     ) -> OperationResult:
         """Make an operation on cash balance."""
-        return container.cash_controller().add_operation_balance(
-            account_number, amount, title, operation_date, entry_type
-        )
+        try:
+            op_id = container.cash_repository().add_operation_balance(
+                account_number=account_number,
+                amount=amount,
+                title=title,
+                operation_date=operation_date,
+                entry_type=entry_type,
+            )
+            return OperationResult(
+                success=True,
+                message=f"Operation successful, id: {op_id}",
+                data={"id": op_id},
+            )
+        except Exception as e:
+            logger.error("Failed to record cash operation: %s", e)
+            return OperationResult(
+                success=False,
+                message=f"Failed to record cash operation: {e}",
+            )
 
     @staticmethod
     def get_operations_by_account(account_number: str) -> list[dict]:
         """Get balance operations for specific account."""
-        return container.cash_controller().get_operations_by_account(account_number)
+        try:
+            df = container.cash_repository().get_operations_by_account(account_number)
+            return df.to_dicts() if df is not None else []
+        except Exception as e:
+            logger.error(
+                "Failed to get operations for account %s: %s", account_number, e
+            )
+            return []
 
     @staticmethod
     def get_all_operations() -> list[dict]:
         """Get all balance operations."""
-        return container.cash_controller().get_all_operations()
+        try:
+            df = container.cash_repository().get_all_operations()
+            return df.to_dicts() if df is not None else []
+        except Exception as e:
+            logger.error("Failed to get all operations: %s", e)
+            return []
 
     @staticmethod
     def update_operation_by_id(
@@ -127,19 +209,46 @@ class CashService:
         entry_type: EntryType,
     ) -> OperationResult:
         """Update a balance operation by ID."""
-        return container.cash_controller().update_operation_by_id(
-            id, amount, title, operation_date, entry_type
-        )
+        try:
+            container.cash_repository().update_operation_by_id(
+                id=id,
+                amount=amount,
+                title=title,
+                operation_date=operation_date,
+                entry_type=entry_type,
+            )
+            return OperationResult(
+                success=True, message="Operation updated successfully"
+            )
+        except Exception as e:
+            return OperationResult(
+                success=False,
+                message=f"Failed to update cash operation {id}: {e}",
+            )
 
     @staticmethod
     def delete_operation_by_id(id: int) -> OperationResult:
         """Delete a balance operation by ID."""
-        return container.cash_controller().delete_operation_by_id(id)
+        try:
+            container.cash_repository().delete_operation_by_id(id)
+            return OperationResult(
+                success=True, message="Operation deleted successfully"
+            )
+        except Exception as e:
+            return OperationResult(
+                success=False,
+                message=f"Failed to delete cash operation {id}: {e}",
+            )
 
     @staticmethod
     def get_balance(account_number: str) -> float:
         """Get current balance for specific account."""
-        return container.cash_controller().get_balance(account_number)
+        try:
+            balance = container.cash_repository().get_balance(account_number)
+            return balance if balance is not None else 0.0
+        except Exception as e:
+            logger.error("Failed to get balance for account %s: %s", account_number, e)
+            return 0.0
 
 
 # ============================================================================
@@ -161,42 +270,76 @@ class SecuritiesService:
         date: Optional[datetime] = None,
     ) -> OperationResult:
         """Add new security position."""
-        return container.securities_controller().add_position(
-            ticker,
-            price,
-            quantity,
-            entry_type,
-            asset_type,
-            transaction_type,
-            date,
-        )
+        try:
+            if date is None:
+                date = datetime.now()
+            position_id = container.securities_repository().add_position(
+                ticker=ticker,
+                price=price,
+                quantity=quantity,
+                entry_type=entry_type,
+                asset_type=asset_type,
+                transaction_type=transaction_type,
+                date=date,
+            )
+            return OperationResult(
+                success=True,
+                message=f"Position for {ticker} added successfully",
+                data={"id": position_id},
+            )
+        except Exception as e:
+            return OperationResult(
+                success=False,
+                message=f"Failed to add position: {e}",
+            )
 
     @staticmethod
     def delete_position(id: int) -> OperationResult:
         """Delete security position."""
-        return container.securities_controller().delete_position(id)
+        try:
+            container.securities_repository().delete(id)
+            return OperationResult(
+                success=True,
+                message=f"Position {id} deleted successfully",
+            )
+        except Exception as e:
+            return OperationResult(
+                success=False,
+                message=f"Failed to delete position: {e}",
+            )
 
     @staticmethod
     def get_all_positions() -> list[dict]:
         """Get all individual positions."""
-        return container.securities_controller().get_all_positions()
+        df = container.securities_repository().get_all()
+        if df is None:
+            return []
+        if "currency" in df.columns:
+            df = df.drop("currency")
+        return df.to_dicts()
 
     @staticmethod
     def get_positions_by_ticker(ticker: str) -> list[dict]:
         """Get positions for specific ticker."""
-        return container.securities_controller().get_positions_by_ticker(ticker)
+        df = container.securities_repository().get_by_ticker(ticker)
+        if df is None:
+            return []
+        if "currency" in df.columns:
+            df = df.drop("currency")
+        return df.to_dicts()
 
     @staticmethod
     def get_aggregated_positions(user_currency: str = "EUR") -> list[dict]:
         """Get aggregated positions (totals)."""
-        return container.securities_controller().get_aggregated_positions(user_currency)
+        df = container.securities_service().get_aggregated_positions(user_currency)
+        return df.to_dicts() if df is not None else []
 
     @staticmethod
     def get_chart_data_ticker(
         ticker: str, period: str = "1M", user_currency: str = "EUR"
     ) -> list[dict]:
         """Get chart data for a single ticker."""
-        return container.securities_controller().get_chart_data_ticker(
+        return container.securities_service().get_chart_data_ticker(
             ticker, period, user_currency
         )
 
@@ -212,12 +355,23 @@ class PortfolioService:
     @staticmethod
     def get_portfolio_overview(user_currency: str = "EUR") -> PortfolioOverview:
         """Get complete portfolio overview."""
-        return container.portfolio_controller().get_portfolio_overview(user_currency)
+        overview = container.portfolio_service().get_overview(user_currency)
+        overview.securities_total = (
+            overview.securities_total.to_dicts()
+            if overview.securities_total is not None
+            else []
+        )
+        overview.cash_entries = (
+            overview.cash_entries.to_dicts()
+            if overview.cash_entries is not None
+            else []
+        )
+        return overview
 
     @staticmethod
     def get_chart_data(period: str = "1M", user_currency: str = "EUR") -> list[dict]:
         """Get chart data for the entire portfolio."""
-        return container.portfolio_controller().get_chart_data(period, user_currency)
+        return container.portfolio_service().get_chart_data(period, user_currency)
 
 
 # ============================================================================
@@ -231,7 +385,9 @@ class SecuritiesReferenceService:
     @staticmethod
     def search(query: str, limit: int = 10) -> list[dict]:
         """Search securities reference by ticker or name."""
-        return container.reference_controller().search(query, limit)
+        if not query or len(query) < 1:
+            return []
+        return container.reference_repository().search(query, limit)
 
 
 # ============================================================================
@@ -245,7 +401,7 @@ class CurrencyService:
     @staticmethod
     def get_exchange_rate(from_currency: str, to_currency: str) -> float:
         """Get exchange rate between two currencies."""
-        return container.currency_controller().get_exchange_rate(
+        return container.currency_service().get_exchange_rate(
             from_currency, to_currency
         )
 
