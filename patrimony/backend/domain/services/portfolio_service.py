@@ -84,6 +84,7 @@ class PortfolioService:
             self._cash_repo.get_all(), user_currency
         )
         cash_timeline = self._build_cash_timeline(user_currency)
+        quantity_timeline = self._build_quantity_timeline()
 
         rates: dict[str, float] = {}
         ticker_data: dict[str, dict] = {}
@@ -138,6 +139,7 @@ class PortfolioService:
             current_cash,
             date_fmt,
             rates,
+            quantity_timeline,
         )
 
     # -- Internal helpers ----------------------------------------------------
@@ -261,6 +263,46 @@ class PortfolioService:
             if row.get("total_quantity", 0) > 0
         }
 
+    def _build_quantity_timeline(self) -> dict[str, list[tuple]]:
+        """Build per-ticker cumulative quantity timeline from individual positions.
+
+        Returns a dict mapping ticker -> sorted list of (date, cumulative_quantity).
+        """
+        df = self._securities_repo.get_all()
+        if df is None or df.is_empty():
+            return {}
+
+        timeline: dict[str, list[tuple]] = {}
+        for ticker in df["ticker"].unique().to_list():
+            ticker_df = df.filter(pl.col("ticker") == ticker).sort("date")
+            cumulative = 0.0
+            entries: list[tuple] = []
+            for row in ticker_df.iter_rows(named=True):
+                cumulative += row["quantity"]
+                pos_date = row["date"]
+                if hasattr(pos_date, "date"):
+                    pos_date = pos_date.date()
+                entries.append((pos_date, cumulative))
+            timeline[ticker] = entries
+        return timeline
+
+    @staticmethod
+    def _get_quantity_at_date(
+        quantity_timeline: dict[str, list[tuple]], ticker: str, dt
+    ) -> float:
+        """Get the cumulative quantity held for a ticker at a given date."""
+        entries = quantity_timeline.get(ticker, [])
+        if not entries:
+            return 0.0
+        dt_date = dt.date() if hasattr(dt, "date") else dt
+        result = 0.0
+        for entry_date, qty in entries:
+            if entry_date <= dt_date:
+                result = qty
+            else:
+                break
+        return result
+
     def _fetch_ticker_prices(
         self, tickers: list[str], config: dict, is_intraday: bool
     ) -> tuple[dict[str, dict], list]:
@@ -279,7 +321,19 @@ class PortfolioService:
                     all_dates_set.update(dates)
         else:
             start = datetime.now() - timedelta(days=config["days"])
+            earliest = self._securities_repo.get_earliest_purchase_date()
+            if earliest is not None:
+                earliest_dt = (
+                    datetime.combine(earliest, datetime.min.time())
+                    if not isinstance(earliest, datetime)
+                    else earliest
+                )
+                if earliest_dt > start:
+                    start = earliest_dt
             end = datetime.now()
+            # Ensure at least a 1-day range so yfinance doesn't return empty
+            if (end - start).days < 1:
+                start = end - timedelta(days=1)
             self._price_repo.sync_price_history(tickers, start)
             df = self._price_repo.get_price_history(tickers, start, end)
             if df is not None and not df.is_empty():
@@ -338,6 +392,7 @@ class PortfolioService:
         current_cash: float,
         date_fmt: str,
         rates: dict[str, float] | None = None,
+        quantity_timeline: dict[str, list[tuple]] | None = None,
     ) -> list[dict]:
         rows = []
         for dt in all_dates:
@@ -347,7 +402,11 @@ class PortfolioService:
                 if price is None or price != price or price <= 0:
                     price = 0
                 rate = rates.get(ticker, 1.0) if rates else 1.0
-                value = info["quantity"] * price * rate
+                if quantity_timeline is not None:
+                    qty = self._get_quantity_at_date(quantity_timeline, ticker, dt)
+                else:
+                    qty = info["quantity"]
+                value = qty * price * rate
                 label = ASSET_TYPE_LABELS.get(info.get("asset_type", "STOCK"), "Stocks")
                 asset_values[label] += value
 

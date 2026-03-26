@@ -61,39 +61,16 @@ def _step_upload() -> rx.Component:
         rx.separator(),
         rx.upload(
             rx.vstack(
-                rx.cond(
-                    ConnectorState.has_file,
-                    rx.vstack(
-                        rx.icon("file-check", size=40, color=rx.color("green", 9)),
-                        rx.text(
-                            ConnectorState.filename,
-                            size="3",
-                            weight="bold",
-                            color=rx.color("green", 11),
-                        ),
-                        rx.text(
-                            "Click or drop a new file to replace",
-                            size="2",
-                            color=rx.color("gray", 10),
-                        ),
-                        align="center",
-                        spacing="2",
-                    ),
-                    rx.vstack(
-                        rx.icon("upload", size=40, color=rx.color("accent", 9)),
-                        rx.text(
-                            "Drag and drop or click to upload",
-                            size="3",
-                            weight="bold",
-                        ),
-                        rx.text(
-                            "Supports .csv, .xlsx, .xls files",
-                            size="2",
-                            color=rx.color("gray", 10),
-                        ),
-                        align="center",
-                        spacing="2",
-                    ),
+                rx.icon("upload", size=40, color=rx.color("accent", 9)),
+                rx.text(
+                    "Drag and drop or click to upload",
+                    size="3",
+                    weight="bold",
+                ),
+                rx.text(
+                    "Supports .csv, .xlsx, .xls files",
+                    size="2",
+                    color=rx.color("gray", 10),
                 ),
                 align="center",
                 spacing="2",
@@ -113,6 +90,20 @@ def _step_upload() -> rx.Component:
             width="100%",
             cursor="pointer",
             _hover={"border_color": rx.color("accent", 9)},
+        ),
+        rx.cond(
+            rx.selected_files("connector_upload"),
+            rx.hstack(
+                rx.icon("file-check", size=16, color=rx.color("green", 9)),
+                rx.text(
+                    rx.selected_files("connector_upload")[0],
+                    size="2",
+                    weight="bold",
+                    color=rx.color("green", 11),
+                ),
+                align="center",
+                spacing="2",
+            ),
         ),
         rx.button(
             "Read File",

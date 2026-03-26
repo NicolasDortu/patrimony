@@ -156,6 +156,18 @@ class SecuritiesService:
                 ticker, period=config["period"], interval=config["interval"]
             )
         start = datetime.now() - timedelta(days=config["days"])
+        earliest = self._securities_repo.get_earliest_purchase_date(ticker)
+        if earliest is not None:
+            earliest_dt = (
+                datetime.combine(earliest, datetime.min.time())
+                if not isinstance(earliest, datetime)
+                else earliest
+            )
+            if earliest_dt > start:
+                start = earliest_dt
         end = datetime.now()
+        # Ensure at least a 1-day range so yfinance doesn't return empty
+        if (end - start).days < 1:
+            start = end - timedelta(days=1)
         self._price_repo.sync_price_history([ticker], start)
         return self._price_repo.get_price_history([ticker], start, end)

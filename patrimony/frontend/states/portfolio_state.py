@@ -35,6 +35,10 @@ class PortfolioState(rx.State):
     ### Asset types  ###
     ####################
     @rx.var
+    def has_data(self) -> bool:
+        return len(self._stocks_total_data) > 0 or self.cash_value > 0
+
+    @rx.var
     def has_stocks(self) -> bool:
         return any(s.get("asset_type") == "STOCK" for s in self._stocks_total_data)
 

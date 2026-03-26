@@ -2,6 +2,8 @@ from typing import Union
 
 import reflex as rx
 
+from datetime import datetime
+
 from ..services import (
     SecuritiesService,
     SecuritiesReferenceService,
@@ -187,12 +189,17 @@ class TableStateTotal(rx.State):
         """Add a new position from form data."""
         ticker = form_data.get("ticker", self.ticker_search).upper()
         asset_type_str = form_data.get("asset_type", self.selected_asset_type)
+        date_str = form_data.get("date", "")
+        purchase_date = (
+            datetime.strptime(date_str, "%Y-%m-%d") if date_str else datetime.now()
+        )
         result = SecuritiesService.add_position(
             ticker=ticker,
             price=float(form_data.get("price", 0)),
             quantity=float(form_data.get("quantity", 0)),
             entry_type=EntryType.MANUAL,
             asset_type=AssetType(asset_type_str),
+            date=purchase_date,
             fees=float(form_data.get("fees", 0))
             if form_data.get("fees") and form_data.get("fees").isdigit()
             else 0.0,

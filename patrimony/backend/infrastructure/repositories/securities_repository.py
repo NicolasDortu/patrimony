@@ -71,3 +71,16 @@ class SecuritiesRepositoryImpl(SecuritiesRepository):
     def get_all(self) -> pl.DataFrame:
         """Get all positions."""
         return self._conn.execute("SELECT * FROM positions").pl()
+
+    def get_earliest_purchase_date(self, ticker: str | None = None) -> datetime | None:
+        """Return the earliest purchase date, optionally filtered by ticker."""
+        if ticker:
+            row = self._conn.execute(
+                "SELECT MIN(date) AS min_date FROM positions WHERE ticker = ?",
+                [ticker.upper()],
+            ).fetchone()
+        else:
+            row = self._conn.execute(
+                "SELECT MIN(date) AS min_date FROM positions"
+            ).fetchone()
+        return row[0] if row and row[0] else None

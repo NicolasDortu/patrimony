@@ -1,3 +1,5 @@
+from datetime import date
+
 import reflex as rx
 
 from ..states.securities_total_state import TableStateTotal
@@ -94,6 +96,13 @@ def open_add_position_dialog(on_submit: callable) -> rx.Component:
                         type="number",
                         min="0",
                         step="0.01",
+                    ),
+                    rx.text("Purchase Date", size="2", weight="bold"),
+                    rx.input(
+                        type="date",
+                        name="date",
+                        default_value=date.today().isoformat(),
+                        max=date.today().isoformat(),
                     ),
                     rx.flex(
                         rx.dialog.close(

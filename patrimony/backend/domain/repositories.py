@@ -55,6 +55,11 @@ class SecuritiesRepository(BaseRepository, ABC):
         """Get aggregated positions (total quantities, avg prices)."""
         pass
 
+    @abstractmethod
+    def get_earliest_purchase_date(self, ticker: str | None = None) -> datetime | None:
+        """Return the earliest purchase date, optionally filtered by ticker."""
+        pass
+
 
 class CashOperationRepository(ABC):
     """Cash Methods related to cash operations (deposits, withdrawals, transfers)."""
