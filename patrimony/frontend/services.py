@@ -43,6 +43,7 @@ class SecurityPosition:
     ticker: str = ""
     price: float = 0.0
     quantity: float = 1.0
+    fees: float = 0.0
     entry_type: EntryType = EntryType.MANUAL
     transaction_type: TransactionType = TransactionType.BUY
     date: datetime = field(default_factory=datetime.now)
@@ -268,6 +269,7 @@ class SecuritiesService:
         asset_type: AssetType,
         transaction_type: TransactionType,
         date: Optional[datetime] = None,
+        fees: float = 0.0,
     ) -> OperationResult:
         """Add new security position."""
         try:
@@ -281,6 +283,7 @@ class SecuritiesService:
                 asset_type=asset_type,
                 transaction_type=transaction_type,
                 date=date,
+                fees=fees,
             )
             return OperationResult(
                 success=True,
@@ -412,3 +415,65 @@ class CurrencyService:
             return Currency(currency_code).symbols
         except ValueError:
             return currency_code
+
+
+# ============================================================================
+# BACKEND INTERFACE - Dividend Operations
+# ============================================================================
+
+
+class DividendService:
+    """Frontend service for dividend operations."""
+
+    @staticmethod
+    def add_dividend(
+        ticker: str,
+        amount: float,
+        date: Optional[datetime] = None,
+    ) -> OperationResult:
+        """Add a new dividend."""
+        try:
+            if date is None:
+                date = datetime.now()
+            dividend_id = container.dividend_repository().add_dividend(
+                ticker=ticker,
+                amount=amount,
+                date=date,
+            )
+            return OperationResult(
+                success=True,
+                message=f"Dividend for {ticker} added successfully",
+                data={"id": dividend_id},
+            )
+        except Exception as e:
+            return OperationResult(
+                success=False,
+                message=f"Failed to add dividend: {e}",
+            )
+
+    @staticmethod
+    def get_dividends_by_ticker(ticker: str) -> list[dict]:
+        """Get dividends for a specific ticker."""
+        df = container.dividend_repository().get_by_ticker(ticker)
+        return df.to_dicts() if df is not None else []
+
+    @staticmethod
+    def get_all_dividends() -> list[dict]:
+        """Get all dividends."""
+        df = container.dividend_repository().get_all()
+        return df.to_dicts() if df is not None else []
+
+    @staticmethod
+    def delete_dividend(id: int) -> OperationResult:
+        """Delete a dividend by ID."""
+        try:
+            container.dividend_repository().delete(id)
+            return OperationResult(
+                success=True,
+                message=f"Dividend {id} deleted successfully",
+            )
+        except Exception as e:
+            return OperationResult(
+                success=False,
+                message=f"Failed to delete dividend: {e}",
+            )

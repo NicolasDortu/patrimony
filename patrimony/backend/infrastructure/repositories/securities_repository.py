@@ -23,19 +23,21 @@ class SecuritiesRepositoryImpl(SecuritiesRepository):
         asset_type: AssetType,
         transaction_type: TransactionType,
         date: datetime,
+        fees: float = 0.0,
     ) -> int:
         """Add a new position to the database."""
         result = self._conn.execute(
             """
             INSERT INTO positions
-            (ticker, price, quantity, entry_type, asset_type, transaction_type, date)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
+            (ticker, price, quantity, fees, entry_type, asset_type, transaction_type, date)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             RETURNING id
             """,
             [
                 ticker.upper(),
                 price,
                 quantity,
+                fees,
                 entry_type.value,
                 asset_type.value,
                 transaction_type.value,

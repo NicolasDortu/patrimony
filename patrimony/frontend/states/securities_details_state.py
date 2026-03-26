@@ -10,6 +10,7 @@ from ..services import (
     AssetType,
 )
 from ..templates import ThemeState
+from .dividends_state import DividendsState
 
 
 class TableStateDetails(rx.State):
@@ -37,6 +38,9 @@ class TableStateDetails(rx.State):
         self.ticker = ticker
         self.load_entries()
         await self._load_chart_data()
+        dividends_state = await self.get_state(DividendsState)
+        dividends_state.ticker = ticker
+        dividends_state.load_entries()
 
     @rx.event
     def set_ticker(self, ticker: str) -> None:
@@ -137,6 +141,7 @@ class TableStateDetails(rx.State):
             entry_type=EntryType.MANUAL,
             asset_type=AssetType.STOCK,
             transaction_type=TransactionType.BUY,
+            fees=float(form_data.get("fees", 0)),
         )
 
         if result.success:

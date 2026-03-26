@@ -195,6 +195,9 @@ class TableStateTotal(rx.State):
             entry_type=EntryType.MANUAL,
             asset_type=AssetType(asset_type_str),
             transaction_type=TransactionType.BUY,
+            fees=float(form_data.get("fees", 0))
+            if form_data.get("fees") and form_data.get("fees").isdigit()
+            else 0.0,
         )
 
         self.ticker_search = ""

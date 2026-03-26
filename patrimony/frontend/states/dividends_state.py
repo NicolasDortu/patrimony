@@ -1,0 +1,105 @@
+from dataclasses import dataclass, field
+from datetime import datetime
+from typing import Union
+
+import reflex as rx
+
+from ..services import DividendService
+
+
+@dataclass(slots=True)
+class Dividend:
+    """Frontend model for a dividend entry."""
+
+    id: int = 0
+    ticker: str = ""
+    amount: float = 0.0
+    date: datetime = field(default_factory=datetime.now)
+
+
+class DividendsState(rx.State):
+    """State for managing dividends on the securities detail page."""
+
+    items: list[Dividend] = []
+    ticker: str = ""
+    total_items: int = 0
+    offset: int = 0
+    limit: int = 12
+
+    @rx.var
+    def total_dividends(self) -> float:
+        return sum(item.amount for item in self.items)
+
+    @rx.var
+    def page_number(self) -> int:
+        return (self.offset // self.limit) + 1
+
+    @rx.var
+    def total_pages(self) -> int:
+        return max(1, (self.total_items + self.limit - 1) // self.limit)
+
+    @rx.var(initial_value=[])
+    def get_current_page(self) -> list[Dividend]:
+        start_index = self.offset
+        end_index = start_index + self.limit
+        return self.items[start_index:end_index]
+
+    def prev_page(self) -> None:
+        if self.page_number > 1:
+            self.offset -= self.limit
+
+    def next_page(self) -> None:
+        if self.page_number < self.total_pages:
+            self.offset += self.limit
+
+    def first_page(self) -> None:
+        self.offset = 0
+
+    def last_page(self) -> None:
+        self.offset = (self.total_pages - 1) * self.limit
+
+    @rx.event
+    def set_ticker(self, ticker: str) -> None:
+        self.ticker = ticker
+
+    @rx.event
+    def load_entries(self) -> None:
+        if not self.ticker:
+            self.items = []
+            self.total_items = 0
+            return
+        dividends = DividendService.get_dividends_by_ticker(self.ticker)
+        self.items = [Dividend(**d) for d in dividends]
+        self.total_items = len(self.items)
+
+    @rx.event
+    def add_dividend(self, form_data: dict) -> None:
+        """Add a new dividend from form data."""
+        date_str = form_data.get("date", "")
+        date = datetime.strptime(date_str, "%Y-%m-%d") if date_str else datetime.now()
+
+        result = DividendService.add_dividend(
+            ticker=self.ticker,
+            amount=float(form_data.get("amount", 0)),
+            date=date,
+        )
+
+        if result.success:
+            self.load_entries()
+            return rx.toast.success(result.message, position="top-center")
+        else:
+            return rx.toast.error(result.message, position="top-center")
+
+    @rx.event
+    def delete_dividend(self, id: Union[int, dict]) -> None:
+        """Delete a dividend by ID."""
+        if isinstance(id, dict):
+            id = id.get("id", "")
+
+        result = DividendService.delete_dividend(id)
+
+        if result.success:
+            self.load_entries()
+            return rx.toast.success(result.message, position="top-center")
+        else:
+            return rx.toast.error(result.message, position="top-center")

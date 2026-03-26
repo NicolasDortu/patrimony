@@ -84,9 +84,16 @@ def open_add_position_dialog(on_submit: callable) -> rx.Component:
                         placeholder="Quantity",
                         name="quantity",
                         type="number",
-                        min="1",
-                        step="1",
+                        min="0.0001",
+                        step="0.0001",
                         required=True,
+                    ),
+                    rx.input(
+                        placeholder="Fees ($)",
+                        name="fees",
+                        type="number",
+                        min="0",
+                        step="0.01",
                     ),
                     rx.flex(
                         rx.dialog.close(

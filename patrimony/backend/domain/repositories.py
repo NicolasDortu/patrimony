@@ -41,6 +41,7 @@ class SecuritiesRepository(BaseRepository, ABC):
         asset_type: AssetType,
         transaction_type: TransactionType,
         date: datetime,
+        fees: float = 0.0,
     ) -> int:
         """Add a new position and return its id."""
         pass
@@ -186,4 +187,23 @@ class ReferenceRepository(ABC):
     @abstractmethod
     def search(self, query: str, limit: int = 10) -> list[dict]:
         """Search securities by ticker or name (case-insensitive)."""
+        pass
+
+
+class DividendRepository(BaseRepository, ABC):
+    """Repository for dividend records."""
+
+    @abstractmethod
+    def add_dividend(
+        self,
+        ticker: str,
+        amount: float,
+        date: datetime,
+    ) -> int:
+        """Add a new dividend and return its id."""
+        pass
+
+    @abstractmethod
+    def get_by_ticker(self, ticker: str) -> object:
+        """Get all dividends for a specific ticker."""
         pass

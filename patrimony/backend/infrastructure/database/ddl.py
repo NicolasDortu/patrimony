@@ -7,12 +7,24 @@ CREATE_POSITIONS_TABLE = """
         ticker VARCHAR NOT NULL,
         price DOUBLE NOT NULL,
         quantity DOUBLE DEFAULT 1.0,
+        fees DOUBLE DEFAULT 0.0,
         entry_type VARCHAR NOT NULL,
         asset_type VARCHAR NOT NULL,
         transaction_type VARCHAR NOT NULL DEFAULT 'BUY',
         date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
     CREATE INDEX IF NOT EXISTS idx_positions_ticker ON positions (ticker);
+"""
+
+CREATE_DIVIDENDS_TABLE = """
+    CREATE SEQUENCE IF NOT EXISTS dividends_id_seq;
+    CREATE TABLE IF NOT EXISTS dividends (
+        id INTEGER PRIMARY KEY DEFAULT nextval('dividends_id_seq'),
+        ticker VARCHAR NOT NULL,
+        amount DOUBLE NOT NULL,
+        date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+    CREATE INDEX IF NOT EXISTS idx_dividends_ticker ON dividends (ticker);
 """
 
 
@@ -49,7 +61,7 @@ CREATE_POSITIONS_TOTAL_VIEW = """
             ticker,
             MIN(asset_type) AS asset_type,
             SUM(CASE WHEN transaction_type = 'BUY' THEN quantity ELSE -quantity END) AS total_quantity,
-            SUM(CASE WHEN transaction_type = 'BUY' THEN price * quantity ELSE -price * quantity END) /
+            SUM(CASE WHEN transaction_type = 'BUY' THEN price * quantity + fees ELSE -(price * quantity + fees) END) /
                 NULLIF(SUM(CASE WHEN transaction_type = 'BUY' THEN quantity ELSE -quantity END), 0) AS avg_price
         FROM positions
         GROUP BY ticker
@@ -140,6 +152,7 @@ DDL_COMMANDS = [
     CREATE_POSITIONS_TOTAL_VIEW,
     CREATE_CASH_TABLE,
     CREATE_BALANCE_OPERATIONS_TABLE,
+    CREATE_DIVIDENDS_TABLE,
     CREATE_CASH_BALANCE_VIEW,
     CREATE_TICKERS_REFERENCE_TABLE,
     CREATE_TICKER_CURRENCY_TABLE,

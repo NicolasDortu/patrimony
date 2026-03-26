@@ -4,9 +4,12 @@ import reflex as rx
 
 from ..components.card import card
 from ..dialogs import open_add_position_dialog
+from ..dialogs.dividend_dialog import open_add_dividend_dialog
 from ..states.securities_details_state import TableStateDetails
-from ..templates import template
+from ..states.dividends_state import DividendsState
+from ..templates import template, ThemeState
 from ..views.tables.securities_details_table import main_table
+from ..views.tables.dividends_table import dividends_table
 from ..views.charts.stock_chart import stock_chart
 
 
@@ -47,6 +50,22 @@ def securities_detail() -> rx.Component:
         ),
         card(stock_chart()),
         main_table(),
+        # Dividends section
+        rx.heading("Dividends", size="4", margin_top="1em"),
+        rx.flex(
+            open_add_dividend_dialog(),
+            rx.text(
+                "Total: ",
+                ThemeState.currency_symbol,
+                f"{DividendsState.total_dividends:.2f}",
+                size="3",
+                weight="bold",
+            ),
+            justify="between",
+            align="center",
+            width="100%",
+        ),
+        dividends_table(),
         spacing="5",
         width="100%",
     )
