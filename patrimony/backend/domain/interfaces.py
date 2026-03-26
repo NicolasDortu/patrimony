@@ -7,6 +7,8 @@ from external sources (market data APIs, exchange rate services, etc.).
 from abc import ABC, abstractmethod
 from datetime import datetime
 
+import polars as pl
+
 
 class PriceProvider(ABC):
     """Interface for fetching live price data from an external source."""
@@ -76,4 +78,24 @@ class MarketDataProvider(PriceProvider, CurrencyProvider, ABC):
     @abstractmethod
     def get_exchange_rate(self, from_currency: str, to_currency: str) -> float | None:
         """Fetch the exchange rate from from_currency to to_currency."""
+        pass
+
+
+class FileConnector(ABC):
+    """Interface for reading uploaded files into a raw DataFrame."""
+
+    @abstractmethod
+    def read_file(
+        self, file_bytes: bytes, filename: str, delimiter: str = ","
+    ) -> pl.DataFrame:
+        """Parse an uploaded file into a raw DataFrame.
+
+        Args:
+            file_bytes: Raw bytes of the uploaded file.
+            filename: Original filename (used to detect format).
+            delimiter: CSV delimiter character (ignored for Excel).
+
+        Returns:
+            A Polars DataFrame with the raw file contents.
+        """
         pass

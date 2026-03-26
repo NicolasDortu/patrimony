@@ -4,7 +4,7 @@ from datetime import datetime
 import polars as pl
 
 from ...domain.repositories import SecuritiesRepository
-from ...domain.entities import AssetType, EntryType, TransactionType
+from ...domain.entities import AssetType, EntryType
 from ..database.connection import DatabaseConnection
 
 
@@ -21,7 +21,6 @@ class SecuritiesRepositoryImpl(SecuritiesRepository):
         quantity: float,
         entry_type: EntryType,
         asset_type: AssetType,
-        transaction_type: TransactionType,
         date: datetime,
         fees: float = 0.0,
     ) -> int:
@@ -29,8 +28,8 @@ class SecuritiesRepositoryImpl(SecuritiesRepository):
         result = self._conn.execute(
             """
             INSERT INTO positions
-            (ticker, price, quantity, fees, entry_type, asset_type, transaction_type, date)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            (ticker, price, quantity, fees, entry_type, asset_type, date)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
             RETURNING id
             """,
             [
@@ -40,7 +39,6 @@ class SecuritiesRepositoryImpl(SecuritiesRepository):
                 fees,
                 entry_type.value,
                 asset_type.value,
-                transaction_type.value,
                 date,
             ],
         )

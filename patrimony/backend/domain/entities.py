@@ -36,13 +36,6 @@ class EntryType(StrEnum):
     API = "API"
 
 
-class TransactionType(StrEnum):
-    """Buy or sell transaction."""
-
-    BUY = "BUY"
-    SELL = "SELL"
-
-
 class Currency(StrEnum):
     """Supported currencies."""
 

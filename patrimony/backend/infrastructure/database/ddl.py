@@ -10,10 +10,24 @@ CREATE_POSITIONS_TABLE = """
         fees DOUBLE DEFAULT 0.0,
         entry_type VARCHAR NOT NULL,
         asset_type VARCHAR NOT NULL,
-        transaction_type VARCHAR NOT NULL DEFAULT 'BUY',
         date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
     CREATE INDEX IF NOT EXISTS idx_positions_ticker ON positions (ticker);
+"""
+
+CREATE_POSITIONS_CLOSED_TABLE = """
+    CREATE SEQUENCE IF NOT EXISTS positions_closed_id_seq;
+    CREATE TABLE IF NOT EXISTS positions_closed (
+        id INTEGER PRIMARY KEY DEFAULT nextval('positions_closed_id_seq'),
+        ticker VARCHAR NOT NULL,
+        price DOUBLE NOT NULL,
+        quantity DOUBLE DEFAULT 1.0,
+        fees DOUBLE DEFAULT 0.0,
+        entry_type VARCHAR NOT NULL,
+        asset_type VARCHAR NOT NULL,
+        date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+    CREATE INDEX IF NOT EXISTS idx_positions_closed_ticker ON positions_closed (ticker);
 """
 
 CREATE_DIVIDENDS_TABLE = """
@@ -58,13 +72,24 @@ CREATE_POSITIONS_TOTAL_VIEW = """
         agg.total_quantity * pc.current_price AS total_value
     FROM (
         SELECT
-            ticker,
-            MIN(asset_type) AS asset_type,
-            SUM(CASE WHEN transaction_type = 'BUY' THEN quantity ELSE -quantity END) AS total_quantity,
-            SUM(CASE WHEN transaction_type = 'BUY' THEN price * quantity + fees ELSE -(price * quantity + fees) END) /
-                NULLIF(SUM(CASE WHEN transaction_type = 'BUY' THEN quantity ELSE -quantity END), 0) AS avg_price
-        FROM positions
-        GROUP BY ticker
+            b.ticker,
+            b.asset_type,
+            b.buy_qty - COALESCE(s.sell_qty, 0) AS total_quantity,
+            b.total_cost / NULLIF(b.buy_qty, 0) AS avg_price
+        FROM (
+            SELECT
+                ticker,
+                MIN(asset_type) AS asset_type,
+                SUM(quantity) AS buy_qty,
+                SUM(price * quantity + fees) AS total_cost
+            FROM positions
+            GROUP BY ticker
+        ) b
+        LEFT JOIN (
+            SELECT ticker, SUM(quantity) AS sell_qty
+            FROM positions_closed
+            GROUP BY ticker
+        ) s ON b.ticker = s.ticker
     ) agg
     LEFT JOIN price_cache pc ON agg.ticker = pc.ticker
 """
@@ -147,6 +172,7 @@ FROM positions
 
 DDL_COMMANDS = [
     CREATE_POSITIONS_TABLE,
+    CREATE_POSITIONS_CLOSED_TABLE,
     CREATE_PRICE_CACHE_TABLE,
     CREATE_PRICE_HISTORY_TABLE,
     CREATE_POSITIONS_TOTAL_VIEW,

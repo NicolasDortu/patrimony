@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 from datetime import datetime
 
-from .entities import AssetType, Currency, EntryType, TransactionType
+from .entities import AssetType, Currency, EntryType
 from .interfaces import CurrencyProvider, PriceProvider
 
 
@@ -39,7 +39,6 @@ class SecuritiesRepository(BaseRepository, ABC):
         quantity: float,
         entry_type: EntryType,
         asset_type: AssetType,
-        transaction_type: TransactionType,
         date: datetime,
         fees: float = 0.0,
     ) -> int:

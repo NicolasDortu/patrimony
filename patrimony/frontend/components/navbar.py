@@ -109,7 +109,12 @@ def menu_button() -> rx.Component:
     ]
 
     # Exclude unwanted routes from navigation
-    excluded_routes = {"/about", "/securities_detail", "/cash_operations"}
+    excluded_routes = {
+        "/about",
+        "/securities_detail",
+        "/cash_operations",
+        "/connectors/file",
+    }
 
     pages = [
         page_dict

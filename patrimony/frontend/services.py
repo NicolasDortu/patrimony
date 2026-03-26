@@ -14,7 +14,6 @@ from ..backend.domain.entities import (
     Currency,
     EntryType,
     PortfolioOverview,
-    TransactionType,
 )
 from ..backend.presentation.di_container import container
 
@@ -45,7 +44,6 @@ class SecurityPosition:
     quantity: float = 1.0
     fees: float = 0.0
     entry_type: EntryType = EntryType.MANUAL
-    transaction_type: TransactionType = TransactionType.BUY
     date: datetime = field(default_factory=datetime.now)
     asset_type: AssetType = AssetType.STOCK
 
@@ -267,7 +265,6 @@ class SecuritiesService:
         quantity: float,
         entry_type: EntryType,
         asset_type: AssetType,
-        transaction_type: TransactionType,
         date: Optional[datetime] = None,
         fees: float = 0.0,
     ) -> OperationResult:
@@ -281,7 +278,6 @@ class SecuritiesService:
                 quantity=quantity,
                 entry_type=entry_type,
                 asset_type=asset_type,
-                transaction_type=transaction_type,
                 date=date,
                 fees=fees,
             )
@@ -477,3 +473,123 @@ class DividendService:
                 success=False,
                 message=f"Failed to delete dividend: {e}",
             )
+
+
+# ============================================================================
+# BACKEND INTERFACE - File Connector Operations
+# ============================================================================
+
+
+class FileConnectorService:
+    """Frontend service for CSV/Excel file import."""
+
+    @staticmethod
+    def read_file(
+        file_bytes: bytes, filename: str, delimiter: str = ","
+    ) -> tuple[list[str], list[dict]]:
+        """Read an uploaded file and return (columns, preview_rows).
+
+        Returns:
+            Tuple of (column names, first 5 rows as dicts).
+        """
+        df = container.connector_service().read_file(file_bytes, filename, delimiter)
+        columns = df.columns
+        preview = df.head(5).to_dicts()
+        return columns, preview
+
+    @staticmethod
+    def read_file_full(
+        file_bytes: bytes, filename: str, delimiter: str = ","
+    ) -> list[dict]:
+        """Read an uploaded file and return all rows."""
+        df = container.connector_service().read_file(file_bytes, filename, delimiter)
+        return df.to_dicts()
+
+    @staticmethod
+    def resolve_asset_types(tickers: list[str]) -> dict[str, str | None]:
+        """Resolve asset types for a list of tickers from the reference table."""
+        return container.connector_service().resolve_asset_types(tickers)
+
+    @staticmethod
+    def import_positions(
+        file_bytes: bytes,
+        filename: str,
+        column_mapping: dict[str, str],
+        delimiter: str = ",",
+        asset_type_overrides: dict[str, str] | None = None,
+    ) -> OperationResult:
+        """Import positions from an uploaded file."""
+        try:
+            lower = filename.lower()
+            entry_type = (
+                EntryType.EXCEL if lower.endswith((".xlsx", ".xls")) else EntryType.CSV
+            )
+
+            svc = container.connector_service()
+            df = svc.read_file(file_bytes, filename, delimiter)
+            result = svc.import_positions(
+                df, column_mapping, entry_type, asset_type_overrides
+            )
+
+            if result.success:
+                msg = f"Imported {result.imported} positions"
+                if result.skipped:
+                    msg += f" ({result.skipped} skipped)"
+                return OperationResult(
+                    success=True, message=msg, data={"errors": result.errors}
+                )
+            else:
+                return OperationResult(
+                    success=False,
+                    message=f"Import failed: {'; '.join(result.errors)}",
+                )
+        except Exception as e:
+            return OperationResult(success=False, message=f"Import failed: {e}")
+
+    @staticmethod
+    def detect_unknown_cash_accounts(
+        file_bytes: bytes,
+        filename: str,
+        column_mapping: dict[str, str],
+        delimiter: str = ",",
+    ) -> list[str]:
+        """Return account numbers from the file that don't exist in the cash table."""
+        svc = container.connector_service()
+        df = svc.read_file(file_bytes, filename, delimiter)
+        return svc.detect_unknown_cash_accounts(df, column_mapping)
+
+    @staticmethod
+    def import_cash_operations(
+        file_bytes: bytes,
+        filename: str,
+        column_mapping: dict[str, str],
+        delimiter: str = ",",
+        new_accounts: dict[str, dict] | None = None,
+    ) -> OperationResult:
+        """Import cash operations from an uploaded file."""
+        try:
+            lower = filename.lower()
+            entry_type = (
+                EntryType.EXCEL if lower.endswith((".xlsx", ".xls")) else EntryType.CSV
+            )
+
+            svc = container.connector_service()
+            df = svc.read_file(file_bytes, filename, delimiter)
+            result = svc.import_cash_operations(
+                df, column_mapping, entry_type, new_accounts
+            )
+
+            if result.success:
+                msg = f"Imported {result.imported} cash operations"
+                if result.skipped:
+                    msg += f" ({result.skipped} skipped)"
+                return OperationResult(
+                    success=True, message=msg, data={"errors": result.errors}
+                )
+            else:
+                return OperationResult(
+                    success=False,
+                    message=f"Import failed: {'; '.join(result.errors)}",
+                )
+        except Exception as e:
+            return OperationResult(success=False, message=f"Import failed: {e}")

@@ -6,7 +6,6 @@ from ..services import (
     SecuritiesService,
     SecurityPosition,
     EntryType,
-    TransactionType,
     AssetType,
 )
 from ..templates import ThemeState
@@ -140,7 +139,6 @@ class TableStateDetails(rx.State):
             quantity=float(form_data.get("quantity", 0)),
             entry_type=EntryType.MANUAL,
             asset_type=AssetType.STOCK,
-            transaction_type=TransactionType.BUY,
             fees=float(form_data.get("fees", 0)),
         )
 

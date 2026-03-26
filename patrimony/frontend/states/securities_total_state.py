@@ -7,7 +7,6 @@ from ..services import (
     SecuritiesReferenceService,
     SecurityTotal,
     EntryType,
-    TransactionType,
     AssetType,
 )
 from ..templates import ThemeState
@@ -194,7 +193,6 @@ class TableStateTotal(rx.State):
             quantity=float(form_data.get("quantity", 0)),
             entry_type=EntryType.MANUAL,
             asset_type=AssetType(asset_type_str),
-            transaction_type=TransactionType.BUY,
             fees=float(form_data.get("fees", 0))
             if form_data.get("fees") and form_data.get("fees").isdigit()
             else 0.0,

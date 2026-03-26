@@ -5,6 +5,7 @@ from .securities_detail import securities_detail
 from .cash import cash
 from .cash_operations import cash_operations
 from .connectors import connectors
+from .file_connector import file_connector
 from .about import about
 
 __all__ = [
@@ -15,5 +16,6 @@ __all__ = [
     "cash",
     "cash_operations",
     "connectors",
+    "file_connector",
     "about",
 ]
