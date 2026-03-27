@@ -5,6 +5,7 @@ from typing import Union
 import reflex as rx
 
 from ..services import DividendService
+from .mixins import PaginationMixin
 
 
 @dataclass(slots=True)
@@ -17,46 +18,21 @@ class Dividend:
     date: datetime = field(default_factory=datetime.now)
 
 
-class DividendsState(rx.State):
+class DividendsState(PaginationMixin, rx.State):
     """State for managing dividends on the securities detail page."""
 
     items: list[Dividend] = []
     ticker: str = ""
-    total_items: int = 0
-    offset: int = 0
-    limit: int = 12
 
     @rx.var
     def total_dividends(self) -> float:
         return sum(item.amount for item in self.items)
-
-    @rx.var
-    def page_number(self) -> int:
-        return (self.offset // self.limit) + 1
-
-    @rx.var
-    def total_pages(self) -> int:
-        return max(1, (self.total_items + self.limit - 1) // self.limit)
 
     @rx.var(initial_value=[])
     def get_current_page(self) -> list[Dividend]:
         start_index = self.offset
         end_index = start_index + self.limit
         return self.items[start_index:end_index]
-
-    def prev_page(self) -> None:
-        if self.page_number > 1:
-            self.offset -= self.limit
-
-    def next_page(self) -> None:
-        if self.page_number < self.total_pages:
-            self.offset += self.limit
-
-    def first_page(self) -> None:
-        self.offset = 0
-
-    def last_page(self) -> None:
-        self.offset = (self.total_pages - 1) * self.limit
 
     @rx.event
     def set_ticker(self, ticker: str) -> None:

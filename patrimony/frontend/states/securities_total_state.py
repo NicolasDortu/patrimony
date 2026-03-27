@@ -12,9 +12,10 @@ from ..services import (
     AssetType,
 )
 from ..templates import ThemeState
+from .mixins import PaginationMixin
 
 
-class TableStateTotal(rx.State):
+class TableStateTotal(PaginationMixin, rx.State):
     """The state class."""
 
     items: list[SecurityTotal] = []
@@ -22,10 +23,6 @@ class TableStateTotal(rx.State):
     search_value: str = ""
     sort_value: str = ""
     sort_reverse: bool = False
-
-    total_items: int = 0
-    offset: int = 0
-    limit: int = 12  # Number of rows per page
 
     # Asset type filter for the table
     selected_asset_filter: str = "all"
@@ -104,35 +101,11 @@ class TableStateTotal(rx.State):
 
         return items
 
-    @rx.var
-    def page_number(self) -> int:
-        return (self.offset // self.limit) + 1
-
-    @rx.var
-    def total_pages(self) -> int:
-        return (self.total_items // self.limit) + (
-            1 if self.total_items % self.limit else 1
-        )
-
     @rx.var(initial_value=[])
     def get_current_page(self) -> list[SecurityTotal]:
         start_index = self.offset
         end_index = start_index + self.limit
         return self.filtered_sorted_items[start_index:end_index]
-
-    def prev_page(self) -> None:
-        if self.page_number > 1:
-            self.offset -= self.limit
-
-    def next_page(self) -> None:
-        if self.page_number < self.total_pages:
-            self.offset += self.limit
-
-    def first_page(self) -> None:
-        self.offset = 0
-
-    def last_page(self) -> None:
-        self.offset = (self.total_pages - 1) * self.limit
 
     @rx.event
     async def load_entries(self) -> None:

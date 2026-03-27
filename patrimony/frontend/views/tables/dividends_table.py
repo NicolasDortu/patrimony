@@ -1,6 +1,7 @@
 import reflex as rx
 
 from .common import header_cell
+from .pagination import pagination_view
 from ...states.dividends_state import DividendsState, Dividend
 from ...templates import ThemeState
 
@@ -34,77 +35,6 @@ def _show_item(item: Dividend, index: int) -> rx.Component:
     )
 
 
-def _pagination_view() -> rx.Component:
-    return (
-        rx.hstack(
-            rx.text(
-                "Page ",
-                rx.code(DividendsState.page_number),
-                f" of {DividendsState.total_pages}",
-                justify="end",
-            ),
-            rx.hstack(
-                rx.icon_button(
-                    rx.icon("chevrons-left", size=18),
-                    on_click=DividendsState.first_page,
-                    opacity=rx.cond(DividendsState.page_number == 1, 0.6, 1),
-                    color_scheme=rx.cond(
-                        DividendsState.page_number == 1, "gray", "accent"
-                    ),
-                    variant="soft",
-                ),
-                rx.icon_button(
-                    rx.icon("chevron-left", size=18),
-                    on_click=DividendsState.prev_page,
-                    opacity=rx.cond(DividendsState.page_number == 1, 0.6, 1),
-                    color_scheme=rx.cond(
-                        DividendsState.page_number == 1, "gray", "accent"
-                    ),
-                    variant="soft",
-                ),
-                rx.icon_button(
-                    rx.icon("chevron-right", size=18),
-                    on_click=DividendsState.next_page,
-                    opacity=rx.cond(
-                        DividendsState.page_number == DividendsState.total_pages,
-                        0.6,
-                        1,
-                    ),
-                    color_scheme=rx.cond(
-                        DividendsState.page_number == DividendsState.total_pages,
-                        "gray",
-                        "accent",
-                    ),
-                    variant="soft",
-                ),
-                rx.icon_button(
-                    rx.icon("chevrons-right", size=18),
-                    on_click=DividendsState.last_page,
-                    opacity=rx.cond(
-                        DividendsState.page_number == DividendsState.total_pages,
-                        0.6,
-                        1,
-                    ),
-                    color_scheme=rx.cond(
-                        DividendsState.page_number == DividendsState.total_pages,
-                        "gray",
-                        "accent",
-                    ),
-                    variant="soft",
-                ),
-                align="center",
-                spacing="2",
-                justify="end",
-            ),
-            spacing="5",
-            margin_top="1em",
-            align="center",
-            width="100%",
-            justify="end",
-        ),
-    )
-
-
 def dividends_table() -> rx.Component:
     return rx.box(
         rx.table.root(
@@ -127,6 +57,6 @@ def dividends_table() -> rx.Component:
             size="3",
             width="100%",
         ),
-        _pagination_view(),
+        pagination_view(DividendsState),
         width="100%",
     )

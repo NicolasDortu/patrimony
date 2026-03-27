@@ -1,13 +1,16 @@
 from dataclasses import dataclass
 from enum import StrEnum
+from typing import Optional
+
+import polars as pl
 
 
 @dataclass(slots=True)
 class PortfolioOverview:
     """Aggregated portfolio data with metrics."""
 
-    securities_total: object
-    cash_entries: object
+    securities_total: Optional[pl.DataFrame]
+    cash_entries: Optional[pl.DataFrame]
     total_value: float
     total_invested: float
     total_return: float

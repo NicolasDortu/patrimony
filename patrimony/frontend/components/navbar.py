@@ -4,38 +4,23 @@ import reflex as rx
 
 from ..styles import styles
 
+# Navigation items: (route, translation_key, icon)
+_NAV_ITEMS = [
+    ("/", "nav.overview", "home"),
+    ("/securities", "nav.securities", "table-2"),
+    ("/cash", "nav.cash", "wallet"),
+    ("/connectors", "nav.connectors", "plug"),
+    ("/settings", "nav.settings", "settings"),
+]
 
-def menu_item_icon(icon: str) -> rx.Component:
-    return rx.icon(icon, size=20)
 
-
-def menu_item(text: str, url: str) -> rx.Component:
-    """Menu item.
-
-    Args:
-        text: The text of the item.
-        url: The URL of the item.
-
-    Returns:
-        rx.Component: The menu item component.
-
-    """
-    # Whether the item is active.
-    active = (rx.State.router.page.path == url.lower()) | (
-        rx.State.router.page.path == "/"
-    ) & text == "Overview"
+def menu_item(text, icon: str, url: str) -> rx.Component:
+    """Menu item with translated text and explicit icon."""
+    active = rx.State.router.page.path == url
 
     return rx.link(
         rx.hstack(
-            rx.match(
-                text,
-                ("Overview", menu_item_icon("home")),
-                ("Securities", menu_item_icon("table-2")),
-                ("Cash", menu_item_icon("wallet")),
-                ("Connectors", menu_item_icon("plug")),
-                ("Settings", menu_item_icon("settings")),
-                menu_item_icon("layout-dashboard"),
-            ),
+            rx.icon(icon, size=20),
             rx.text(text, size="4", weight="regular"),
             color=rx.cond(
                 active,
@@ -75,15 +60,11 @@ def menu_item(text: str, url: str) -> rx.Component:
 
 
 def navbar_footer() -> rx.Component:
-    """Navbar footer.
+    from ..templates import t
 
-    Returns:
-        The navbar footer component.
-
-    """
     return rx.hstack(
         rx.link(
-            rx.text("About", size="3"),
+            rx.text(t("nav.about"), size="3"),
             href="/about",
             color_scheme="gray",
             underline="none",
@@ -98,39 +79,7 @@ def navbar_footer() -> rx.Component:
 
 
 def menu_button() -> rx.Component:
-    from reflex.page import DECORATED_PAGES
-
-    ordered_page_routes = [
-        "/",
-        "/securities",
-        "/cash",
-        "/connectors",
-        "/settings",
-    ]
-
-    # Exclude unwanted routes from navigation
-    excluded_routes = {
-        "/about",
-        "/securities_detail",
-        "/cash_operations",
-        "/connectors/file",
-    }
-
-    pages = [
-        page_dict
-        for page_list in DECORATED_PAGES.values()
-        for _, page_dict in page_list
-        if page_dict["route"] not in excluded_routes
-    ]
-
-    ordered_pages = sorted(
-        pages,
-        key=lambda page: (
-            ordered_page_routes.index(page["route"])
-            if page["route"] in ordered_page_routes
-            else len(ordered_page_routes)
-        ),
-    )
+    from ..templates import t
 
     return rx.drawer.root(
         rx.drawer.trigger(
@@ -149,12 +98,11 @@ def menu_button() -> rx.Component:
                     rx.divider(),
                     *[
                         menu_item(
-                            text=page.get(
-                                "title", page["route"].strip("/").capitalize()
-                            ),
-                            url=page["route"],
+                            text=t(key),
+                            icon=icon,
+                            url=route,
                         )
-                        for page in ordered_pages
+                        for route, key, icon in _NAV_ITEMS
                     ],
                     rx.spacer(),
                     navbar_footer(),
@@ -175,15 +123,8 @@ def menu_button() -> rx.Component:
 
 
 def navbar() -> rx.Component:
-    """The navbar.
-
-    Returns:
-        The navbar component.
-
-    """
     return rx.el.nav(
         rx.hstack(
-            # The logo.
             rx.color_mode_cond(
                 rx.image(src="/patrimony_black.svg", height="2em"),
                 rx.image(src="/patrimony_white.svg", height="2em"),

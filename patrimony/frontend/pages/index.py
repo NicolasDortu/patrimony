@@ -4,7 +4,7 @@ import reflex as rx
 
 from ..components.card import card
 from ..components.notification import notification
-from ..templates import template
+from ..templates import template, t
 from ..states.portfolio_state import PortfolioState
 from ..views.charts.wealth_chart import wealth_chart
 from ..views.kpis.portfolio_stats_card import portfolio_kpi_cards
@@ -12,15 +12,32 @@ from ..views.kpis.portfolio_performers import portfolio_performers_card
 from ..views.kpis.portfolio_allocation import allocation_card
 
 
+def _loading_state() -> rx.Component:
+    """Loading spinner shown while portfolio data is being fetched."""
+    return rx.center(
+        rx.vstack(
+            rx.spinner(size="3"),
+            rx.text(
+                t("page.overview.loading"),
+                size="3",
+                color=rx.color("gray", 10),
+            ),
+            align="center",
+            spacing="3",
+        ),
+        width="100%",
+        min_height="60vh",
+    )
+
+
 def _empty_state() -> rx.Component:
     """Welcome page shown when the user has no data yet."""
     return rx.center(
         rx.vstack(
             rx.icon("wallet", size=64, color=rx.color("accent", 9)),
-            rx.heading("Welcome to Patrimony!", size="6"),
+            rx.heading(t("page.overview.welcome_title"), size="6"),
             rx.text(
-                "It looks like you don't have any assets yet. "
-                "Start by importing data or adding positions manually.",
+                t("page.overview.welcome_desc"),
                 size="3",
                 color=rx.color("gray", 11),
                 text_align="center",
@@ -31,7 +48,7 @@ def _empty_state() -> rx.Component:
                 rx.link(
                     rx.button(
                         rx.icon("plug", size=16),
-                        "Import via Connector",
+                        t("page.overview.btn_import"),
                         size="3",
                         variant="solid",
                     ),
@@ -40,7 +57,7 @@ def _empty_state() -> rx.Component:
                 rx.link(
                     rx.button(
                         rx.icon("plus", size=16),
-                        "Add Securities",
+                        t("page.overview.btn_add_securities"),
                         size="3",
                         variant="outline",
                     ),
@@ -49,7 +66,7 @@ def _empty_state() -> rx.Component:
                 rx.link(
                     rx.button(
                         rx.icon("landmark", size=16),
-                        "Add Cash Account",
+                        t("page.overview.btn_add_cash"),
                         size="3",
                         variant="outline",
                     ),
@@ -72,7 +89,7 @@ def _dashboard() -> rx.Component:
     """The main dashboard shown when data exists."""
     return rx.vstack(
         rx.flex(
-            rx.heading("Portfolio Overview", size="5"),
+            rx.heading(t("page.overview.title"), size="5"),
             rx.flex(
                 notification("message-square-text", "plum", 0),
                 spacing="4",
@@ -108,7 +125,11 @@ def _dashboard() -> rx.Component:
 def index() -> rx.Component:
     """The overview page."""
     return rx.cond(
-        PortfolioState.has_data,
-        _dashboard(),
-        _empty_state(),
+        PortfolioState.is_loaded,
+        rx.cond(
+            PortfolioState.has_data,
+            _dashboard(),
+            _empty_state(),
+        ),
+        _loading_state(),
     )

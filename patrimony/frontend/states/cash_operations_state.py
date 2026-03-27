@@ -5,9 +5,10 @@ from datetime import datetime
 import reflex as rx
 
 from ..services import CashService, EntryType
+from .mixins import PaginationMixin
 
 
-class CashOperationsState(rx.State):
+class CashOperationsState(PaginationMixin, rx.State):
     """State for cash operations table (per-account view)."""
 
     items: list[dict] = []
@@ -17,10 +18,6 @@ class CashOperationsState(rx.State):
     search_value: str = ""
     sort_value: str = ""
     sort_reverse: bool = False
-
-    total_items: int = 0
-    offset: int = 0
-    limit: int = 12  # Number of rows per page
 
     # Edit dialog state
     edit_id: int = 0
@@ -83,37 +80,11 @@ class CashOperationsState(rx.State):
 
         return items
 
-    @rx.var
-    def page_number(self) -> int:
-        return (self.offset // self.limit) + 1
-
-    @rx.var
-    def total_pages(self) -> int:
-        return max(
-            1,
-            (self.total_items // self.limit)
-            + (1 if self.total_items % self.limit else 0),
-        )
-
     @rx.var(initial_value=[])
     def get_current_page(self) -> list[dict]:
         start_index = self.offset
         end_index = start_index + self.limit
         return self.filtered_sorted_items[start_index:end_index]
-
-    def prev_page(self) -> None:
-        if self.page_number > 1:
-            self.offset -= self.limit
-
-    def next_page(self) -> None:
-        if self.page_number < self.total_pages:
-            self.offset += self.limit
-
-    def first_page(self) -> None:
-        self.offset = 0
-
-    def last_page(self) -> None:
-        self.offset = (self.total_pages - 1) * self.limit
 
     @rx.event
     def open_edit_dialog(self, item: dict) -> None:

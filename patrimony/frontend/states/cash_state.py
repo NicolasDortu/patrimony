@@ -4,9 +4,10 @@ from typing import Union
 import reflex as rx
 
 from ..services import CashService, Currency
+from .mixins import PaginationMixin
 
 
-class CashTableState(rx.State):
+class CashTableState(PaginationMixin, rx.State):
     """State for the cash table."""
 
     items: list[dict] = []
@@ -14,10 +15,6 @@ class CashTableState(rx.State):
     search_value: str = ""
     sort_value: str = ""
     sort_reverse: bool = False
-
-    total_items: int = 0
-    offset: int = 0
-    limit: int = 12  # Number of rows per page
 
     # Edit dialog state
     edit_id: int = 0
@@ -67,37 +64,11 @@ class CashTableState(rx.State):
 
         return items
 
-    @rx.var
-    def page_number(self) -> int:
-        return (self.offset // self.limit) + 1
-
-    @rx.var
-    def total_pages(self) -> int:
-        return max(
-            1,
-            (self.total_items // self.limit)
-            + (1 if self.total_items % self.limit else 0),
-        )
-
     @rx.var(initial_value=[])
     def get_current_page(self) -> list[dict]:
         start_index = self.offset
         end_index = start_index + self.limit
         return self.filtered_sorted_items[start_index:end_index]
-
-    def prev_page(self) -> None:
-        if self.page_number > 1:
-            self.offset -= self.limit
-
-    def next_page(self) -> None:
-        if self.page_number < self.total_pages:
-            self.offset += self.limit
-
-    def first_page(self) -> None:
-        self.offset = 0
-
-    def last_page(self) -> None:
-        self.offset = (self.total_pages - 1) * self.limit
 
     @rx.event
     def load_entries(self) -> None:
@@ -151,6 +122,18 @@ class CashTableState(rx.State):
         self.edit_account_number = item.get("account_number", "")
         self.edit_currency = item.get("currency", "EUR")
         self.edit_balance = float(item.get("balance", 0))
+
+    @rx.event
+    def set_edit_bank(self, value: str) -> None:
+        self.edit_bank = value
+
+    @rx.event
+    def set_edit_account_number(self, value: str) -> None:
+        self.edit_account_number = value
+
+    @rx.event
+    def set_edit_currency(self, value: str) -> None:
+        self.edit_currency = value
 
     @rx.event
     def set_edit_balance(self, value: str) -> None:

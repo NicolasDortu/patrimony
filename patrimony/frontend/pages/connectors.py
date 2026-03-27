@@ -2,7 +2,7 @@
 
 import reflex as rx
 
-from ..templates import template
+from ..templates import template, t
 
 
 def _connector_card(
@@ -57,23 +57,23 @@ def _connector_card(
 def connectors() -> rx.Component:
     """The connectors hub page listing available data connectors."""
     return rx.vstack(
-        rx.heading("Connectors", size="5"),
+        rx.heading(t("page.connectors.title"), size="5"),
         rx.text(
-            "Import your data from various sources.",
+            t("page.connectors.desc"),
             size="2",
             color=rx.color("gray", 10),
         ),
         rx.separator(),
         rx.vstack(
             _connector_card(
-                title="CSV / Excel File",
-                description="Import positions or cash operations from .csv, .xlsx, or .xls files.",
+                title=t("page.connectors.csv_excel"),
+                description=t("page.connectors.csv_excel_desc"),
                 icon_name="file-spreadsheet",
                 href="/connectors/file",
             ),
             _connector_card(
-                title="Broker Web Scraping",
-                description="Automatically import data from your broker's website.",
+                title=t("page.connectors.broker_scraping"),
+                description=t("page.connectors.broker_scraping_desc"),
                 icon_name="globe",
                 href="/connectors",
                 enabled=False,

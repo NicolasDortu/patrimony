@@ -1,6 +1,7 @@
 import reflex as rx
 
 from .common import header_cell
+from .pagination import pagination_view
 from ...states.cash_operations_state import CashOperationsState
 
 
@@ -137,75 +138,6 @@ def _show_item(item: dict, index: int) -> rx.Component:
     )
 
 
-def _pagination_view() -> rx.Component:
-    return rx.hstack(
-        rx.text(
-            "Page ",
-            rx.code(CashOperationsState.page_number),
-            f" of {CashOperationsState.total_pages}",
-            justify="end",
-        ),
-        rx.hstack(
-            rx.icon_button(
-                rx.icon("chevrons-left", size=18),
-                on_click=CashOperationsState.first_page,
-                opacity=rx.cond(CashOperationsState.page_number == 1, 0.6, 1),
-                color_scheme=rx.cond(
-                    CashOperationsState.page_number == 1, "gray", "accent"
-                ),
-                variant="soft",
-            ),
-            rx.icon_button(
-                rx.icon("chevron-left", size=18),
-                on_click=CashOperationsState.prev_page,
-                opacity=rx.cond(CashOperationsState.page_number == 1, 0.6, 1),
-                color_scheme=rx.cond(
-                    CashOperationsState.page_number == 1, "gray", "accent"
-                ),
-                variant="soft",
-            ),
-            rx.icon_button(
-                rx.icon("chevron-right", size=18),
-                on_click=CashOperationsState.next_page,
-                opacity=rx.cond(
-                    CashOperationsState.page_number == CashOperationsState.total_pages,
-                    0.6,
-                    1,
-                ),
-                color_scheme=rx.cond(
-                    CashOperationsState.page_number == CashOperationsState.total_pages,
-                    "gray",
-                    "accent",
-                ),
-                variant="soft",
-            ),
-            rx.icon_button(
-                rx.icon("chevrons-right", size=18),
-                on_click=CashOperationsState.last_page,
-                opacity=rx.cond(
-                    CashOperationsState.page_number == CashOperationsState.total_pages,
-                    0.6,
-                    1,
-                ),
-                color_scheme=rx.cond(
-                    CashOperationsState.page_number == CashOperationsState.total_pages,
-                    "gray",
-                    "accent",
-                ),
-                variant="soft",
-            ),
-            align="center",
-            spacing="2",
-            justify="end",
-        ),
-        spacing="5",
-        margin_top="1em",
-        align="center",
-        width="100%",
-        justify="end",
-    )
-
-
 def cash_operations_table() -> rx.Component:
     """Main cash operations table component."""
     return rx.box(
@@ -293,6 +225,6 @@ def cash_operations_table() -> rx.Component:
             size="3",
             width="100%",
         ),
-        _pagination_view(),
+        pagination_view(CashOperationsState),
         width="100%",
     )

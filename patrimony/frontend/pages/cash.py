@@ -2,7 +2,7 @@
 
 import reflex as rx
 
-from ..templates import template
+from ..templates import template, t
 from ..views.tables.cash_table import cash_table
 from ..states.cash_state import CashTableState
 
@@ -15,7 +15,7 @@ def cash() -> rx.Component:
         The UI for the cash page.
     """
     return rx.vstack(
-        rx.heading("Cash Management", size="5"),
+        rx.heading(t("page.cash.title"), size="5"),
         cash_table(),
         spacing="5",
         width="100%",

@@ -1,6 +1,7 @@
 import reflex as rx
 
 from .common import header_cell
+from .pagination import pagination_view
 from ...states.securities_details_state import TableStateDetails
 from ...services import SecurityPosition
 from ...templates import ThemeState
@@ -33,77 +34,6 @@ def _show_item(item: SecurityPosition, index: int) -> rx.Component:
         ),
         style={"_hover": {"bg": hover_color}, "bg": bg_color},
         align="center",
-    )
-
-
-def _pagination_view() -> rx.Component:
-    return (
-        rx.hstack(
-            rx.text(
-                "Page ",
-                rx.code(TableStateDetails.page_number),
-                f" of {TableStateDetails.total_pages}",
-                justify="end",
-            ),
-            rx.hstack(
-                rx.icon_button(
-                    rx.icon("chevrons-left", size=18),
-                    on_click=TableStateDetails.first_page,
-                    opacity=rx.cond(TableStateDetails.page_number == 1, 0.6, 1),
-                    color_scheme=rx.cond(
-                        TableStateDetails.page_number == 1, "gray", "accent"
-                    ),
-                    variant="soft",
-                ),
-                rx.icon_button(
-                    rx.icon("chevron-left", size=18),
-                    on_click=TableStateDetails.prev_page,
-                    opacity=rx.cond(TableStateDetails.page_number == 1, 0.6, 1),
-                    color_scheme=rx.cond(
-                        TableStateDetails.page_number == 1, "gray", "accent"
-                    ),
-                    variant="soft",
-                ),
-                rx.icon_button(
-                    rx.icon("chevron-right", size=18),
-                    on_click=TableStateDetails.next_page,
-                    opacity=rx.cond(
-                        TableStateDetails.page_number == TableStateDetails.total_pages,
-                        0.6,
-                        1,
-                    ),
-                    color_scheme=rx.cond(
-                        TableStateDetails.page_number == TableStateDetails.total_pages,
-                        "gray",
-                        "accent",
-                    ),
-                    variant="soft",
-                ),
-                rx.icon_button(
-                    rx.icon("chevrons-right", size=18),
-                    on_click=TableStateDetails.last_page,
-                    opacity=rx.cond(
-                        TableStateDetails.page_number == TableStateDetails.total_pages,
-                        0.6,
-                        1,
-                    ),
-                    color_scheme=rx.cond(
-                        TableStateDetails.page_number == TableStateDetails.total_pages,
-                        "gray",
-                        "accent",
-                    ),
-                    variant="soft",
-                ),
-                align="center",
-                spacing="2",
-                justify="end",
-            ),
-            spacing="5",
-            margin_top="1em",
-            align="center",
-            width="100%",
-            justify="end",
-        ),
     )
 
 
@@ -190,6 +120,6 @@ def main_table() -> rx.Component:
             size="3",
             width="100%",
         ),
-        _pagination_view(),
+        pagination_view(TableStateDetails),
         width="100%",
     )

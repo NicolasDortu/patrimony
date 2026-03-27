@@ -23,6 +23,10 @@ class PortfolioState(rx.State):
     _stocks_total_data: list[dict] = []
     _cash_data: list[dict] = []
     _chart_data: list[dict] = []
+    _asset_colors: dict[str, str] = {}
+
+    # Loading flag
+    is_loaded: bool = False
 
     # KPI metrics
     total_value: float = 0.0
@@ -57,6 +61,27 @@ class PortfolioState(rx.State):
     @rx.var
     def has_cash(self) -> bool:
         return self.cash_value > 0
+
+    # Expose asset color names for chart components
+    @rx.var
+    def stock_color(self) -> str:
+        return self._asset_colors.get("STOCK", "purple")
+
+    @rx.var
+    def etf_color(self) -> str:
+        return self._asset_colors.get("ETF", "orange")
+
+    @rx.var
+    def crypto_color(self) -> str:
+        return self._asset_colors.get("CRYPTO", "yellow")
+
+    @rx.var
+    def commodity_color(self) -> str:
+        return self._asset_colors.get("COMMODITY", "red")
+
+    @rx.var
+    def cash_color(self) -> str:
+        return self._asset_colors.get("CASH", "green")
 
     @rx.var
     def available_filters(self) -> list[dict]:
@@ -159,19 +184,25 @@ class PortfolioState(rx.State):
     def _calc_percentage(self, value: float) -> float:
         return round((value / self.total_value * 100), 2)
 
+    def _get_asset_color_map(self) -> dict[str, str]:
+        """Build asset_type -> CSS var color map from current color settings."""
+        return {
+            "STOCK": f"var(--{self._asset_colors.get('STOCK', 'purple')}-9)",
+            "ETF": f"var(--{self._asset_colors.get('ETF', 'orange')}-9)",
+            "CRYPTO": f"var(--{self._asset_colors.get('CRYPTO', 'yellow')}-9)",
+            "COMMODITY": f"var(--{self._asset_colors.get('COMMODITY', 'red')}-9)",
+            "CASH": f"var(--{self._asset_colors.get('CASH', 'green')}-9)",
+            "NONE": "var(--gray-5)",
+        }
+
     @rx.var
     def allocation_data(self) -> list[dict]:
         """Calculate asset allocation for pie chart."""
         allocation = []
+        color_map = self._get_asset_color_map()
 
         if self.total_value > 0:
             # Group securities by asset_type
-            asset_type_config = {
-                "STOCK": ("Stocks", "var(--purple-9)"),
-                "ETF": ("ETFs", "var(--orange-9)"),
-                "CRYPTO": ("Crypto", "var(--yellow-9)"),
-                "COMMODITY": ("Commodity", "var(--red-9)"),
-            }
             asset_totals: dict[str, float] = {}
             for stock in self._stocks_total_data:
                 at = stock.get("asset_type", "STOCK")
@@ -179,14 +210,21 @@ class PortfolioState(rx.State):
                 if val > 0:
                     asset_totals[at] = asset_totals.get(at, 0.0) + val
 
+            asset_type_labels = {
+                "STOCK": "Stocks",
+                "ETF": "ETFs",
+                "CRYPTO": "Crypto",
+                "COMMODITY": "Commodity",
+            }
+
             for at, total in asset_totals.items():
-                label, fill = asset_type_config.get(at, (at, "var(--blue-9)"))
+                label = asset_type_labels.get(at, at)
                 allocation.append(
                     {
                         "name": label,
                         "value": round(total, 2),
                         "percentage": self._calc_percentage(total),
-                        "fill": fill,
+                        "fill": color_map.get(at, "var(--blue-9)"),
                     }
                 )
 
@@ -196,7 +234,7 @@ class PortfolioState(rx.State):
                         "name": "Cash",
                         "value": round(self.cash_value, 2),
                         "percentage": self._calc_percentage(self.cash_value),
-                        "fill": "var(--green-9)",
+                        "fill": color_map.get("CASH", "var(--green-9)"),
                     }
                 )
         else:
@@ -216,7 +254,15 @@ class PortfolioState(rx.State):
     @rx.event
     async def load_portfolio_data(self):
         """Load all portfolio data from models service."""
+        self.is_loaded = False
         theme_state = await self.get_state(ThemeState)
+        self._asset_colors = {
+            "STOCK": theme_state.stock_color,
+            "ETF": theme_state.etf_color,
+            "CRYPTO": theme_state.crypto_color,
+            "COMMODITY": theme_state.commodity_color,
+            "CASH": theme_state.cash_color,
+        }
         portfolio_data = PortfolioService.get_portfolio_overview(
             theme_state.default_currency
         )
@@ -231,3 +277,4 @@ class PortfolioState(rx.State):
         self.cash_value = portfolio_data.cash_value
 
         await self._load_chart_data()
+        self.is_loaded = True

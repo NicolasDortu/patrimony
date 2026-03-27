@@ -3,7 +3,7 @@
 import reflex as rx
 
 from ..states.securities_total_state import TableStateTotal
-from ..templates import template
+from ..templates import template, t
 from ..views.tables.securities_total_table import main_table
 
 
@@ -29,7 +29,7 @@ def securities() -> rx.Component:
     """
     return rx.vstack(
         rx.hstack(
-            rx.heading("Your positions", size="5"),
+            rx.heading(t("page.securities.title"), size="5"),
             _asset_type_filter(),
             justify="between",
             align="center",

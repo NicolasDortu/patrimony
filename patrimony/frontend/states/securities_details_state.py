@@ -10,9 +10,10 @@ from ..services import (
 )
 from ..templates import ThemeState
 from .dividends_state import DividendsState
+from .mixins import PaginationMixin
 
 
-class TableStateDetails(rx.State):
+class TableStateDetails(PaginationMixin, rx.State):
     """The state class."""
 
     items: list[SecurityPosition] = []
@@ -21,10 +22,6 @@ class TableStateDetails(rx.State):
     search_value: str = ""
     sort_value: str = ""
     sort_reverse: bool = False
-
-    total_items: int = 0
-    offset: int = 0
-    limit: int = 12  # Number of rows per page
 
     # Stock chart state
     selected_period: str = "6M"
@@ -90,35 +87,11 @@ class TableStateDetails(rx.State):
 
         return items
 
-    @rx.var
-    def page_number(self) -> int:
-        return (self.offset // self.limit) + 1
-
-    @rx.var
-    def total_pages(self) -> int:
-        return (self.total_items // self.limit) + (
-            1 if self.total_items % self.limit else 1
-        )
-
     @rx.var(initial_value=[])
     def get_current_page(self) -> list[SecurityPosition]:
         start_index = self.offset
         end_index = start_index + self.limit
         return self.filtered_sorted_items[start_index:end_index]
-
-    def prev_page(self) -> None:
-        if self.page_number > 1:
-            self.offset -= self.limit
-
-    def next_page(self) -> None:
-        if self.page_number < self.total_pages:
-            self.offset += self.limit
-
-    def first_page(self) -> None:
-        self.offset = 0
-
-    def last_page(self) -> None:
-        self.offset = (self.total_pages - 1) * self.limit
 
     @rx.event
     def load_entries(self) -> None:

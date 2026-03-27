@@ -25,7 +25,7 @@ class PriceProvider(ABC):
         start_date: datetime = None,
         end_date: datetime = None,
         interval: str = "1d",
-    ) -> object:
+    ) -> pl.DataFrame | None:
         """Fetch price history for a ticker.
 
         Args:
@@ -62,7 +62,7 @@ class MarketDataProvider(PriceProvider, CurrencyProvider, ABC):
         ticker: str,
         period: str = None,
         interval: str = "1d",
-    ) -> object:
+    ) -> pl.DataFrame | None:
         """Fetch price history for a ticker using period instead of dates.
 
         Args:

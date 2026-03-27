@@ -1,8 +1,10 @@
 import reflex as rx
 
 from .common import header_cell
+from .pagination import pagination_view
 from ...states.cash_state import CashTableState
 from ...dialogs.cash_dialog import open_add_cash_dialog
+from ...templates import t
 
 
 def _show_item(item: dict, index: int) -> rx.Component:
@@ -33,20 +35,20 @@ def _show_item(item: dict, index: int) -> rx.Component:
                         ),
                     ),
                     rx.dialog.content(
-                        rx.dialog.title("Edit Cash Entry"),
+                        rx.dialog.title(t("dialog.edit_cash.title")),
                         rx.dialog.description(
-                            "Update the balance for this cash entry.",
+                            t("dialog.edit_cash.desc"),
                         ),
                         rx.form(
                             rx.flex(
                                 rx.input(
-                                    placeholder="Bank Name",
+                                    placeholder=t("label.bank_name"),
                                     name="bank",
                                     default_value=CashTableState.edit_bank,
                                     required=True,
                                 ),
                                 rx.input(
-                                    placeholder="Account Number",
+                                    placeholder=t("label.account_number"),
                                     name="account_number",
                                     default_value=CashTableState.edit_account_number,
                                     required=True,
@@ -58,7 +60,7 @@ def _show_item(item: dict, index: int) -> rx.Component:
                                         "GBP",
                                         "JPY",
                                     ],  # TODO: make it dynamic based on available currencies
-                                    placeholder="Currency",
+                                    placeholder=t("label.currency"),
                                     name="currency",
                                     default_value=CashTableState.edit_currency,
                                     required=True,
@@ -66,13 +68,16 @@ def _show_item(item: dict, index: int) -> rx.Component:
                                 rx.flex(
                                     rx.dialog.close(
                                         rx.button(
-                                            "Cancel",
+                                            t("btn.cancel"),
                                             variant="soft",
                                             color_scheme="gray",
                                         ),
                                     ),
                                     rx.dialog.close(
-                                        rx.button("Save Changes", type="submit"),
+                                        rx.button(
+                                            t("btn.save"),
+                                            type="submit",
+                                        ),
                                     ),
                                     spacing="3",
                                     justify="end",
@@ -102,19 +107,21 @@ def _show_item(item: dict, index: int) -> rx.Component:
                         ),
                     ),
                     rx.alert_dialog.content(
-                        rx.alert_dialog.title("Delete Cash Entry"),
+                        rx.alert_dialog.title(t("dialog.delete_cash.title")),
                         rx.alert_dialog.description(
-                            "Are you sure you want to delete this cash entry? This action cannot be undone.",
+                            t("dialog.delete_cash.desc"),
                         ),
                         rx.flex(
                             rx.alert_dialog.cancel(
                                 rx.button(
-                                    "Cancel", variant="soft", color_scheme="gray"
+                                    t("btn.cancel"),
+                                    variant="soft",
+                                    color_scheme="gray",
                                 ),
                             ),
                             rx.alert_dialog.action(
                                 rx.button(
-                                    "Delete",
+                                    t("btn.delete"),
                                     color_scheme="red",
                                     on_click=lambda: CashTableState.delete_cash_entry(
                                         item
@@ -131,71 +138,6 @@ def _show_item(item: dict, index: int) -> rx.Component:
         ),
         style={"_hover": {"bg": hover_color}, "bg": bg_color},
         align="center",
-    )
-
-
-def _pagination_view() -> rx.Component:
-    return rx.hstack(
-        rx.text(
-            "Page ",
-            rx.code(CashTableState.page_number),
-            f" of {CashTableState.total_pages}",
-            justify="end",
-        ),
-        rx.hstack(
-            rx.icon_button(
-                rx.icon("chevrons-left", size=18),
-                on_click=CashTableState.first_page,
-                opacity=rx.cond(CashTableState.page_number == 1, 0.6, 1),
-                color_scheme=rx.cond(CashTableState.page_number == 1, "gray", "accent"),
-                variant="soft",
-            ),
-            rx.icon_button(
-                rx.icon("chevron-left", size=18),
-                on_click=CashTableState.prev_page,
-                opacity=rx.cond(CashTableState.page_number == 1, 0.6, 1),
-                color_scheme=rx.cond(CashTableState.page_number == 1, "gray", "accent"),
-                variant="soft",
-            ),
-            rx.icon_button(
-                rx.icon("chevron-right", size=18),
-                on_click=CashTableState.next_page,
-                opacity=rx.cond(
-                    CashTableState.page_number == CashTableState.total_pages,
-                    0.6,
-                    1,
-                ),
-                color_scheme=rx.cond(
-                    CashTableState.page_number == CashTableState.total_pages,
-                    "gray",
-                    "accent",
-                ),
-                variant="soft",
-            ),
-            rx.icon_button(
-                rx.icon("chevrons-right", size=18),
-                on_click=CashTableState.last_page,
-                opacity=rx.cond(
-                    CashTableState.page_number == CashTableState.total_pages,
-                    0.6,
-                    1,
-                ),
-                color_scheme=rx.cond(
-                    CashTableState.page_number == CashTableState.total_pages,
-                    "gray",
-                    "accent",
-                ),
-                variant="soft",
-            ),
-            align="center",
-            spacing="2",
-            justify="end",
-        ),
-        spacing="5",
-        margin_top="1em",
-        align="center",
-        width="100%",
-        justify="end",
     )
 
 
@@ -284,6 +226,6 @@ def cash_table() -> rx.Component:
             size="3",
             width="100%",
         ),
-        _pagination_view(),
+        pagination_view(CashTableState),
         width="100%",
     )

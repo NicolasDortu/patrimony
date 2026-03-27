@@ -1,3 +1,3 @@
-from .template import ThemeState, template
+from .template import ThemeState, t, template
 
-__all__ = ["ThemeState", "template"]
+__all__ = ["ThemeState", "t", "template"]

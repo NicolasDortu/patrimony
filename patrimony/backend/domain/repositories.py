@@ -1,5 +1,8 @@
 from abc import ABC, abstractmethod
 from datetime import datetime
+from typing import Optional
+
+import polars as pl
 
 from .entities import AssetType, Currency, EntryType
 from .interfaces import CurrencyProvider, PriceProvider
@@ -9,12 +12,12 @@ class BaseRepository(ABC):
     """Base repository interface methods."""
 
     @abstractmethod
-    def get_all(self) -> object:
+    def get_all(self) -> Optional[pl.DataFrame]:
         """Get all entities."""
         pass
 
     @abstractmethod
-    def get_by_id(self, id: int) -> object:
+    def get_by_id(self, id: int) -> Optional[pl.DataFrame]:
         """Retrieve entity by ID."""
         pass
 
@@ -46,12 +49,12 @@ class SecuritiesRepository(BaseRepository, ABC):
         pass
 
     @abstractmethod
-    def get_by_ticker(self, ticker: str) -> object:
+    def get_by_ticker(self, ticker: str) -> Optional[pl.DataFrame]:
         """Get all positions for a specific ticker."""
         pass
 
     @abstractmethod
-    def get_aggregated_positions(self) -> object:
+    def get_aggregated_positions(self) -> Optional[pl.DataFrame]:
         """Get aggregated positions (total quantities, avg prices)."""
         pass
 
@@ -77,12 +80,12 @@ class CashOperationRepository(ABC):
         pass
 
     @abstractmethod
-    def get_operations_by_account(self, account_number: str) -> object:
+    def get_operations_by_account(self, account_number: str) -> Optional[pl.DataFrame]:
         """Get all balance operations for a specific account."""
         pass
 
     @abstractmethod
-    def get_all_operations(self) -> object:
+    def get_all_operations(self) -> Optional[pl.DataFrame]:
         """Get all balance operations."""
         pass
 
@@ -104,7 +107,7 @@ class CashOperationRepository(ABC):
         pass
 
     @abstractmethod
-    def get_cash_balance_history(self) -> object:
+    def get_cash_balance_history(self) -> Optional[pl.DataFrame]:
         """Get cash balance history over time for all accounts by summing the operations."""
         pass
 
@@ -208,6 +211,6 @@ class DividendRepository(BaseRepository, ABC):
         pass
 
     @abstractmethod
-    def get_by_ticker(self, ticker: str) -> object:
+    def get_by_ticker(self, ticker: str) -> Optional[pl.DataFrame]:
         """Get all dividends for a specific ticker."""
         pass

@@ -1,6 +1,7 @@
 import reflex as rx
 
 from ..services import Currency
+from ..templates import t
 
 
 def open_add_cash_dialog(on_submit: callable) -> rx.Component:
@@ -9,37 +10,37 @@ def open_add_cash_dialog(on_submit: callable) -> rx.Component:
         rx.dialog.trigger(
             rx.button(
                 rx.icon("plus", size=26),
-                rx.text("Add Cash", size="4"),
+                rx.text(t("dialog.add_cash.submit"), size="4"),
                 size="3",
                 variant="surface",
             ),
         ),
         rx.dialog.content(
-            rx.dialog.title("Add Cash Entry"),
+            rx.dialog.title(t("dialog.add_cash.title")),
             rx.dialog.description(
-                "Enter the details for your new cash entry.",
+                t("dialog.add_cash.desc"),
             ),
             rx.form(
                 rx.flex(
                     rx.input(
-                        placeholder="Bank Name",
+                        placeholder=t("label.bank_name"),
                         name="bank",
                         required=True,
                     ),
                     rx.input(
-                        placeholder="Account Number",
+                        placeholder=t("label.account_number"),
                         name="account_number",
                         required=True,
                     ),
                     rx.select(
                         [currency.value for currency in Currency],
-                        placeholder="Currency",
+                        placeholder=t("label.currency"),
                         name="currency",
                         default_value="EUR",
                         required=True,
                     ),
                     rx.input(
-                        placeholder="Balance",
+                        placeholder=t("label.balance"),
                         name="balance",
                         type="number",
                         min="0",
@@ -49,13 +50,16 @@ def open_add_cash_dialog(on_submit: callable) -> rx.Component:
                     rx.flex(
                         rx.dialog.close(
                             rx.button(
-                                "Cancel",
+                                t("btn.cancel"),
                                 variant="soft",
                                 color_scheme="gray",
                             ),
                         ),
                         rx.dialog.close(
-                            rx.button("Add Cash", type="submit"),
+                            rx.button(
+                                t("dialog.add_cash.submit"),
+                                type="submit",
+                            ),
                         ),
                         spacing="3",
                         justify="end",

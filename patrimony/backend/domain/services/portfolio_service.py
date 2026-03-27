@@ -5,7 +5,7 @@ to provide portfolio views and chart data.
 """
 
 import logging
-from datetime import date, datetime, timedelta
+from datetime import datetime, timedelta
 from typing import Optional
 
 import polars as pl
@@ -19,6 +19,11 @@ from ..repositories import (
     SecuritiesRepository,
 )
 from .currency_service import CurrencyService
+from .enrichment_utilities import (
+    apply_currency_conversion,
+    enrich_with_prices,
+    normalize_date,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -47,9 +52,9 @@ class PortfolioService:
         # Securities
         securities_df = self._securities_repo.get_aggregated_positions()
         if securities_df is not None and not securities_df.is_empty():
-            securities_df = self._enrich_with_prices(securities_df)
-            securities_df = self._apply_currency_conversion(
-                securities_df, user_currency
+            securities_df = enrich_with_prices(securities_df, self._price_repo)
+            securities_df = apply_currency_conversion(
+                securities_df, self._currency_service, user_currency
             )
 
         total_invested, securities_value, total_return = (
@@ -86,43 +91,13 @@ class PortfolioService:
         cash_timeline = self._build_cash_timeline(user_currency)
         quantity_timeline = self._build_quantity_timeline()
 
-        rates: dict[str, float] = {}
-        ticker_data: dict[str, dict] = {}
-        all_dates: list = []
+        rates, ticker_data, all_dates = self._resolve_price_timeline(
+            securities, config, is_intraday, user_currency
+        )
 
-        if securities:
-            rates = self._currency_service.get_rates_for_tickers(
-                list(securities.keys()), user_currency
-            )
-            ticker_data, all_dates = self._fetch_ticker_prices(
-                list(securities.keys()), config, is_intraday
-            )
-
-        # For cash-only portfolios, build date range from cash timeline
-        if not all_dates and cash_timeline:
-            start_date = (datetime.now() - timedelta(days=config["days"])).date()
-            all_dates = sorted(
-                {
-                    d.date() if hasattr(d, "date") else d
-                    for d in cash_timeline
-                    if (d.date() if hasattr(d, "date") else d) >= start_date
-                }
-            )
-
-        # Add today's data point for non-intraday charts
-        if not is_intraday:
-            today = datetime.now().date()
-            existing = (
-                {d.date() if hasattr(d, "date") else d for d in all_dates}
-                if all_dates
-                else set()
-            )
-            if today not in existing:
-                for ticker in securities:
-                    price = self._price_repo.get_current_price(ticker)
-                    if price:
-                        ticker_data.setdefault(ticker, {})[today] = price
-                all_dates.append(today)
+        all_dates = self._fill_date_gaps(
+            all_dates, cash_timeline, config, is_intraday, securities, ticker_data
+        )
 
         if not all_dates:
             return []
@@ -142,27 +117,60 @@ class PortfolioService:
             quantity_timeline,
         )
 
+    def _resolve_price_timeline(
+        self,
+        securities: dict[str, dict],
+        config: dict,
+        is_intraday: bool,
+        user_currency: str,
+    ) -> tuple[dict[str, float], dict[str, dict], list]:
+        """Fetch exchange rates and price timelines for all securities."""
+        if not securities:
+            return {}, {}, []
+
+        rates = self._currency_service.get_rates_for_tickers(
+            list(securities.keys()), user_currency
+        )
+        ticker_data, all_dates = self._fetch_ticker_prices(
+            list(securities.keys()), config, is_intraday
+        )
+        return rates, ticker_data, all_dates
+
+    def _fill_date_gaps(
+        self,
+        all_dates: list,
+        cash_timeline: dict,
+        config: dict,
+        is_intraday: bool,
+        securities: dict[str, dict],
+        ticker_data: dict[str, dict],
+    ) -> list:
+        """Ensure date list covers cash-only portfolios and includes today."""
+        # For cash-only portfolios, build date range from cash timeline
+        if not all_dates and cash_timeline:
+            start_date = (datetime.now() - timedelta(days=config["days"])).date()
+            all_dates = sorted(
+                {
+                    normalize_date(d)
+                    for d in cash_timeline
+                    if normalize_date(d) >= start_date
+                }
+            )
+
+        # Add today's data point for non-intraday charts
+        if not is_intraday:
+            today = datetime.now().date()
+            existing = {normalize_date(d) for d in all_dates} if all_dates else set()
+            if today not in existing:
+                for ticker in securities:
+                    price = self._price_repo.get_current_price(ticker)
+                    if price:
+                        ticker_data.setdefault(ticker, {})[today] = price
+                all_dates.append(today)
+
+        return all_dates
+
     # -- Internal helpers ----------------------------------------------------
-
-    def _enrich_with_prices(self, df: pl.DataFrame) -> pl.DataFrame:
-        if df is None or df.is_empty() or "ticker" not in df.columns:
-            return df
-        prices = [self._price_repo.get_current_price(t) for t in df["ticker"].to_list()]
-        return df.with_columns(pl.Series("current_price", prices))
-
-    def _apply_currency_conversion(
-        self, df: pl.DataFrame, user_currency: str
-    ) -> pl.DataFrame:
-        tickers = df["ticker"].to_list()
-        rates = self._currency_service.get_rates_for_tickers(tickers, user_currency)
-        rate_list = pl.Series("_rate", [rates.get(t, 1.0) for t in tickers])
-        df = df.with_columns(
-            (pl.col("current_price") * rate_list).alias("current_price"),
-            (pl.col("avg_price") * rate_list).alias("avg_price"),
-        )
-        return df.with_columns(
-            (pl.col("current_price") * pl.col("total_quantity")).alias("total_value")
-        )
 
     def _calculate_securities_metrics(
         self, df: Optional[pl.DataFrame]
@@ -279,10 +287,7 @@ class PortfolioService:
             entries: list[tuple] = []
             for row in ticker_df.iter_rows(named=True):
                 cumulative += row["quantity"]
-                pos_date = row["date"]
-                if hasattr(pos_date, "date"):
-                    pos_date = pos_date.date()
-                entries.append((pos_date, cumulative))
+                entries.append((normalize_date(row["date"]), cumulative))
             timeline[ticker] = entries
         return timeline
 
@@ -294,7 +299,7 @@ class PortfolioService:
         entries = quantity_timeline.get(ticker, [])
         if not entries:
             return 0.0
-        dt_date = dt.date() if hasattr(dt, "date") else dt
+        dt_date = normalize_date(dt)
         result = 0.0
         for entry_date, qty in entries:
             if entry_date <= dt_date:
@@ -342,7 +347,7 @@ class PortfolioService:
                     dates = t_df["date"].to_list()
                     prices = t_df["close_price"].to_list()
                     for d, p in zip(dates, prices):
-                        day = d.date() if hasattr(d, "date") else d
+                        day = normalize_date(d)
                         ticker_data.setdefault(ticker, {})[day] = p
                         all_dates_set.add(day)
 
@@ -366,17 +371,11 @@ class PortfolioService:
         if not cash_timeline:
             return current_cash
 
-        dt_date = (
-            dt
-            if isinstance(dt, date) and not isinstance(dt, datetime)
-            else (dt.date() if hasattr(dt, "date") else dt)
-        )
+        dt_date = normalize_date(dt)
 
         best_value = None
         for timeline_dt, value in cash_timeline.items():
-            tl_date = (
-                timeline_dt.date() if hasattr(timeline_dt, "date") else timeline_dt
-            )
+            tl_date = normalize_date(timeline_dt)
             if tl_date <= dt_date:
                 if best_value is None or tl_date >= best_value[0]:
                     best_value = (tl_date, value)

@@ -14,4 +14,6 @@ ASSET_TYPE_LABELS = {
     "ETF": "ETFs",
     "CRYPTO": "Crypto",
     "COMMODITY": "Commodity",
+    "BOND": "Bonds",
+    "CASH": "Cash",
 }

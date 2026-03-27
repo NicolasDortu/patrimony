@@ -10,6 +10,7 @@ from typing import Callable
 import reflex as rx
 
 from ..services import CurrencyService
+from ..languages import load_translations
 from ..styles import styles
 from ..components.navbar import navbar
 from ..components.sidebar import sidebar
@@ -62,6 +63,19 @@ class ThemeState(rx.State):
 
     default_currency: str = "EUR"
 
+    # Language
+    language: str = "en"
+
+    # Translations dict loaded from JSON files
+    translations: dict[str, str] = {}
+
+    # Asset type colors (Radix color names)
+    stock_color: str = "purple"
+    etf_color: str = "orange"
+    crypto_color: str = "yellow"
+    commodity_color: str = "red"
+    cash_color: str = "green"
+
     @rx.var
     def currency_symbol(self) -> str:
         """Get the display symbol for the selected currency."""
@@ -75,6 +89,12 @@ class ThemeState(rx.State):
             "radius": self.radius,
             "scaling": self.scaling,
             "default_currency": self.default_currency,
+            "language": self.language,
+            "stock_color": self.stock_color,
+            "etf_color": self.etf_color,
+            "crypto_color": self.crypto_color,
+            "commodity_color": self.commodity_color,
+            "cash_color": self.cash_color,
         }
         _get_settings_path().write_text(json.dumps(data, indent=2))
 
@@ -89,6 +109,13 @@ class ThemeState(rx.State):
             self.radius = data.get("radius", self.radius)
             self.scaling = data.get("scaling", self.scaling)
             self.default_currency = data.get("default_currency", self.default_currency)
+            self.language = data.get("language", self.language)
+            self.stock_color = data.get("stock_color", self.stock_color)
+            self.etf_color = data.get("etf_color", self.etf_color)
+            self.crypto_color = data.get("crypto_color", self.crypto_color)
+            self.commodity_color = data.get("commodity_color", self.commodity_color)
+            self.cash_color = data.get("cash_color", self.cash_color)
+        self.translations = load_translations(self.language)
 
     @rx.event
     def set_scaling(self, value: str):
@@ -114,6 +141,42 @@ class ThemeState(rx.State):
     def set_default_currency(self, value: str):
         self.default_currency = value
         self._save()
+
+    @rx.event
+    def set_stock_color(self, value: str):
+        self.stock_color = value
+        self._save()
+
+    @rx.event
+    def set_etf_color(self, value: str):
+        self.etf_color = value
+        self._save()
+
+    @rx.event
+    def set_crypto_color(self, value: str):
+        self.crypto_color = value
+        self._save()
+
+    @rx.event
+    def set_commodity_color(self, value: str):
+        self.commodity_color = value
+        self._save()
+
+    @rx.event
+    def set_language(self, value: str):
+        self.language = value
+        self.translations = load_translations(value)
+        self._save()
+
+    @rx.event
+    def set_cash_color(self, value: str):
+        self.cash_color = value
+        self._save()
+
+
+def t(key: str):
+    """Shorthand for ThemeState.translations[key]."""
+    return ThemeState.translations[key]
 
 
 ALL_PAGES = []

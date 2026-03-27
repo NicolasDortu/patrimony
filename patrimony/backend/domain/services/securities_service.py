@@ -17,6 +17,7 @@ from ..repositories import (
     SecuritiesRepository,
 )
 from .currency_service import CurrencyService
+from .enrichment_utilities import apply_currency_conversion, enrich_with_prices
 
 logger = logging.getLogger(__name__)
 
@@ -44,8 +45,8 @@ class SecuritiesService:
         if df is None or df.is_empty():
             return None
 
-        df = self._enrich_with_prices(df)
-        df = self._apply_currency_conversion(df, user_currency)
+        df = enrich_with_prices(df, self._price_repo)
+        df = apply_currency_conversion(df, self._currency_service, user_currency)
         return df
 
     def get_chart_data_ticker(
@@ -111,42 +112,6 @@ class SecuritiesService:
         return rows
 
     # -- Internal helpers ----------------------------------------------------
-
-    def _enrich_with_prices(self, df: pl.DataFrame) -> pl.DataFrame:
-        if "ticker" not in df.columns:
-            return df
-
-        prices = []
-        for ticker in df["ticker"].to_list():
-            try:
-                price = self._price_repo.get_current_price(ticker)
-                prices.append(price)
-            except Exception as e:
-                logger.error("Error fetching price for %s: %s", ticker, e)
-                prices.append(None)
-
-        df = df.with_columns(pl.Series("current_price", prices))
-        if "total_quantity" in df.columns:
-            df = df.with_columns(
-                (pl.col("current_price") * pl.col("total_quantity")).alias(
-                    "total_value"
-                )
-            )
-        return df
-
-    def _apply_currency_conversion(
-        self, df: pl.DataFrame, user_currency: str
-    ) -> pl.DataFrame:
-        tickers = df["ticker"].to_list()
-        rates = self._currency_service.get_rates_for_tickers(tickers, user_currency)
-        rate_list = pl.Series("_rate", [rates.get(t, 1.0) for t in tickers])
-        df = df.with_columns(
-            (pl.col("current_price") * rate_list).alias("current_price"),
-            (pl.col("avg_price") * rate_list).alias("avg_price"),
-        )
-        return df.with_columns(
-            (pl.col("current_price") * pl.col("total_quantity")).alias("total_value")
-        )
 
     def _fetch_price_data(
         self, ticker: str, config: dict, is_intraday: bool

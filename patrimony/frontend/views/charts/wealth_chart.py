@@ -2,19 +2,26 @@
 
 import reflex as rx
 
-from .common import create_gradient, period_selector
+from .common import create_gradient, create_dynamic_gradient, period_selector
 from ...states.portfolio_state import PortfolioState
+from ...templates import t
 
 
 def _wealth_area_chart() -> rx.Component:
     """Area chart showing portfolio value over time."""
+    stock_css = "var(--" + PortfolioState.stock_color + "-9)"
+    etf_css = "var(--" + PortfolioState.etf_color + "-9)"
+    crypto_css = "var(--" + PortfolioState.crypto_color + "-9)"
+    commodity_css = "var(--" + PortfolioState.commodity_color + "-9)"
+    cash_css = "var(--" + PortfolioState.cash_color + "-9)"
+
     return rx.recharts.area_chart(
         create_gradient("blue", "colorTotal"),
-        create_gradient("green", "colorCash"),
-        create_gradient("purple", "colorStocks"),
-        create_gradient("orange", "colorETFs"),
-        create_gradient("yellow", "colorCrypto"),
-        create_gradient("red", "colorCommodity"),
+        create_dynamic_gradient(PortfolioState.cash_color, "colorCash"),
+        create_dynamic_gradient(PortfolioState.stock_color, "colorStocks"),
+        create_dynamic_gradient(PortfolioState.etf_color, "colorETFs"),
+        create_dynamic_gradient(PortfolioState.crypto_color, "colorCrypto"),
+        create_dynamic_gradient(PortfolioState.commodity_color, "colorCommodity"),
         rx.cond(
             PortfolioState.asset_filter == "all",
             rx.recharts.area(
@@ -29,7 +36,7 @@ def _wealth_area_chart() -> rx.Component:
             | (PortfolioState.asset_filter == "stocks"),
             rx.recharts.area(
                 data_key="Stocks",
-                stroke=rx.color("purple", 9),
+                stroke=stock_css,
                 fill="url(#colorStocks)",
                 type_="monotone",
             ),
@@ -39,7 +46,7 @@ def _wealth_area_chart() -> rx.Component:
             | (PortfolioState.asset_filter == "etfs"),
             rx.recharts.area(
                 data_key="ETFs",
-                stroke=rx.color("orange", 9),
+                stroke=etf_css,
                 fill="url(#colorETFs)",
                 type_="monotone",
             ),
@@ -49,7 +56,7 @@ def _wealth_area_chart() -> rx.Component:
             | (PortfolioState.asset_filter == "crypto"),
             rx.recharts.area(
                 data_key="Crypto",
-                stroke=rx.color("yellow", 9),
+                stroke=crypto_css,
                 fill="url(#colorCrypto)",
                 type_="monotone",
             ),
@@ -59,7 +66,7 @@ def _wealth_area_chart() -> rx.Component:
             | (PortfolioState.asset_filter == "commodity"),
             rx.recharts.area(
                 data_key="Commodity",
-                stroke=rx.color("red", 9),
+                stroke=commodity_css,
                 fill="url(#colorCommodity)",
                 type_="monotone",
             ),
@@ -69,7 +76,7 @@ def _wealth_area_chart() -> rx.Component:
             | (PortfolioState.asset_filter == "cash"),
             rx.recharts.area(
                 data_key="Cash",
-                stroke=rx.color("green", 9),
+                stroke=cash_css,
                 fill="url(#colorCash)",
                 type_="monotone",
             ),
@@ -87,6 +94,12 @@ def _wealth_area_chart() -> rx.Component:
 
 def _wealth_bar_chart() -> rx.Component:
     """Bar chart showing portfolio value over time."""
+    stock_css = "var(--" + PortfolioState.stock_color + "-9)"
+    etf_css = "var(--" + PortfolioState.etf_color + "-9)"
+    crypto_css = "var(--" + PortfolioState.crypto_color + "-9)"
+    commodity_css = "var(--" + PortfolioState.commodity_color + "-9)"
+    cash_css = "var(--" + PortfolioState.cash_color + "-9)"
+
     return rx.recharts.bar_chart(
         rx.cond(
             PortfolioState.asset_filter == "all",
@@ -100,7 +113,7 @@ def _wealth_bar_chart() -> rx.Component:
             | (PortfolioState.asset_filter == "stocks"),
             rx.recharts.bar(
                 data_key="Stocks",
-                fill=rx.color("purple", 9),
+                fill=stock_css,
             ),
         ),
         rx.cond(
@@ -108,7 +121,7 @@ def _wealth_bar_chart() -> rx.Component:
             | (PortfolioState.asset_filter == "etfs"),
             rx.recharts.bar(
                 data_key="ETFs",
-                fill=rx.color("orange", 9),
+                fill=etf_css,
             ),
         ),
         rx.cond(
@@ -116,7 +129,7 @@ def _wealth_bar_chart() -> rx.Component:
             | (PortfolioState.asset_filter == "crypto"),
             rx.recharts.bar(
                 data_key="Crypto",
-                fill=rx.color("yellow", 9),
+                fill=crypto_css,
             ),
         ),
         rx.cond(
@@ -124,7 +137,7 @@ def _wealth_bar_chart() -> rx.Component:
             | (PortfolioState.asset_filter == "commodity"),
             rx.recharts.bar(
                 data_key="Commodity",
-                fill=rx.color("red", 9),
+                fill=commodity_css,
             ),
         ),
         rx.cond(
@@ -132,7 +145,7 @@ def _wealth_bar_chart() -> rx.Component:
             | (PortfolioState.asset_filter == "cash"),
             rx.recharts.bar(
                 data_key="Cash",
-                fill=rx.color("green", 9),
+                fill=cash_css,
             ),
         ),
         rx.recharts.x_axis(data_key="Date", axis_line=False, tick_line=False),
@@ -186,7 +199,11 @@ def wealth_chart() -> rx.Component:
         rx.hstack(
             rx.hstack(
                 rx.icon("trending-up", size=20),
-                rx.text("Wealth Overview", size="4", weight="medium"),
+                rx.text(
+                    t("chart.wealth_overview"),
+                    size="4",
+                    weight="medium",
+                ),
                 align="center",
                 spacing="2",
             ),

@@ -2,6 +2,8 @@ from datetime import datetime
 
 import reflex as rx
 
+from ..templates import t
+
 
 def open_add_operation_dialog(on_submit: callable) -> rx.Component:
     """Button to open a dialog to add a new cash operation (deposit/expense)."""
@@ -9,30 +11,30 @@ def open_add_operation_dialog(on_submit: callable) -> rx.Component:
         rx.dialog.trigger(
             rx.button(
                 rx.icon("plus", size=26),
-                rx.text("Add Operation", size="4"),
+                rx.text(t("dialog.add_operation.submit"), size="4"),
                 size="3",
                 variant="surface",
             ),
         ),
         rx.dialog.content(
-            rx.dialog.title("Add Cash Operation"),
-            rx.dialog.description("Enter the details for the deposit or expense."),
+            rx.dialog.title(t("dialog.add_operation.title")),
+            rx.dialog.description(t("dialog.add_operation.desc")),
             rx.form(
                 rx.flex(
                     rx.input(
-                        placeholder="Title (e.g., Salary, Rent)",
+                        placeholder=t("label.title"),
                         name="title",
                         required=True,
                     ),
                     rx.input(
-                        placeholder="Amount (positive=deposit, negative=expense)",
+                        placeholder=t("label.amount"),
                         name="amount",
                         type="number",
                         step="0.01",
                         required=True,
                     ),
                     rx.input(
-                        placeholder="Operation Date",
+                        placeholder=t("label.date"),
                         name="operation_date",
                         type="date",
                         default_value=datetime.now().date().isoformat(),
@@ -41,13 +43,16 @@ def open_add_operation_dialog(on_submit: callable) -> rx.Component:
                     rx.flex(
                         rx.dialog.close(
                             rx.button(
-                                "Cancel",
+                                t("btn.cancel"),
                                 variant="soft",
                                 color_scheme="gray",
                             ),
                         ),
                         rx.dialog.close(
-                            rx.button("Add Operation", type="submit"),
+                            rx.button(
+                                t("dialog.add_operation.submit"),
+                                type="submit",
+                            ),
                         ),
                         spacing="3",
                         justify="end",

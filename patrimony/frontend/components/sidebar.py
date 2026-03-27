@@ -4,16 +4,18 @@ import reflex as rx
 
 from ..styles import styles
 
+# Navigation items: (route, translation_key, icon)
+_NAV_ITEMS = [
+    ("/", "nav.overview", "home"),
+    ("/securities", "nav.securities", "table-2"),
+    ("/cash", "nav.cash", "wallet"),
+    ("/connectors", "nav.connectors", "plug"),
+    ("/settings", "nav.settings", "settings"),
+]
+
 
 def sidebar_header() -> rx.Component:
-    """Sidebar header.
-
-    Returns:
-        The sidebar header component.
-
-    """
     return rx.hstack(
-        # The logo.
         rx.color_mode_cond(
             rx.image(src="/patrimony_black.svg", height="2.5em"),
             rx.image(src="/patrimony_white.svg", height="2.5em"),
@@ -27,15 +29,11 @@ def sidebar_header() -> rx.Component:
 
 
 def sidebar_footer() -> rx.Component:
-    """Sidebar footer.
+    from ..templates import t
 
-    Returns:
-        The sidebar footer component.
-
-    """
     return rx.hstack(
         rx.link(
-            rx.text("About", size="3"),
+            rx.text(t("nav.about"), size="3"),
             href="/about",
             color_scheme="gray",
             underline="none",
@@ -49,37 +47,13 @@ def sidebar_footer() -> rx.Component:
     )
 
 
-def sidebar_item_icon(icon: str) -> rx.Component:
-    return rx.icon(icon, size=18)
-
-
-def sidebar_item(text: str, url: str) -> rx.Component:
-    """Sidebar item.
-
-    Args:
-        text: The text of the item.
-        url: The URL of the item.
-
-    Returns:
-        rx.Component: The sidebar item component.
-
-    """
-    # Whether the item is active.
-    active = (rx.State.router.page.path == url.lower()) | (
-        (rx.State.router.page.path == "/") & text == "Overview"
-    )
+def sidebar_item(text, icon: str, url: str) -> rx.Component:
+    """Sidebar item with translated text and explicit icon."""
+    active = rx.State.router.page.path == url
 
     return rx.link(
         rx.hstack(
-            rx.match(
-                text,
-                ("Overview", sidebar_item_icon("home")),
-                ("Securities", sidebar_item_icon("table-2")),
-                ("Cash", sidebar_item_icon("wallet")),
-                ("Connectors", sidebar_item_icon("plug")),
-                ("Settings", sidebar_item_icon("settings")),
-                sidebar_item_icon("layout-dashboard"),
-            ),
+            rx.icon(icon, size=18),
             rx.text(text, size="3", weight="regular"),
             color=rx.cond(
                 active,
@@ -119,44 +93,8 @@ def sidebar_item(text: str, url: str) -> rx.Component:
 
 
 def sidebar() -> rx.Component:
-    """The sidebar.
-
-    Returns:
-        The sidebar component.
-    """
-    from reflex.page import DECORATED_PAGES
-
-    ordered_page_routes = [
-        "/",
-        "/securities",
-        "/cash",
-        "/connectors",
-        "/settings",
-    ]
-
-    # Exclude unwanted routes from navigation
-    excluded_routes = {
-        "/about",
-        "/securities_detail",
-        "/cash_operations",
-        "/connectors/file",
-    }
-
-    pages = [
-        page_dict
-        for page_list in DECORATED_PAGES.values()
-        for _, page_dict in page_list
-        if page_dict["route"] not in excluded_routes
-    ]
-
-    ordered_pages = sorted(
-        pages,
-        key=lambda page: (
-            ordered_page_routes.index(page["route"])
-            if page["route"] in ordered_page_routes
-            else len(ordered_page_routes)
-        ),
-    )
+    """The sidebar."""
+    from ..templates import t
 
     return rx.flex(
         rx.vstack(
@@ -164,10 +102,11 @@ def sidebar() -> rx.Component:
             rx.vstack(
                 *[
                     sidebar_item(
-                        text=page.get("title", page["route"].strip("/").capitalize()),
-                        url=page["route"],
+                        text=t(key),
+                        icon=icon,
+                        url=route,
                     )
-                    for page in ordered_pages
+                    for route, key, icon in _NAV_ITEMS
                 ],
                 spacing="1",
                 width="100%",
