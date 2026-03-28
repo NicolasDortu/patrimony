@@ -48,3 +48,20 @@ class DividendRepositoryImpl(DividendRepository):
     def delete(self, id: int) -> None:
         """Delete a dividend by ID."""
         self._conn.execute("DELETE FROM dividends WHERE id = ?", [id])
+
+    def update_dividend(
+        self,
+        id: int,
+        ticker: str,
+        amount: float,
+        date: datetime,
+    ) -> None:
+        """Update an existing dividend by ID."""
+        self._conn.execute(
+            """
+            UPDATE dividends
+            SET ticker = ?, amount = ?, date = ?
+            WHERE id = ?
+            """,
+            [ticker.upper(), amount, date, id],
+        )

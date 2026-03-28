@@ -44,6 +44,37 @@ class SecuritiesRepositoryImpl(SecuritiesRepository):
         )
         return result.fetchone()[0]
 
+    def update_position(
+        self,
+        id: int,
+        ticker: str,
+        price: float,
+        quantity: float,
+        entry_type: EntryType,
+        asset_type: AssetType,
+        date: datetime,
+        fees: float = 0.0,
+    ) -> None:
+        """Update an existing position by ID."""
+        self._conn.execute(
+            """
+            UPDATE positions
+            SET ticker = ?, price = ?, quantity = ?, fees = ?,
+                entry_type = ?, asset_type = ?, date = ?
+            WHERE id = ?
+            """,
+            [
+                ticker.upper(),
+                price,
+                quantity,
+                fees,
+                entry_type.value,
+                asset_type.value,
+                date,
+                id,
+            ],
+        )
+
     def get_by_ticker(self, ticker: str) -> pl.DataFrame:
         """Get all positions for a specific ticker."""
         return self._conn.execute(

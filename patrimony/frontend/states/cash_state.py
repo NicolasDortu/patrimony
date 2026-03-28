@@ -5,9 +5,10 @@ import reflex as rx
 
 from ..services import CashService, Currency
 from .mixins import PaginationMixin
+from .spreadsheet_mixin import SpreadsheetMixin
 
 
-class CashTableState(PaginationMixin, rx.State):
+class CashTableState(SpreadsheetMixin, PaginationMixin, rx.State):
     """State for the cash table."""
 
     items: list[dict] = []
@@ -153,7 +154,6 @@ class CashTableState(PaginationMixin, rx.State):
             currency = Currency.EUR
 
         result = CashService.update_cash(
-            id=self.edit_id,
             bank=form_data.get("bank", self.edit_bank),
             account_number=form_data.get("account_number", self.edit_account_number),
             currency=currency,
@@ -186,3 +186,96 @@ class CashTableState(PaginationMixin, rx.State):
         return rx.redirect(
             f"/cash_operations?account_number={account_number}&currency={currency}"
         )
+
+    # ── Spreadsheet mode ──
+
+    @rx.var
+    def spreadsheet_columns(self) -> list[dict]:
+        return [
+            {"title": "Bank", "type": "str"},
+            {"title": "Account Number", "type": "str"},
+            {"title": "Currency", "type": "str"},
+            {"title": "Balance", "type": "float", "editable": False},
+        ]
+
+    @rx.event
+    def toggle_spreadsheet_mode(self) -> None:
+        if not self.spreadsheet_mode:
+            cash_entries = CashService.get_all_cash()
+            for entry in cash_entries:
+                try:
+                    balance = CashService.get_balance(entry.get("account_number", ""))
+                    entry["balance"] = balance if balance is not None else 0.0
+                except Exception:
+                    entry["balance"] = 0.0
+            self._spreadsheet_data = [
+                [
+                    e.get("bank", ""),
+                    e.get("account_number", ""),
+                    e.get("currency", "EUR"),
+                    e.get("balance", 0.0),
+                ]
+                for e in cash_entries
+            ]
+            # Use account_number as the row identifier
+            self._row_ids = [e.get("account_number", "") for e in cash_entries]
+            self._deleted_ids = []
+            self._has_edits = False
+            self.spreadsheet_mode = True
+        else:
+            self._exit_spreadsheet_mode()
+
+    @rx.event
+    def save_spreadsheet_changes(self) -> None:
+        errors: list[str] = []
+        original_accounts = set(
+            rid for rid in self._row_ids if rid is not None and rid != ""
+        )
+        seen_accounts: set[str] = set()
+
+        for i, row in enumerate(self._spreadsheet_data):
+            bank = str(row[0]).strip()
+            account_number = str(row[1]).strip()
+            currency_str = str(row[2]).strip().upper() or "EUR"
+
+            if not account_number:
+                continue
+
+            try:
+                currency = Currency[currency_str]
+            except KeyError:
+                currency = Currency.EUR
+
+            try:
+                if account_number in original_accounts:
+                    CashService.update_cash(
+                        bank=bank,
+                        account_number=account_number,
+                        currency=currency,
+                        last_updated=datetime.now(),
+                    )
+                else:
+                    CashService.add_cash(
+                        bank=bank,
+                        account_number=account_number,
+                        currency=currency,
+                        balance=0.0,
+                        last_updated=datetime.now(),
+                    )
+                seen_accounts.add(account_number)
+            except Exception as e:
+                errors.append(f"Row {i + 1}: {e}")
+
+        # Delete rows the user removed
+        for del_id in self._deleted_ids:
+            if del_id:
+                CashService.delete_cash(del_id)
+
+        self._exit_spreadsheet_mode()
+        self.load_entries()
+
+        if errors:
+            return rx.toast.error(
+                f"Saved with {len(errors)} error(s)", position="top-center"
+            )
+        return rx.toast.success("Changes saved", position="top-center")

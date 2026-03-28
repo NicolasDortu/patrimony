@@ -5,6 +5,7 @@ import reflex as rx
 from ..states.securities_total_state import TableStateTotal
 from ..templates import template, t
 from ..views.tables.securities_total_table import main_table
+from ..views.tables.spreadsheet_view import spreadsheet_toolbar, spreadsheet_or_table
 
 
 def _asset_type_filter() -> rx.Component:
@@ -31,11 +32,12 @@ def securities() -> rx.Component:
         rx.hstack(
             rx.heading(t("page.securities.title"), size="5"),
             _asset_type_filter(),
+            spreadsheet_toolbar(TableStateTotal),
             justify="between",
             align="center",
             width="100%",
         ),
-        main_table(),
+        spreadsheet_or_table(TableStateTotal, main_table()),
         spacing="5",
         width="100%",
     )

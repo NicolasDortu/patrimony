@@ -6,6 +6,7 @@ from ..dialogs.cash_operation_dialog import open_add_operation_dialog
 from ..states.cash_operations_state import CashOperationsState
 from ..templates import template, t
 from ..views.tables.cash_operations_table import cash_operations_table
+from ..views.tables.spreadsheet_view import spreadsheet_toolbar, spreadsheet_or_table
 
 
 @template(
@@ -26,6 +27,7 @@ def cash_operations() -> rx.Component:
         ),
         rx.flex(
             open_add_operation_dialog(CashOperationsState.add_operation),
+            spreadsheet_toolbar(CashOperationsState),
             rx.button(
                 rx.icon("arrow-down-to-line", size=20),
                 t("btn.export"),
@@ -44,7 +46,7 @@ def cash_operations() -> rx.Component:
             justify="between",
             width="100%",
         ),
-        cash_operations_table(),
+        spreadsheet_or_table(CashOperationsState, cash_operations_table()),
         spacing="5",
         width="100%",
     )

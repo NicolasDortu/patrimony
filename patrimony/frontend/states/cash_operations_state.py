@@ -6,9 +6,10 @@ import reflex as rx
 
 from ..services import CashService, EntryType
 from .mixins import PaginationMixin
+from .spreadsheet_mixin import SpreadsheetMixin
 
 
-class CashOperationsState(PaginationMixin, rx.State):
+class CashOperationsState(SpreadsheetMixin, PaginationMixin, rx.State):
     """State for cash operations table (per-account view)."""
 
     items: list[dict] = []
@@ -209,3 +210,81 @@ class CashOperationsState(PaginationMixin, rx.State):
             data=data,
             filename=f"operations_{self.account_number}.csv",
         )
+
+    # ── Spreadsheet mode ──
+
+    @rx.var
+    def spreadsheet_columns(self) -> list[dict]:
+        return [
+            {"title": "Title", "type": "str"},
+            {"title": "Amount", "type": "float"},
+            {"title": "Date", "type": "str"},
+            {"title": "Balance", "type": "float", "editable": False},
+        ]
+
+    @rx.event
+    def toggle_spreadsheet_mode(self) -> None:
+        if not self.spreadsheet_mode:
+            operations = CashService.get_operations_by_account(self.account_number)
+            self._spreadsheet_data = [
+                [
+                    op.get("title", ""),
+                    op.get("amount", 0.0),
+                    str(op.get("operation_date", ""))[:10],
+                    op.get("balance", 0.0),
+                ]
+                for op in operations
+            ]
+            self._row_ids = [op.get("id") for op in operations]
+            self._deleted_ids = []
+            self._has_edits = False
+            self.spreadsheet_mode = True
+        else:
+            self._exit_spreadsheet_mode()
+
+    @rx.event
+    def save_spreadsheet_changes(self) -> None:
+        errors: list[str] = []
+
+        for i, row in enumerate(self._spreadsheet_data):
+            rid = self._row_ids[i]
+            try:
+                title = str(row[0]).strip() or "Operation"
+                amount = float(row[1]) if row[1] != "" else 0.0
+                date_str = str(row[2]).strip()
+                operation_date = (
+                    datetime.fromisoformat(date_str) if date_str else datetime.now()
+                )
+
+                if rid is not None:
+                    CashService.update_operation_by_id(
+                        id=rid,
+                        amount=amount,
+                        title=title,
+                        operation_date=operation_date,
+                        entry_type=EntryType.MANUAL,
+                    )
+                else:
+                    if amount == 0.0 and title == "Operation":
+                        continue
+                    CashService.add_operation_balance(
+                        account_number=self.account_number,
+                        amount=amount,
+                        title=title,
+                        operation_date=operation_date,
+                        entry_type=EntryType.MANUAL,
+                    )
+            except Exception as e:
+                errors.append(f"Row {i + 1}: {e}")
+
+        for del_id in self._deleted_ids:
+            CashService.delete_operation_by_id(del_id)
+
+        self._exit_spreadsheet_mode()
+        self.load_entries()
+
+        if errors:
+            return rx.toast.error(
+                f"Saved with {len(errors)} error(s)", position="top-center"
+            )
+        return rx.toast.success("Changes saved", position="top-center")

@@ -6,6 +6,7 @@ import reflex as rx
 
 from ..services import DividendService
 from .mixins import PaginationMixin
+from .spreadsheet_mixin import SpreadsheetMixin
 
 
 @dataclass(slots=True)
@@ -18,7 +19,7 @@ class Dividend:
     date: datetime = field(default_factory=datetime.now)
 
 
-class DividendsState(PaginationMixin, rx.State):
+class DividendsState(SpreadsheetMixin, PaginationMixin, rx.State):
     """State for managing dividends on the securities detail page."""
 
     items: list[Dividend] = []
@@ -79,3 +80,75 @@ class DividendsState(PaginationMixin, rx.State):
             return rx.toast.success(result.message, position="top-center")
         else:
             return rx.toast.error(result.message, position="top-center")
+
+    # ── Spreadsheet mode ──
+
+    @rx.var
+    def spreadsheet_columns(self) -> list[dict]:
+        return [
+            {"title": "Amount", "type": "float"},
+            {"title": "Date", "type": "str"},
+        ]
+
+    @rx.event
+    def toggle_spreadsheet_mode(self) -> None:
+        if not self.spreadsheet_mode:
+            dividends = DividendService.get_dividends_by_ticker(self.ticker)
+            self._spreadsheet_data = [
+                [
+                    d.get("amount", 0.0),
+                    str(d.get("date", ""))[:10],
+                ]
+                for d in dividends
+            ]
+            self._row_ids = [d.get("id") for d in dividends]
+            self._deleted_ids = []
+            self._has_edits = False
+            self.spreadsheet_mode = True
+        else:
+            self._exit_spreadsheet_mode()
+
+    @rx.event
+    def save_spreadsheet_changes(self) -> None:
+        errors: list[str] = []
+
+        for i, row in enumerate(self._spreadsheet_data):
+            rid = self._row_ids[i]
+            try:
+                amount = float(row[0]) if row[0] != "" else 0.0
+                date_str = str(row[1]).strip()
+                date = (
+                    datetime.strptime(date_str, "%Y-%m-%d")
+                    if date_str
+                    else datetime.now()
+                )
+
+                if rid is not None:
+                    DividendService.update_dividend(
+                        id=rid,
+                        ticker=self.ticker,
+                        amount=amount,
+                        date=date,
+                    )
+                else:
+                    if amount == 0.0:
+                        continue
+                    DividendService.add_dividend(
+                        ticker=self.ticker,
+                        amount=amount,
+                        date=date,
+                    )
+            except Exception as e:
+                errors.append(f"Row {i + 1}: {e}")
+
+        for del_id in self._deleted_ids:
+            DividendService.delete_dividend(del_id)
+
+        self._exit_spreadsheet_mode()
+        self.load_entries()
+
+        if errors:
+            return rx.toast.error(
+                f"Saved with {len(errors)} error(s)", position="top-center"
+            )
+        return rx.toast.success("Changes saved", position="top-center")

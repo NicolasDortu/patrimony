@@ -100,7 +100,6 @@ class CashService:
 
     @staticmethod
     def update_cash(
-        id: int,
         bank: str,
         account_number: str,
         currency: Currency,
@@ -111,7 +110,6 @@ class CashService:
             if last_updated is None:
                 last_updated = datetime.now()
             container.cash_repository().update_cash(
-                id=id,
                 bank=bank,
                 account_number=account_number,
                 currency=currency,
@@ -119,12 +117,12 @@ class CashService:
             )
             return OperationResult(
                 success=True,
-                message=f"Account {id} updated successfully",
+                message=f"Account {account_number} updated successfully",
             )
         except Exception as e:
             return OperationResult(
                 success=False,
-                message=f"Failed to update account {id}: {e}",
+                message=f"Failed to update account {account_number}: {e}",
             )
 
     @staticmethod
@@ -290,6 +288,41 @@ class SecuritiesService:
             return OperationResult(
                 success=False,
                 message=f"Failed to add position: {e}",
+            )
+
+    @staticmethod
+    def update_position(
+        id: int,
+        ticker: str,
+        price: float,
+        quantity: float,
+        entry_type: EntryType,
+        asset_type: AssetType,
+        date: Optional[datetime] = None,
+        fees: float = 0.0,
+    ) -> OperationResult:
+        """Update an existing security position."""
+        try:
+            if date is None:
+                date = datetime.now()
+            container.securities_repository().update_position(
+                id=id,
+                ticker=ticker,
+                price=price,
+                quantity=quantity,
+                entry_type=entry_type,
+                asset_type=asset_type,
+                date=date,
+                fees=fees,
+            )
+            return OperationResult(
+                success=True,
+                message=f"Position {id} updated successfully",
+            )
+        except Exception as e:
+            return OperationResult(
+                success=False,
+                message=f"Failed to update position: {e}",
             )
 
     @staticmethod
@@ -472,6 +505,33 @@ class DividendService:
             return OperationResult(
                 success=False,
                 message=f"Failed to delete dividend: {e}",
+            )
+
+    @staticmethod
+    def update_dividend(
+        id: int,
+        ticker: str,
+        amount: float,
+        date: Optional[datetime] = None,
+    ) -> OperationResult:
+        """Update an existing dividend."""
+        try:
+            if date is None:
+                date = datetime.now()
+            container.dividend_repository().update_dividend(
+                id=id,
+                ticker=ticker,
+                amount=amount,
+                date=date,
+            )
+            return OperationResult(
+                success=True,
+                message=f"Dividend {id} updated successfully",
+            )
+        except Exception as e:
+            return OperationResult(
+                success=False,
+                message=f"Failed to update dividend: {e}",
             )
 
 

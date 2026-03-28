@@ -2,6 +2,8 @@ from typing import Union
 
 import reflex as rx
 
+from datetime import datetime
+
 from ..services import (
     SecuritiesService,
     SecurityPosition,
@@ -11,9 +13,10 @@ from ..services import (
 from ..templates import ThemeState
 from .dividends_state import DividendsState
 from .mixins import PaginationMixin
+from .spreadsheet_mixin import SpreadsheetMixin
 
 
-class TableStateDetails(PaginationMixin, rx.State):
+class TableStateDetails(SpreadsheetMixin, PaginationMixin, rx.State):
     """The state class."""
 
     items: list[SecurityPosition] = []
@@ -166,3 +169,89 @@ class TableStateDetails(PaginationMixin, rx.State):
             period = period[0] if period else "1Y"
         self.selected_period = period
         await self._load_chart_data()
+
+    # ── Spreadsheet mode ──
+
+    @rx.var
+    def spreadsheet_columns(self) -> list[dict]:
+        return [
+            {"title": "Price", "type": "float"},
+            {"title": "Quantity", "type": "float"},
+            {"title": "Fees", "type": "float"},
+            {"title": "Date", "type": "str"},
+        ]
+
+    @rx.event
+    def toggle_spreadsheet_mode(self) -> None:
+        if not self.spreadsheet_mode:
+            positions = SecuritiesService.get_positions_by_ticker(self.ticker)
+            self._spreadsheet_data = [
+                [
+                    p.get("price", 0.0),
+                    p.get("quantity", 1.0),
+                    p.get("fees", 0.0),
+                    str(p.get("date", ""))[:10],
+                ]
+                for p in positions
+            ]
+            self._row_ids = [p.get("id") for p in positions]
+            self._deleted_ids = []
+            self._has_edits = False
+            self.spreadsheet_mode = True
+        else:
+            self._exit_spreadsheet_mode()
+
+    @rx.event
+    def save_spreadsheet_changes(self) -> None:
+        errors: list[str] = []
+
+        for i, row in enumerate(self._spreadsheet_data):
+            rid = self._row_ids[i]
+            try:
+                price = float(row[0]) if row[0] != "" else 0.0
+                quantity = float(row[1]) if row[1] != "" else 1.0
+                fees = float(row[2]) if row[2] != "" else 0.0
+                date_str = str(row[3]).strip()
+                date = (
+                    datetime.strptime(date_str, "%Y-%m-%d")
+                    if date_str
+                    else datetime.now()
+                )
+
+                if rid is not None:
+                    SecuritiesService.update_position(
+                        id=rid,
+                        ticker=self.ticker,
+                        price=price,
+                        quantity=quantity,
+                        entry_type=EntryType.MANUAL,
+                        asset_type=AssetType.STOCK,
+                        date=date,
+                        fees=fees,
+                    )
+                else:
+                    if price == 0.0 and quantity == 0.0:
+                        continue
+                    SecuritiesService.add_position(
+                        ticker=self.ticker,
+                        price=price,
+                        quantity=quantity,
+                        entry_type=EntryType.MANUAL,
+                        asset_type=AssetType.STOCK,
+                        date=date,
+                        fees=fees,
+                    )
+            except Exception as e:
+                errors.append(f"Row {i + 1}: {e}")
+
+        for del_id in self._deleted_ids:
+            SecuritiesService.delete_position(del_id)
+
+        self._exit_spreadsheet_mode()
+        self.load_entries()
+
+        if errors:
+            return rx.toast.error(
+                f"Saved with {len(errors)} error(s)", position="top-center"
+            )
+        return rx.toast.success("Changes saved", position="top-center")

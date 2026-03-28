@@ -10,6 +10,7 @@ from ..states.dividends_state import DividendsState
 from ..templates import template, ThemeState
 from ..views.tables.securities_details_table import main_table
 from ..views.tables.dividends_table import dividends_table
+from ..views.tables.spreadsheet_view import spreadsheet_toolbar, spreadsheet_or_table
 from ..views.charts.stock_chart import stock_chart
 
 
@@ -37,6 +38,7 @@ def securities_detail() -> rx.Component:
         rx.heading(f"Details for {TableStateDetails.ticker}", size="5"),
         rx.flex(
             open_add_position_dialog(TableStateDetails.add_stock),
+            spreadsheet_toolbar(TableStateDetails),
             rx.button(
                 rx.icon("arrow-down-to-line", size=20),
                 "Export",
@@ -49,11 +51,12 @@ def securities_detail() -> rx.Component:
             width="100%",
         ),
         card(stock_chart()),
-        main_table(),
+        spreadsheet_or_table(TableStateDetails, main_table()),
         # Dividends section
         rx.heading("Dividends", size="4", margin_top="1em"),
         rx.flex(
             open_add_dividend_dialog(),
+            spreadsheet_toolbar(DividendsState),
             rx.text(
                 "Total: ",
                 ThemeState.currency_symbol,
@@ -65,7 +68,7 @@ def securities_detail() -> rx.Component:
             align="center",
             width="100%",
         ),
-        dividends_table(),
+        spreadsheet_or_table(DividendsState, dividends_table()),
         spacing="5",
         width="100%",
     )

@@ -126,5 +126,9 @@
   "page.about.github_desc": "Patrimony est open source. Les contributions, signalements de bugs et demandes de fonctionnalités sont les bienvenus !",
   "page.about.github_link": "Voir sur GitHub",
 
-  "confirm.delete_irreversible": "Cette action est irréversible."
+  "confirm.delete_irreversible": "Cette action est irr\u00e9versible.",
+
+  "spreadsheet.toggle": "Basculer en mode tableur",
+  "spreadsheet.save": "Enregistrer",
+  "spreadsheet.discard": "Annuler"
 }

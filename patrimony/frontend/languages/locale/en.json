@@ -126,5 +126,9 @@
   "page.about.github_desc": "Patrimony is open source. Contributions, bug reports, and feature requests are welcome!",
   "page.about.github_link": "View on GitHub",
 
-  "confirm.delete_irreversible": "This action cannot be undone."
+  "confirm.delete_irreversible": "This action cannot be undone.",
+
+  "spreadsheet.toggle": "Toggle spreadsheet mode",
+  "spreadsheet.save": "Save changes",
+  "spreadsheet.discard": "Discard"
 }

@@ -49,6 +49,21 @@ class SecuritiesRepository(BaseRepository, ABC):
         pass
 
     @abstractmethod
+    def update_position(
+        self,
+        id: int,
+        ticker: str,
+        price: float,
+        quantity: float,
+        entry_type: EntryType,
+        asset_type: AssetType,
+        date: datetime,
+        fees: float = 0.0,
+    ) -> None:
+        """Update an existing position by ID."""
+        pass
+
+    @abstractmethod
     def get_by_ticker(self, ticker: str) -> Optional[pl.DataFrame]:
         """Get all positions for a specific ticker."""
         pass
@@ -208,6 +223,17 @@ class DividendRepository(BaseRepository, ABC):
         date: datetime,
     ) -> int:
         """Add a new dividend and return its id."""
+        pass
+
+    @abstractmethod
+    def update_dividend(
+        self,
+        id: int,
+        ticker: str,
+        amount: float,
+        date: datetime,
+    ) -> None:
+        """Update an existing dividend by ID."""
         pass
 
     @abstractmethod

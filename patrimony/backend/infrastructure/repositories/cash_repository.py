@@ -216,10 +216,10 @@ class CashRepositoryImpl(CashRepository, CashOperationRepositoryImpl):
         self._conn.execute(
             """
             UPDATE cash
-            SET bank = ?, account_number = ?, currency = ?, last_updated = ?
+            SET bank = ?, currency = ?, last_updated = ?
             WHERE account_number = ?
             """,
-            [bank, account_number, currency.value, last_updated, account_number],
+            [bank, currency.value, last_updated, account_number],
         )
 
     def get_balance(self, account_number: str) -> float:
