@@ -4,7 +4,7 @@ from datetime import datetime
 import polars as pl
 
 from ...domain.repositories import SecuritiesRepository
-from ...domain.entities import AssetType, Currency, EntryType, TransactionType
+from ...domain.entities import AssetType, EntryType
 from ..database.connection import DatabaseConnection
 
 
@@ -21,30 +21,59 @@ class SecuritiesRepositoryImpl(SecuritiesRepository):
         quantity: float,
         entry_type: EntryType,
         asset_type: AssetType,
-        transaction_type: TransactionType,
-        currency: Currency,
         date: datetime,
+        fees: float = 0.0,
     ) -> int:
         """Add a new position to the database."""
         result = self._conn.execute(
             """
             INSERT INTO positions
-            (ticker, price, quantity, entry_type, asset_type, transaction_type, currency, date)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            (ticker, price, quantity, fees, entry_type, asset_type, date)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
             RETURNING id
             """,
             [
                 ticker.upper(),
                 price,
                 quantity,
+                fees,
                 entry_type.value,
                 asset_type.value,
-                transaction_type.value,
-                currency.value,
                 date,
             ],
         )
         return result.fetchone()[0]
+
+    def update_position(
+        self,
+        id: int,
+        ticker: str,
+        price: float,
+        quantity: float,
+        entry_type: EntryType,
+        asset_type: AssetType,
+        date: datetime,
+        fees: float = 0.0,
+    ) -> None:
+        """Update an existing position by ID."""
+        self._conn.execute(
+            """
+            UPDATE positions
+            SET ticker = ?, price = ?, quantity = ?, fees = ?,
+                entry_type = ?, asset_type = ?, date = ?
+            WHERE id = ?
+            """,
+            [
+                ticker.upper(),
+                price,
+                quantity,
+                fees,
+                entry_type.value,
+                asset_type.value,
+                date,
+                id,
+            ],
+        )
 
     def get_by_ticker(self, ticker: str) -> pl.DataFrame:
         """Get all positions for a specific ticker."""
@@ -73,3 +102,16 @@ class SecuritiesRepositoryImpl(SecuritiesRepository):
     def get_all(self) -> pl.DataFrame:
         """Get all positions."""
         return self._conn.execute("SELECT * FROM positions").pl()
+
+    def get_earliest_purchase_date(self, ticker: str | None = None) -> datetime | None:
+        """Return the earliest purchase date, optionally filtered by ticker."""
+        if ticker:
+            row = self._conn.execute(
+                "SELECT MIN(date) AS min_date FROM positions WHERE ticker = ?",
+                [ticker.upper()],
+            ).fetchone()
+        else:
+            row = self._conn.execute(
+                "SELECT MIN(date) AS min_date FROM positions"
+            ).fetchone()
+        return row[0] if row and row[0] else None

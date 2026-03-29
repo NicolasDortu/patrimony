@@ -7,12 +7,38 @@ CREATE_POSITIONS_TABLE = """
         ticker VARCHAR NOT NULL,
         price DOUBLE NOT NULL,
         quantity DOUBLE DEFAULT 1.0,
+        fees DOUBLE DEFAULT 0.0,
         entry_type VARCHAR NOT NULL,
         asset_type VARCHAR NOT NULL,
-        transaction_type VARCHAR NOT NULL DEFAULT 'BUY',
-        currency VARCHAR DEFAULT 'EUR',
         date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-)
+);
+    CREATE INDEX IF NOT EXISTS idx_positions_ticker ON positions (ticker);
+"""
+
+CREATE_POSITIONS_CLOSED_TABLE = """
+    CREATE SEQUENCE IF NOT EXISTS positions_closed_id_seq;
+    CREATE TABLE IF NOT EXISTS positions_closed (
+        id INTEGER PRIMARY KEY DEFAULT nextval('positions_closed_id_seq'),
+        ticker VARCHAR NOT NULL,
+        price DOUBLE NOT NULL,
+        quantity DOUBLE DEFAULT 1.0,
+        fees DOUBLE DEFAULT 0.0,
+        entry_type VARCHAR NOT NULL,
+        asset_type VARCHAR NOT NULL,
+        date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+    CREATE INDEX IF NOT EXISTS idx_positions_closed_ticker ON positions_closed (ticker);
+"""
+
+CREATE_DIVIDENDS_TABLE = """
+    CREATE SEQUENCE IF NOT EXISTS dividends_id_seq;
+    CREATE TABLE IF NOT EXISTS dividends (
+        id INTEGER PRIMARY KEY DEFAULT nextval('dividends_id_seq'),
+        ticker VARCHAR NOT NULL,
+        amount DOUBLE NOT NULL,
+        date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+    CREATE INDEX IF NOT EXISTS idx_dividends_ticker ON dividends (ticker);
 """
 
 
@@ -41,36 +67,122 @@ CREATE_POSITIONS_TOTAL_VIEW = """
         agg.ticker,
         agg.total_quantity,
         agg.avg_price,
+        agg.asset_type,
         pc.current_price,
         agg.total_quantity * pc.current_price AS total_value
     FROM (
         SELECT
-            ticker,
-            SUM(CASE WHEN transaction_type = 'BUY' THEN quantity ELSE -quantity END) AS total_quantity,
-            SUM(CASE WHEN transaction_type = 'BUY' THEN price * quantity ELSE -price * quantity END) /
-                NULLIF(SUM(CASE WHEN transaction_type = 'BUY' THEN quantity ELSE -quantity END), 0) AS avg_price
-        FROM positions
-        GROUP BY ticker
+            b.ticker,
+            b.asset_type,
+            b.buy_qty - COALESCE(s.sell_qty, 0) AS total_quantity,
+            b.total_cost / NULLIF(b.buy_qty, 0) AS avg_price
+        FROM (
+            SELECT
+                ticker,
+                MIN(asset_type) AS asset_type,
+                SUM(quantity) AS buy_qty,
+                SUM(price * quantity + fees) AS total_cost
+            FROM positions
+            GROUP BY ticker
+        ) b
+        LEFT JOIN (
+            SELECT ticker, SUM(quantity) AS sell_qty
+            FROM positions_closed
+            GROUP BY ticker
+        ) s ON b.ticker = s.ticker
     ) agg
     LEFT JOIN price_cache pc ON agg.ticker = pc.ticker
 """
 
 CREATE_CASH_TABLE = """
-    CREATE SEQUENCE IF NOT EXISTS cash_id_seq;
     CREATE TABLE IF NOT EXISTS cash (
-        id INTEGER PRIMARY KEY DEFAULT nextval('cash_id_seq'),
         bank VARCHAR NOT NULL,
-        account_number VARCHAR NOT NULL,
+        account_number VARCHAR PRIMARY KEY,
         currency VARCHAR DEFAULT 'EUR',
-        balance DOUBLE NOT NULL,
-        last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        entry_type VARCHAR NOT NULL DEFAULT 'MANUAL'
 )
+"""
+
+CREATE_BALANCE_OPERATIONS_TABLE = """
+    CREATE SEQUENCE IF NOT EXISTS balance_operations_id_seq;
+    CREATE TABLE IF NOT EXISTS balance_operations (
+        id INTEGER PRIMARY KEY DEFAULT nextval('balance_operations_id_seq'),
+        account_number VARCHAR NOT NULL,
+        rank INTEGER NOT NULL,
+        amount DOUBLE NOT NULL,
+        balance DOUBLE NOT NULL,
+        title VARCHAR,
+        category VARCHAR DEFAULT 'Uncategorized',
+        operation_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        entry_type VARCHAR NOT NULL DEFAULT 'MANUAL',
+        FOREIGN KEY (account_number) REFERENCES cash(account_number)
+);
+    CREATE INDEX IF NOT EXISTS idx_balance_ops_accountnumber
+        ON balance_operations (account_number);
+"""
+
+CREATE_CASH_BALANCE_VIEW = """
+    CREATE OR REPLACE VIEW cash_balance AS
+    SELECT account_number, balance
+    FROM balance_operations
+    WHERE (account_number, rank) IN (
+        SELECT account_number, MAX(rank)
+        FROM balance_operations
+        GROUP BY account_number
+    )
+"""
+
+CREATE_TICKERS_REFERENCE_TABLE = """
+CREATE TABLE IF NOT EXISTS tickers_reference (
+    ticker VARCHAR PRIMARY KEY,
+    name VARCHAR,
+    asset_type VARCHAR,
+    exchange VARCHAR,
+    category VARCHAR,
+    country VARCHAR
+);
+
+CREATE INDEX IF NOT EXISTS idx_ref_name ON tickers_reference(name);
+CREATE INDEX IF NOT EXISTS idx_ref_asset_type ON tickers_reference(asset_type);
+"""
+
+CREATE_TICKER_CURRENCY_TABLE = """
+CREATE TABLE IF NOT EXISTS ticker_currency (
+    ticker VARCHAR PRIMARY KEY,
+    currency VARCHAR NOT NULL,
+    last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+"""
+
+CREATE_EXCHANGE_RATE_CACHE_TABLE = """
+CREATE TABLE IF NOT EXISTS exchange_rate_cache (
+    from_currency VARCHAR NOT NULL,
+    to_currency VARCHAR NOT NULL,
+    rate DOUBLE NOT NULL,
+    last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (from_currency, to_currency)
+);
+"""
+
+CREATE_USER_ASSET_TYPES_VIEW = """
+CREATE OR REPLACE VIEW user_asset_types AS
+SELECT DISTINCT asset_type
+FROM positions
 """
 
 DDL_COMMANDS = [
     CREATE_POSITIONS_TABLE,
+    CREATE_POSITIONS_CLOSED_TABLE,
     CREATE_PRICE_CACHE_TABLE,
     CREATE_PRICE_HISTORY_TABLE,
     CREATE_POSITIONS_TOTAL_VIEW,
     CREATE_CASH_TABLE,
+    CREATE_BALANCE_OPERATIONS_TABLE,
+    CREATE_DIVIDENDS_TABLE,
+    CREATE_CASH_BALANCE_VIEW,
+    CREATE_TICKERS_REFERENCE_TABLE,
+    CREATE_TICKER_CURRENCY_TABLE,
+    CREATE_EXCHANGE_RATE_CACHE_TABLE,
+    CREATE_USER_ASSET_TYPES_VIEW,
 ]

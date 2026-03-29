@@ -4,12 +4,16 @@ Handles fetching current prices from external APIs and
 caching price data in the database.
 """
 
+import logging
 from datetime import datetime, timedelta
 
 import polars as pl
 
-from ...domain.repositories import PriceRepository, MarketDataProvider
+from ...domain.interfaces import MarketDataProvider
+from ...domain.repositories import PriceRepository
 from ..database.connection import DatabaseConnection
+
+logger = logging.getLogger(__name__)
 
 
 class PriceRepositoryImpl(PriceRepository):
@@ -66,7 +70,11 @@ class PriceRepositoryImpl(PriceRepository):
         return result[0] if result else None
 
     def get_price_history(
-        self, tickers: list[str], start_date: datetime, end_date: datetime
+        self,
+        tickers: list[str],
+        start_date: datetime,
+        end_date: datetime,
+        period: str = "1d",
     ) -> pl.DataFrame:
         """Get stored price history for tickers within a date range."""
         if not tickers:
@@ -85,13 +93,15 @@ class PriceRepositoryImpl(PriceRepository):
             FROM price_history
             WHERE ticker IN ({placeholders})
             AND date >= ? AND date <= ?
-            AND period = '1d'
+            AND period = ?
             ORDER BY date
             """,
-            [t.upper() for t in tickers] + [start_date, end_date],
+            [t.upper() for t in tickers] + [start_date, end_date, period],
         ).pl()
 
-    def _store_price_history(self, ticker: str, df: pl.DataFrame) -> None:
+    def _store_price_history(
+        self, ticker: str, df: pl.DataFrame, period: str = "1d"
+    ) -> None:
         """Insert new price history rows, ignoring duplicates."""
         for row in df.iter_rows(named=True):
             try:
@@ -99,14 +109,21 @@ class PriceRepositoryImpl(PriceRepository):
                     """
                     INSERT OR IGNORE INTO price_history
                     (ticker, date, close_price, period, last_updated)
-                    VALUES (?, ?, ?, '1d', CURRENT_TIMESTAMP)
+                    VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
                     """,
-                    [ticker, row["date"], row["close"]],
+                    [ticker, row["date"], row["close_price"], period],
                 )
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning(
+                    "Error storing price history for %s at %s: %s",
+                    ticker,
+                    row["date"],
+                    e,
+                )
 
-    def sync_price_history(self, tickers: list[str], start_date: datetime) -> None:
+    def sync_price_history(
+        self, tickers: list[str], start_date: datetime, period: str = "1d"
+    ) -> None:
         """Fetch and store only missing price history data."""
         today = datetime.now()
 
@@ -117,9 +134,9 @@ class PriceRepositoryImpl(PriceRepository):
             result = self._conn.execute(
                 """
                 SELECT MIN(date), MAX(date) FROM price_history
-                WHERE ticker = ? AND period = '1d'
+                WHERE ticker = ? AND period = ?
                 """,
-                [ticker],
+                [ticker, period],
             ).fetchone()
 
             min_date = result[0] if result and result[0] else None
@@ -131,7 +148,7 @@ class PriceRepositoryImpl(PriceRepository):
                     ticker, start_date=start_date, end_date=today
                 )
                 if df is not None and not df.is_empty():
-                    self._store_price_history(ticker, df)
+                    self._store_price_history(ticker, df, period)
                 continue
 
             # Fill missing early data if start_date is before our earliest
@@ -142,7 +159,7 @@ class PriceRepositoryImpl(PriceRepository):
                     end_date=min_date - timedelta(days=1),
                 )
                 if df is not None and not df.is_empty():
-                    self._store_price_history(ticker, df)
+                    self._store_price_history(ticker, df, period)
 
             # Fill missing recent data if latest date is before yesterday
             if max_date.date() < (today - timedelta(days=1)).date():
@@ -152,4 +169,4 @@ class PriceRepositoryImpl(PriceRepository):
                     end_date=today,
                 )
                 if df is not None and not df.is_empty():
-                    self._store_price_history(ticker, df)
+                    self._store_price_history(ticker, df, period)

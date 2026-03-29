@@ -1,23 +1,26 @@
 """External market data provider implementations.
 
 This module contains concrete implementations of the MarketDataProvider interface
-for different data sources (Yahoo Finance, Alpha Vantage, etc.).
+for different data sources (Yahoo Finance, Alpha Vantage, etc.). Only Yfinance is implemented for now.
 """
 
+import logging
 from datetime import datetime
 
 import yfinance as yf
 from typing import Optional
 import polars as pl
 
-from ...domain.repositories import MarketDataProvider
+from ...domain.interfaces import MarketDataProvider
+
+
+logger = logging.getLogger(__name__)
 
 
 class YahooFinanceProvider(MarketDataProvider):
     """Market data provider using Yahoo Finance (yfinance library).
 
     This is the default provider - free, no API key required.
-    Suitable for real-time quotes and historical data.
     """
 
     def get_current_price(self, ticker: str) -> Optional[float]:
@@ -26,9 +29,12 @@ class YahooFinanceProvider(MarketDataProvider):
             stock = yf.Ticker(ticker)
             data = stock.history(period="1d")
             if not data.empty:
+                self._api_was_called = True
                 return float(data["Close"].iloc[-1])
+            else:
+                logger.warning("No price data found for %s", ticker)
         except Exception as e:
-            print(f"Error fetching price for {ticker}: {e}")
+            logger.warning("Error fetching price for %s: %s", ticker, e)
             return None
         return None
 
@@ -57,7 +63,7 @@ class YahooFinanceProvider(MarketDataProvider):
                     }
                 )
         except Exception as e:
-            print(f"Error fetching price history for {ticker}: {e}")
+            logger.warning("Error fetching price history for %s: %s", ticker, e)
         return pl.DataFrame(schema={"date": pl.Datetime, "close_price": pl.Float64})
 
     def get_price_history_period(
@@ -80,5 +86,22 @@ class YahooFinanceProvider(MarketDataProvider):
                     }
                 )
         except Exception as e:
-            print(f"Error fetching price history for {ticker}: {e}")
+            logger.warning("Error fetching price history for %s: %s", ticker, e)
         return pl.DataFrame(schema={"date": pl.Datetime, "close_price": pl.Float64})
+
+    def get_ticker_currency(self, ticker: str) -> Optional[str]:
+        """Fetch the native trading currency of a ticker from Yahoo Finance."""
+        try:
+            stock = yf.Ticker(ticker)
+            currency = stock.fast_info.get("currency")
+            return currency.upper() if currency else None
+        except Exception as e:
+            logger.warning("Error fetching currency for %s: %s", ticker, e)
+            return None
+
+    def get_exchange_rate(
+        self, from_currency: str, to_currency: str
+    ) -> Optional[float]:
+        """Fetch exchange rate using yfinance's {FROM}{TO}=X ticker format."""
+        rate_ticker = f"{from_currency.upper()}{to_currency.upper()}=X"
+        return self.get_current_price(rate_ticker)

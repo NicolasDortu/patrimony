@@ -1,14 +1,23 @@
 from abc import ABC, abstractmethod
 from datetime import datetime
+from typing import Optional
 
-from .entities import AssetType, Currency, TransactionType, EntryType
+import polars as pl
+
+from .entities import AssetType, Currency, EntryType
+from .interfaces import CurrencyProvider, PriceProvider
 
 
-class Repository(ABC):
-    """Base repository interface following Repository Pattern."""
+class BaseRepository(ABC):
+    """Base repository interface methods."""
 
     @abstractmethod
-    def get_by_id(self, id: int) -> object:
+    def get_all(self) -> Optional[pl.DataFrame]:
+        """Get all entities."""
+        pass
+
+    @abstractmethod
+    def get_by_id(self, id: int) -> Optional[pl.DataFrame]:
         """Retrieve entity by ID."""
         pass
 
@@ -17,13 +26,9 @@ class Repository(ABC):
         """Delete entity by ID."""
         pass
 
-    @abstractmethod
-    def get_all(self) -> object:
-        """Get all entities."""
-        pass
 
-
-class SecuritiesRepository(Repository, ABC):
+### Repositories for specific domains (securities, cash, market data, etc.) ###
+class SecuritiesRepository(BaseRepository, ABC):
     """Repository for securities (stocks, crypto, ETFs, bonds, ...).
 
     Extends base repository with security-specific operations.
@@ -37,29 +42,95 @@ class SecuritiesRepository(Repository, ABC):
         quantity: float,
         entry_type: EntryType,
         asset_type: AssetType,
-        transaction_type: TransactionType,
-        currency: Currency,
         date: datetime,
+        fees: float = 0.0,
     ) -> int:
         """Add a new position and return its id."""
         pass
 
     @abstractmethod
-    def get_by_ticker(self, ticker: str) -> object:
+    def update_position(
+        self,
+        id: int,
+        ticker: str,
+        price: float,
+        quantity: float,
+        entry_type: EntryType,
+        asset_type: AssetType,
+        date: datetime,
+        fees: float = 0.0,
+    ) -> None:
+        """Update an existing position by ID."""
+        pass
+
+    @abstractmethod
+    def get_by_ticker(self, ticker: str) -> Optional[pl.DataFrame]:
         """Get all positions for a specific ticker."""
         pass
 
     @abstractmethod
-    def get_aggregated_positions(self) -> object:
+    def get_aggregated_positions(self) -> Optional[pl.DataFrame]:
         """Get aggregated positions (total quantities, avg prices)."""
         pass
 
+    @abstractmethod
+    def get_earliest_purchase_date(self, ticker: str | None = None) -> datetime | None:
+        """Return the earliest purchase date, optionally filtered by ticker."""
+        pass
 
-class CashRepository(Repository, ABC):
-    """Repository for cash accounts.
 
-    Specific interface for cash-related operations.
-    """
+class CashOperationRepository(ABC):
+    """Cash Methods related to cash operations (deposits, withdrawals, transfers)."""
+
+    @abstractmethod
+    def add_operation_balance(
+        self,
+        account_number: str,
+        amount: float,
+        title: str,
+        operation_date: datetime,
+        entry_type: EntryType = EntryType.MANUAL,
+        category: str = "Uncategorized",
+    ) -> int:
+        """Record a cash operation on the balance and return the operation ID."""
+        pass
+
+    @abstractmethod
+    def get_operations_by_account(self, account_number: str) -> Optional[pl.DataFrame]:
+        """Get all balance operations for a specific account."""
+        pass
+
+    @abstractmethod
+    def get_all_operations(self) -> Optional[pl.DataFrame]:
+        """Get all balance operations."""
+        pass
+
+    @abstractmethod
+    def update_operation_by_id(
+        self,
+        id: int,
+        amount: float,
+        title: str,
+        operation_date: datetime,
+        entry_type: EntryType,
+        category: str = "Uncategorized",
+    ) -> None:
+        """Update a balance operation by ID."""
+        pass
+
+    @abstractmethod
+    def delete_operation_by_id(self, id: int) -> None:
+        """Delete a balance operation by ID."""
+        pass
+
+    @abstractmethod
+    def get_cash_balance_history(self) -> Optional[pl.DataFrame]:
+        """Get cash balance history over time for all accounts by summing the operations."""
+        pass
+
+
+class CashRepository(BaseRepository, CashOperationRepository, ABC):
+    """Repository for cash accounts."""
 
     @abstractmethod
     def add_cash(
@@ -69,90 +140,29 @@ class CashRepository(Repository, ABC):
         currency: Currency,
         balance: float,
         last_updated: datetime,
-    ) -> int:
-        """Add a new cash account and return its id."""
+    ) -> str:
+        """Add a new cash account and return its account number."""
         pass
 
     @abstractmethod
     def update_cash(
         self,
-        id: int,
         bank: str,
         account_number: str,
         currency: Currency,
-        balance: float,
         last_updated: datetime,
     ) -> None:
         """Update cash account."""
         pass
 
-
-class MarketDataProvider(ABC):
-    """Interface for external market data providers.
-
-    Generic abstraction for market data providers (Yahoo Finance, Alpha Vantage, etc.)
-    """
-
     @abstractmethod
-    def get_current_price(self, ticker: str) -> float:
-        """Fetch current price for a ticker.
-
-        Args:
-            ticker: Stock ticker symbol
-
-        Returns:
-            Current price or None if unavailable
-        """
-        pass
-
-    @abstractmethod
-    def get_price_history(
-        self,
-        ticker: str,
-        start_date: datetime = None,
-        end_date: datetime = None,
-        interval: str = "1d",
-    ) -> object:
-        """Fetch price history for a ticker.
-
-        Args:
-            ticker: Stock ticker symbol
-            start_date: Start of date range (inclusive)
-            end_date: End of date range (inclusive)
-            interval: Data interval (e.g. '5m', '1d', '1wk')
-
-        Returns:
-            DataFrame with columns: date, close
-        """
-        pass
-
-    @abstractmethod
-    def get_price_history_period(
-        self,
-        ticker: str,
-        period: str = None,
-        interval: str = "1d",
-    ) -> object:
-        """Fetch price history for a ticker using period instead of dates.
-
-        Args:
-            ticker: Stock ticker symbol
-            period: yfinance period string (e.g. '1d', '1mo', '1y')
-            interval: Data interval (e.g. '5m', '1d', '1wk')
-
-        Returns:
-            DataFrame with columns: date, close
-        """
+    def get_balance(self, account_number: str) -> float:
+        """Get the current balance of a cash account."""
         pass
 
 
-class PriceRepository(ABC):
+class PriceRepository(PriceProvider, ABC):
     """Repository for asset price data."""
-
-    @abstractmethod
-    def get_current_price(self, ticker: str) -> float:
-        """Get current price for a ticker."""
-        pass
 
     @abstractmethod
     def cache_price(self, ticker: str, price: float, timestamp: datetime) -> None:
@@ -165,13 +175,70 @@ class PriceRepository(ABC):
         pass
 
     @abstractmethod
-    def get_price_history(
-        self, tickers: list[str], start_date: datetime, end_date: datetime
-    ) -> object:
-        """Get stored price history for tickers within a date range."""
+    def sync_price_history(
+        self, tickers: list[str], start_date: datetime, period: str = "1d"
+    ) -> None:
+        """Fetch and store missing price history data for tickers."""
+        pass
+
+
+class CurrencyRepository(CurrencyProvider, ABC):
+    """Repository for currency data (ticker currencies and exchange rates)."""
+
+    @abstractmethod
+    def set_ticker_currency(self, ticker: str, currency: str) -> None:
+        """Cache a ticker's native currency."""
         pass
 
     @abstractmethod
-    def sync_price_history(self, tickers: list[str], start_date: datetime) -> None:
-        """Fetch and store missing price history data for tickers."""
+    def get_exchange_rate(
+        self, from_currency: str, to_currency: str, max_age_minutes: int = 60
+    ) -> float | None:
+        """Get cached exchange rate if fresh enough."""
+        pass
+
+    @abstractmethod
+    def set_exchange_rate(
+        self, from_currency: str, to_currency: str, rate: float
+    ) -> None:
+        """Cache an exchange rate."""
+        pass
+
+
+class ReferenceRepository(ABC):
+    """Repository for securities reference data."""
+
+    @abstractmethod
+    def search(self, query: str, limit: int = 10) -> list[dict]:
+        """Search securities by ticker or name (case-insensitive)."""
+        pass
+
+
+class DividendRepository(BaseRepository, ABC):
+    """Repository for dividend records."""
+
+    @abstractmethod
+    def add_dividend(
+        self,
+        ticker: str,
+        amount: float,
+        date: datetime,
+    ) -> int:
+        """Add a new dividend and return its id."""
+        pass
+
+    @abstractmethod
+    def update_dividend(
+        self,
+        id: int,
+        ticker: str,
+        amount: float,
+        date: datetime,
+    ) -> None:
+        """Update an existing dividend by ID."""
+        pass
+
+    @abstractmethod
+    def get_by_ticker(self, ticker: str) -> Optional[pl.DataFrame]:
+        """Get all dividends for a specific ticker."""
         pass

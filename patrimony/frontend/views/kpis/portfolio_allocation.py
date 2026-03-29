@@ -2,6 +2,7 @@ import reflex as rx
 
 from ...components.card import card
 from ...states.portfolio_state import PortfolioState
+from ...templates import ThemeState, t
 
 
 def allocation_pie_chart() -> rx.Component:
@@ -16,6 +17,8 @@ def allocation_pie_chart() -> rx.Component:
             label=True,
             inner_radius="100",
             outer_radius="120",
+            stroke="none",
+            fill_opacity=0.7,
         ),
         rx.recharts.legend(),
         rx.recharts.graphing_tooltip(),
@@ -45,7 +48,7 @@ def allocation_breakdown() -> rx.Component:
                         weight="bold",
                     ),
                     rx.text(
-                        f"€{item['value']:,.2f}",
+                        ThemeState.currency_symbol + f"{item['value']:,.2f}",
                         size="2",
                         color=rx.color("gray", 10),
                     ),
@@ -67,7 +70,11 @@ def allocation_card() -> rx.Component:
         rx.vstack(
             rx.hstack(
                 rx.icon("pie-chart", size=20),
-                rx.text("Asset Allocation", size="4", weight="medium"),
+                rx.text(
+                    t("kpi.asset_allocation"),
+                    size="4",
+                    weight="medium",
+                ),
                 align="center",
                 spacing="2",
             ),
@@ -80,7 +87,7 @@ def allocation_card() -> rx.Component:
                     width="100%",
                 ),
                 rx.text(
-                    "No allocation data available",
+                    t("kpi.no_allocation_data"),
                     size="2",
                     color=rx.color("gray", 10),
                 ),

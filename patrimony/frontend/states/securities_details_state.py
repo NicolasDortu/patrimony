@@ -2,120 +2,74 @@ from typing import Union
 
 import reflex as rx
 
+from datetime import datetime
+
 from ..services import (
     SecuritiesService,
     SecurityPosition,
     EntryType,
-    TransactionType,
-    Currency,
     AssetType,
+    was_market_data_fetched,
 )
+from ..templates import ThemeState
+from .dividends_state import DividendsState
+from .mixins import PaginationMixin, SearchSortMixin, apply_sort_and_search
+from .spreadsheet_mixin import SpreadsheetMixin
 
 
-class TableStateDetails(rx.State):
+class TableStateDetails(SpreadsheetMixin, SearchSortMixin, PaginationMixin, rx.State):
     """The state class."""
 
     items: list[SecurityPosition] = []
     ticker: str = ""
 
-    search_value: str = ""
-    sort_value: str = ""
-    sort_reverse: bool = False
-
-    total_items: int = 0
-    offset: int = 0
-    limit: int = 12  # Number of rows per page
-
     # Stock chart state
     selected_period: str = "6M"
     stock_chart_data: list[dict] = []
 
+    # Current price from aggregated data
+    current_price: float = 0.0
+
     @rx.event
-    def on_page_load(self) -> None:
+    async def on_page_load(self):
         """Handle page load - get ticker from URL and load entries."""
         ticker = self.router.url.query_parameters.get("ticker", "")
         self.ticker = ticker
         self.load_entries()
-        self._load_chart_data()
+        await self._load_chart_data()
+        # Load current price from aggregated positions
+        theme_state = await self.get_state(ThemeState)
+        agg = SecuritiesService.get_aggregated_positions(theme_state.default_currency)
+        for pos in agg:
+            if pos.get("ticker", "").upper() == ticker.upper():
+                self.current_price = pos.get("current_price", 0.0) or 0.0
+                break
+        dividends_state = await self.get_state(DividendsState)
+        dividends_state.ticker = ticker
+        dividends_state.load_entries()
+        if was_market_data_fetched():
+            yield rx.toast.info("Market data refreshed", position="bottom-right")
 
     @rx.event
     def set_ticker(self, ticker: str) -> None:
         """Set the ticker for detail view navigation from the total table."""
         self.ticker = ticker
 
-    @rx.event
-    def set_search_value(self, value: str) -> None:
-        self.search_value = value
-
-    @rx.event
-    def set_sort_value(self, value: str) -> None:
-        self.sort_value = value
-
     @rx.var
     def filtered_sorted_items(self) -> list[SecurityPosition]:
-        items = self.items
-
-        # Filter items based on selected item
-        if self.sort_value:
-            if self.sort_value in ["price"]:
-                items = sorted(
-                    items,
-                    key=lambda item: float(getattr(item, self.sort_value)),
-                    reverse=self.sort_reverse,
-                )
-            else:
-                items = sorted(
-                    items,
-                    key=lambda item: str(getattr(item, self.sort_value)).lower(),
-                    reverse=self.sort_reverse,
-                )
-
-        # Filter items based on search value
-        if self.search_value:
-            search_value = self.search_value.lower()
-            items = [
-                item
-                for item in items
-                if any(
-                    search_value in str(getattr(item, attr)).lower()
-                    for attr in [
-                        "ticker",
-                        "date",
-                    ]
-                )
-            ]
-
-        return items
-
-    @rx.var
-    def page_number(self) -> int:
-        return (self.offset // self.limit) + 1
-
-    @rx.var
-    def total_pages(self) -> int:
-        return (self.total_items // self.limit) + (
-            1 if self.total_items % self.limit else 1
+        return apply_sort_and_search(
+            self.items,
+            self.sort_value,
+            self.sort_reverse,
+            self.search_value,
+            numeric_sort_fields=["price"],
+            search_fields=["ticker", "date"],
+            accessor="attr",
         )
 
     @rx.var(initial_value=[])
     def get_current_page(self) -> list[SecurityPosition]:
-        start_index = self.offset
-        end_index = start_index + self.limit
-        return self.filtered_sorted_items[start_index:end_index]
-
-    def prev_page(self) -> None:
-        if self.page_number > 1:
-            self.offset -= self.limit
-
-    def next_page(self) -> None:
-        if self.page_number < self.total_pages:
-            self.offset += self.limit
-
-    def first_page(self) -> None:
-        self.offset = 0
-
-    def last_page(self) -> None:
-        self.offset = (self.total_pages - 1) * self.limit
+        return self.filtered_sorted_items[self.offset : self.offset + self.limit]
 
     @rx.event
     def load_entries(self) -> None:
@@ -136,8 +90,7 @@ class TableStateDetails(rx.State):
             quantity=float(form_data.get("quantity", 0)),
             entry_type=EntryType.MANUAL,
             asset_type=AssetType.STOCK,
-            transaction_type=TransactionType.BUY,
-            currency=Currency(form_data.get("currency", "EUR")),
+            fees=float(form_data.get("fees", 0)),
         )
 
         if result.success:
@@ -174,11 +127,12 @@ class TableStateDetails(rx.State):
         data = str(header + "\n" + "\n".join(rows))
         return rx.download(data=data, filename="positions.csv")
 
-    def _load_chart_data(self):
+    async def _load_chart_data(self):
         """Fetch stock price history for the chart."""
         if self.ticker:
+            theme_state = await self.get_state(ThemeState)
             self.stock_chart_data = SecuritiesService.get_chart_data_ticker(
-                self.ticker, self.selected_period
+                self.ticker, self.selected_period, theme_state.default_currency
             )
         else:
             self.stock_chart_data = []
@@ -189,4 +143,66 @@ class TableStateDetails(rx.State):
         if isinstance(period, list):
             period = period[0] if period else "1Y"
         self.selected_period = period
-        self._load_chart_data()
+        await self._load_chart_data()
+
+    # ── Spreadsheet mode ──
+
+    @rx.var
+    def spreadsheet_columns(self) -> list[dict]:
+        return [
+            {"title": "Price", "type": "float"},
+            {"title": "Quantity", "type": "float"},
+            {"title": "Fees", "type": "float"},
+            {"title": "Date", "type": "str"},
+        ]
+
+    def _load_spreadsheet_rows(self) -> tuple[list[list], list]:
+        positions = SecuritiesService.get_positions_by_ticker(self.ticker)
+        data = [
+            [
+                p.get("price", 0.0),
+                p.get("quantity", 1.0),
+                p.get("fees", 0.0),
+                str(p.get("date", ""))[:10],
+            ]
+            for p in positions
+        ]
+        ids = [p.get("id") for p in positions]
+        return data, ids
+
+    def _save_spreadsheet_row(self, row, index, rid, is_new):
+        price = float(row[0]) if row[0] != "" else 0.0
+        quantity = float(row[1]) if row[1] != "" else 1.0
+        fees = float(row[2]) if row[2] != "" else 0.0
+        date_str = str(row[3]).strip()
+        date = datetime.strptime(date_str, "%Y-%m-%d") if date_str else datetime.now()
+        if is_new:
+            if price == 0.0 and quantity == 0.0:
+                return "skip"
+            SecuritiesService.add_position(
+                ticker=self.ticker,
+                price=price,
+                quantity=quantity,
+                entry_type=EntryType.MANUAL,
+                asset_type=AssetType.STOCK,
+                date=date,
+                fees=fees,
+            )
+        else:
+            SecuritiesService.update_position(
+                id=rid,
+                ticker=self.ticker,
+                price=price,
+                quantity=quantity,
+                entry_type=EntryType.MANUAL,
+                asset_type=AssetType.STOCK,
+                date=date,
+                fees=fees,
+            )
+        return None
+
+    def _delete_spreadsheet_row(self, rid):
+        SecuritiesService.delete_position(rid)
+
+    async def _after_spreadsheet_save(self):
+        self.load_entries()
