@@ -31,9 +31,7 @@ class DividendsState(SpreadsheetMixin, PaginationMixin, rx.State):
 
     @rx.var(initial_value=[])
     def get_current_page(self) -> list[Dividend]:
-        start_index = self.offset
-        end_index = start_index + self.limit
-        return self.items[start_index:end_index]
+        return self.items[self.offset : self.offset + self.limit]
 
     @rx.event
     def set_ticker(self, ticker: str) -> None:

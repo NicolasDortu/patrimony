@@ -29,7 +29,10 @@ class YahooFinanceProvider(MarketDataProvider):
             stock = yf.Ticker(ticker)
             data = stock.history(period="1d")
             if not data.empty:
+                self._api_was_called = True
                 return float(data["Close"].iloc[-1])
+            else:
+                logger.warning("No price data found for %s", ticker)
         except Exception as e:
             logger.warning("Error fetching price for %s: %s", ticker, e)
             return None

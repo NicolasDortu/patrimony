@@ -4,7 +4,7 @@ from typing import Literal
 
 import reflex as rx
 
-from ..services import DividendService, PortfolioService
+from ..services import DividendService, PortfolioService, was_market_data_fetched
 from ..templates import ThemeState
 
 
@@ -306,3 +306,5 @@ class PortfolioState(rx.State):
         await self._load_chart_data()
         self._dividends_data = DividendService.get_all_dividends()
         self.is_loaded = True
+        if was_market_data_fetched():
+            yield rx.toast.info("Market data refreshed", position="bottom-right")

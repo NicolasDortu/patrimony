@@ -3,6 +3,7 @@
 import reflex as rx
 
 from ..components.card import card
+from ..components.loading import loading_spinner
 from ..components.notification import notification
 from ..templates import template, t
 from ..states.portfolio_state import PortfolioState
@@ -11,24 +12,6 @@ from ..views.kpis.portfolio_stats_card import portfolio_kpi_cards
 from ..views.kpis.portfolio_performers import portfolio_performers_card
 from ..views.kpis.portfolio_allocation import allocation_card
 from ..views.kpis.dividend_summary import dividend_summary_card
-
-
-def _loading_state() -> rx.Component:
-    """Loading spinner shown while portfolio data is being fetched."""
-    return rx.center(
-        rx.vstack(
-            rx.spinner(size="3"),
-            rx.text(
-                t("page.overview.loading"),
-                size="3",
-                color=rx.color("gray", 10),
-            ),
-            align="center",
-            spacing="3",
-        ),
-        width="100%",
-        min_height="60vh",
-    )
 
 
 def _empty_state() -> rx.Component:
@@ -133,5 +116,5 @@ def index() -> rx.Component:
             _dashboard(),
             _empty_state(),
         ),
-        _loading_state(),
+        loading_spinner(),
     )

@@ -1,4 +1,4 @@
-"""Navbar component for the app."""
+"""Navigation components — navbar (mobile) and sidebar (desktop)."""
 
 import reflex as rx
 
@@ -14,14 +14,16 @@ _NAV_ITEMS = [
 ]
 
 
-def menu_item(text, icon: str, url: str) -> rx.Component:
-    """Menu item with translated text and explicit icon."""
+def _nav_item(
+    text, icon: str, url: str, icon_size: int, text_size: str
+) -> rx.Component:
+    """A single navigation item with translated text and icon."""
     active = rx.State.router.page.path == url
 
     return rx.link(
         rx.hstack(
-            rx.icon(icon, size=20),
-            rx.text(text, size="4", weight="regular"),
+            rx.icon(icon, size=icon_size),
+            rx.text(text, size=text_size, weight="regular"),
             color=rx.cond(
                 active,
                 styles.accent_text_color,
@@ -59,7 +61,7 @@ def menu_item(text, icon: str, url: str) -> rx.Component:
     )
 
 
-def navbar_footer() -> rx.Component:
+def _nav_footer() -> rx.Component:
     from ..templates import t
 
     return rx.hstack(
@@ -78,7 +80,12 @@ def navbar_footer() -> rx.Component:
     )
 
 
-def menu_button() -> rx.Component:
+# ============================================================================
+# Navbar (mobile drawer)
+# ============================================================================
+
+
+def _menu_button() -> rx.Component:
     from ..templates import t
 
     return rx.drawer.root(
@@ -97,15 +104,17 @@ def menu_button() -> rx.Component:
                     ),
                     rx.divider(),
                     *[
-                        menu_item(
+                        _nav_item(
                             text=t(key),
                             icon=icon,
                             url=route,
+                            icon_size=20,
+                            text_size="4",
                         )
                         for route, key, icon in _NAV_ITEMS
                     ],
                     rx.spacer(),
-                    navbar_footer(),
+                    _nav_footer(),
                     spacing="4",
                     width="100%",
                 ),
@@ -130,7 +139,7 @@ def navbar() -> rx.Component:
                 rx.image(src="/patrimony_white.svg", height="2em"),
             ),
             rx.spacer(),
-            menu_button(),
+            _menu_button(),
             align="center",
             width="100%",
             padding_y="1.25em",
@@ -142,4 +151,65 @@ def navbar() -> rx.Component:
         top="0px",
         z_index="5",
         border_bottom=styles.border,
+    )
+
+
+# ============================================================================
+# Sidebar (desktop)
+# ============================================================================
+
+
+def _sidebar_header() -> rx.Component:
+    return rx.hstack(
+        rx.color_mode_cond(
+            rx.image(src="/patrimony_black.svg", height="2.5em"),
+            rx.image(src="/patrimony_white.svg", height="2.5em"),
+        ),
+        rx.spacer(),
+        align="center",
+        width="100%",
+        padding="0.35em",
+        margin_bottom="1em",
+    )
+
+
+def sidebar() -> rx.Component:
+    """The sidebar."""
+    from ..templates import t
+
+    return rx.flex(
+        rx.vstack(
+            _sidebar_header(),
+            rx.vstack(
+                *[
+                    _nav_item(
+                        text=t(key),
+                        icon=icon,
+                        url=route,
+                        icon_size=18,
+                        text_size="3",
+                    )
+                    for route, key, icon in _NAV_ITEMS
+                ],
+                spacing="1",
+                width="100%",
+            ),
+            rx.spacer(),
+            _nav_footer(),
+            justify="end",
+            align="end",
+            width=styles.sidebar_content_width,
+            height="100dvh",
+            padding="1em",
+        ),
+        display=["none", "none", "none", "none", "none", "flex"],
+        max_width=styles.sidebar_width,
+        width="auto",
+        height="100%",
+        position="sticky",
+        justify="end",
+        top="0px",
+        left="0px",
+        flex="1",
+        bg=rx.color("gray", 2),
     )

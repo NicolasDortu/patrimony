@@ -161,5 +161,3 @@ class SpreadsheetMixin(rx.State, mixin=True):
                 f"Saved with {len(errors)} error(s)", position="top-center"
             )
         return rx.toast.success("Changes saved", position="top-center")
-        self._deleted_ids = []
-        self._has_edits = False

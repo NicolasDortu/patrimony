@@ -9,22 +9,19 @@ from ..services import (
     SecurityPosition,
     EntryType,
     AssetType,
+    was_market_data_fetched,
 )
 from ..templates import ThemeState
 from .dividends_state import DividendsState
-from .mixins import PaginationMixin
+from .mixins import PaginationMixin, SearchSortMixin, apply_sort_and_search
 from .spreadsheet_mixin import SpreadsheetMixin
 
 
-class TableStateDetails(SpreadsheetMixin, PaginationMixin, rx.State):
+class TableStateDetails(SpreadsheetMixin, SearchSortMixin, PaginationMixin, rx.State):
     """The state class."""
 
     items: list[SecurityPosition] = []
     ticker: str = ""
-
-    search_value: str = ""
-    sort_value: str = ""
-    sort_reverse: bool = False
 
     # Stock chart state
     selected_period: str = "6M"
@@ -34,7 +31,7 @@ class TableStateDetails(SpreadsheetMixin, PaginationMixin, rx.State):
     current_price: float = 0.0
 
     @rx.event
-    async def on_page_load(self) -> None:
+    async def on_page_load(self):
         """Handle page load - get ticker from URL and load entries."""
         ticker = self.router.url.query_parameters.get("ticker", "")
         self.ticker = ticker
@@ -50,61 +47,29 @@ class TableStateDetails(SpreadsheetMixin, PaginationMixin, rx.State):
         dividends_state = await self.get_state(DividendsState)
         dividends_state.ticker = ticker
         dividends_state.load_entries()
+        if was_market_data_fetched():
+            yield rx.toast.info("Market data refreshed", position="bottom-right")
 
     @rx.event
     def set_ticker(self, ticker: str) -> None:
         """Set the ticker for detail view navigation from the total table."""
         self.ticker = ticker
 
-    @rx.event
-    def set_search_value(self, value: str) -> None:
-        self.search_value = value
-
-    @rx.event
-    def set_sort_value(self, value: str) -> None:
-        self.sort_value = value
-
     @rx.var
     def filtered_sorted_items(self) -> list[SecurityPosition]:
-        items = self.items
-
-        # Filter items based on selected item
-        if self.sort_value:
-            if self.sort_value in ["price"]:
-                items = sorted(
-                    items,
-                    key=lambda item: float(getattr(item, self.sort_value)),
-                    reverse=self.sort_reverse,
-                )
-            else:
-                items = sorted(
-                    items,
-                    key=lambda item: str(getattr(item, self.sort_value)).lower(),
-                    reverse=self.sort_reverse,
-                )
-
-        # Filter items based on search value
-        if self.search_value:
-            search_value = self.search_value.lower()
-            items = [
-                item
-                for item in items
-                if any(
-                    search_value in str(getattr(item, attr)).lower()
-                    for attr in [
-                        "ticker",
-                        "date",
-                    ]
-                )
-            ]
-
-        return items
+        return apply_sort_and_search(
+            self.items,
+            self.sort_value,
+            self.sort_reverse,
+            self.search_value,
+            numeric_sort_fields=["price"],
+            search_fields=["ticker", "date"],
+            accessor="attr",
+        )
 
     @rx.var(initial_value=[])
     def get_current_page(self) -> list[SecurityPosition]:
-        start_index = self.offset
-        end_index = start_index + self.limit
-        return self.filtered_sorted_items[start_index:end_index]
+        return self.filtered_sorted_items[self.offset : self.offset + self.limit]
 
     @rx.event
     def load_entries(self) -> None:

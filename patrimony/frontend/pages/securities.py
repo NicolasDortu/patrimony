@@ -2,6 +2,7 @@
 
 import reflex as rx
 
+from ..components.chart_toggle import chart_table_toggle
 from ..states.securities_total_state import TableStateTotal
 from ..templates import template, t
 from ..views.charts.securities_charts import securities_charts
@@ -22,7 +23,7 @@ def _asset_type_filter() -> rx.Component:
     )
 
 
-@template(route="/securities", title="Securities", on_load=TableStateTotal.load_entries)
+@template(route="/securities", title="Securities", on_load=TableStateTotal.on_page_load)
 def securities() -> rx.Component:
     """The securities page."""
     return rx.vstack(
@@ -30,22 +31,7 @@ def securities() -> rx.Component:
             rx.heading(t("page.securities.title"), size="5"),
             _asset_type_filter(),
             rx.spacer(),
-            rx.button(
-                rx.cond(
-                    TableStateTotal.chart_view,
-                    rx.icon("table", size=16),
-                    rx.icon("bar-chart-3", size=16),
-                ),
-                rx.cond(
-                    TableStateTotal.chart_view,
-                    t("btn.table_view"),
-                    t("btn.chart_view"),
-                ),
-                variant="ghost",
-                size="2",
-                on_click=TableStateTotal.toggle_chart_view,
-                cursor="pointer",
-            ),
+            chart_table_toggle(TableStateTotal),
             justify="between",
             align="center",
             width="100%",

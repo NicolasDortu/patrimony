@@ -3,8 +3,6 @@
 from __future__ import annotations
 
 import json
-import os
-from pathlib import Path
 from typing import Callable
 
 import reflex as rx
@@ -12,8 +10,8 @@ import reflex as rx
 from ..services import CurrencyService
 from ..languages import load_translations
 from ..styles import styles
-from ..components.navbar import navbar
-from ..components.sidebar import sidebar
+from ..components.navigation import navbar, sidebar
+from ..utils import get_settings_path
 
 # Meta tags for the app.
 default_meta = [
@@ -37,17 +35,6 @@ def menu_item_link(text, href):
             "background_color": styles.accent_text_color,
         },
     )
-
-
-def _get_settings_path() -> Path:
-    """Get the settings file path (same directory as the database)."""
-    if os.name == "nt":
-        base = Path(os.environ.get("LOCALAPPDATA", Path.home()))
-    else:
-        base = Path.home() / ".local" / "share"
-    settings_dir = base / "patrimony" / "settings"
-    settings_dir.mkdir(parents=True, exist_ok=True)
-    return settings_dir / "settings.json"
 
 
 class ThemeState(rx.State):
@@ -82,88 +69,77 @@ class ThemeState(rx.State):
         """Get the display symbol for the selected currency."""
         return CurrencyService.get_currency_symbol(self.default_currency)
 
+    # Fields persisted to settings.json
+    _SETTINGS_FIELDS: list[str] = [
+        "accent_color",
+        "gray_color",
+        "radius",
+        "scaling",
+        "default_currency",
+        "language",
+        "stock_color",
+        "etf_color",
+        "crypto_color",
+        "commodity_color",
+        "cash_color",
+        "all_color",
+    ]
+
     def _save(self) -> None:
         """Persist current settings to JSON."""
-        data = {
-            "accent_color": self.accent_color,
-            "gray_color": self.gray_color,
-            "radius": self.radius,
-            "scaling": self.scaling,
-            "default_currency": self.default_currency,
-            "language": self.language,
-            "stock_color": self.stock_color,
-            "etf_color": self.etf_color,
-            "crypto_color": self.crypto_color,
-            "commodity_color": self.commodity_color,
-            "cash_color": self.cash_color,
-            "all_color": self.all_color,
-        }
-        _get_settings_path().write_text(json.dumps(data, indent=2))
+        data = {field: getattr(self, field) for field in self._SETTINGS_FIELDS}
+        get_settings_path().write_text(json.dumps(data, indent=2))
+
+    def _set_and_save(self, field: str, value: str) -> None:
+        """Set a single field and persist."""
+        setattr(self, field, value)
+        self._save()
 
     @rx.event
     def load_settings(self) -> None:
         """Load settings from JSON file on app start."""
-        path = _get_settings_path()
+        path = get_settings_path()
         if path.exists():
             data = json.loads(path.read_text())
-            self.accent_color = data.get("accent_color", self.accent_color)
-            self.gray_color = data.get("gray_color", self.gray_color)
-            self.radius = data.get("radius", self.radius)
-            self.scaling = data.get("scaling", self.scaling)
-            self.default_currency = data.get("default_currency", self.default_currency)
-            self.language = data.get("language", self.language)
-            self.stock_color = data.get("stock_color", self.stock_color)
-            self.etf_color = data.get("etf_color", self.etf_color)
-            self.crypto_color = data.get("crypto_color", self.crypto_color)
-            self.commodity_color = data.get("commodity_color", self.commodity_color)
-            self.cash_color = data.get("cash_color", self.cash_color)
-            self.all_color = data.get("all_color", self.all_color)
+            for field in self._SETTINGS_FIELDS:
+                setattr(self, field, data.get(field, getattr(self, field)))
         self.translations = load_translations(self.language)
 
     @rx.event
     def set_scaling(self, value: str):
-        self.scaling = value
-        self._save()
+        self._set_and_save("scaling", value)
 
     @rx.event
     def set_radius(self, value: str):
-        self.radius = value
-        self._save()
+        self._set_and_save("radius", value)
 
     @rx.event
     def set_accent_color(self, value: str):
-        self.accent_color = value
-        self._save()
+        self._set_and_save("accent_color", value)
 
     @rx.event
     def set_gray_color(self, value: str):
-        self.gray_color = value
-        self._save()
+        self._set_and_save("gray_color", value)
 
     @rx.event
     def set_default_currency(self, value: str):
-        self.default_currency = value
-        self._save()
+        self._set_and_save("default_currency", value)
 
     @rx.event
     def set_stock_color(self, value: str):
-        self.stock_color = value
-        self._save()
+        self._set_and_save("stock_color", value)
 
     @rx.event
     def set_etf_color(self, value: str):
-        self.etf_color = value
-        self._save()
+        self._set_and_save("etf_color", value)
 
     @rx.event
     def set_crypto_color(self, value: str):
-        self.crypto_color = value
-        self._save()
+        self._set_and_save("crypto_color", value)
 
     @rx.event
     def set_commodity_color(self, value: str):
-        self.commodity_color = value
-        self._save()
+        self._set_and_save("commodity_color", value)
 
     @rx.event
     def set_language(self, value: str):
@@ -173,13 +149,11 @@ class ThemeState(rx.State):
 
     @rx.event
     def set_cash_color(self, value: str):
-        self.cash_color = value
-        self._save()
+        self._set_and_save("cash_color", value)
 
     @rx.event
     def set_all_color(self, value: str):
-        self.all_color = value
-        self._save()
+        self._set_and_save("all_color", value)
 
 
 def t(key: str):

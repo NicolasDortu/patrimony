@@ -1,6 +1,6 @@
 import reflex as rx
 
-from .common import header_cell
+from .common import header_cell, table_row
 from .pagination import pagination_view
 from .spreadsheet_view import spreadsheet_toggle_button
 from ...states.cash_operations_state import CashOperationsState
@@ -8,17 +8,7 @@ from ...dialogs.cash_operation_dialog import open_add_operation_dialog
 
 
 def _show_item(item: dict, index: int) -> rx.Component:
-    bg_color = rx.cond(
-        index % 2 == 0,
-        rx.color("gray", 1),
-        rx.color("accent", 2),
-    )
-    hover_color = rx.cond(
-        index % 2 == 0,
-        rx.color("gray", 3),
-        rx.color("accent", 3),
-    )
-    return rx.table.row(
+    return table_row(
         rx.table.row_header_cell(item["id"]),
         rx.table.cell(item["title"]),
         rx.table.cell(
@@ -32,8 +22,7 @@ def _show_item(item: dict, index: int) -> rx.Component:
         rx.table.cell(item["category"]),
         rx.table.cell(item["operation_date"]),
         rx.table.cell(item["entry_type"]),
-        style={"_hover": {"bg": hover_color}, "bg": bg_color},
-        align="center",
+        index=index,
     )
 
 

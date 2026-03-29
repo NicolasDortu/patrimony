@@ -5,38 +5,20 @@ from datetime import datetime
 import reflex as rx
 
 from ..services import CashService, EntryType
-from .mixins import PaginationMixin
+from .aggregation_helpers import (
+    aggregate_expenses_by_category,
+    aggregate_monthly_income_expense,
+)
+from .mixins import PaginationMixin, SearchSortMixin, apply_sort_and_search
 from .spreadsheet_mixin import SpreadsheetMixin
 
-_PIE_COLORS = [
-    "var(--blue-9)",
-    "var(--orange-9)",
-    "var(--green-9)",
-    "var(--purple-9)",
-    "var(--red-9)",
-    "var(--cyan-9)",
-    "var(--yellow-9)",
-    "var(--pink-9)",
-    "var(--teal-9)",
-    "var(--indigo-9)",
-    "var(--lime-9)",
-    "var(--amber-9)",
-]
 
-
-class CashOperationsState(SpreadsheetMixin, PaginationMixin, rx.State):
+class CashOperationsState(SpreadsheetMixin, SearchSortMixin, PaginationMixin, rx.State):
     """State for cash operations table (per-account view)."""
 
     items: list[dict] = []
     account_number: str = ""
     account_currency: str = "EUR"
-
-    search_value: str = ""
-    sort_value: str = ""
-    sort_reverse: bool = False
-
-    # Chart view
-    chart_view: bool = False
 
     @rx.event
     def on_page_load(self) -> None:
@@ -52,98 +34,30 @@ class CashOperationsState(SpreadsheetMixin, PaginationMixin, rx.State):
         """Set the account number for detail view navigation."""
         self.account_number = account_number
 
-    @rx.event
-    def set_search_value(self, value: str) -> None:
-        self.search_value = value
-
-    @rx.event
-    def set_sort_value(self, value: str) -> None:
-        self.sort_value = value
-
     @rx.var
     def filtered_sorted_items(self) -> list[dict]:
-        items = self.items
-
-        # Sort items based on selected column
-        if self.sort_value:
-            if self.sort_value in ["amount", "balance"]:
-                items = sorted(
-                    items,
-                    key=lambda item: float(item.get(self.sort_value, 0)),
-                    reverse=self.sort_reverse,
-                )
-            else:
-                items = sorted(
-                    items,
-                    key=lambda item: str(item.get(self.sort_value, "")).lower(),
-                    reverse=self.sort_reverse,
-                )
-
-        # Filter items based on search value
-        if self.search_value:
-            search_value = self.search_value.lower()
-            items = [
-                item
-                for item in items
-                if any(
-                    search_value in str(item.get(attr, "")).lower()
-                    for attr in ["title", "operation_date", "amount"]
-                )
-            ]
-
-        return items
+        return apply_sort_and_search(
+            self.items,
+            self.sort_value,
+            self.sort_reverse,
+            self.search_value,
+            numeric_sort_fields=["amount", "balance"],
+            search_fields=["title", "operation_date", "amount"],
+        )
 
     @rx.var(initial_value=[])
     def get_current_page(self) -> list[dict]:
-        start_index = self.offset
-        end_index = start_index + self.limit
-        return self.filtered_sorted_items[start_index:end_index]
-
-    @rx.event
-    def toggle_chart_view(self):
-        self.chart_view = not self.chart_view
+        return self.filtered_sorted_items[self.offset : self.offset + self.limit]
 
     @rx.var
     def expense_earning_data(self) -> list[dict]:
         """Aggregate operations into income vs expense totals by month."""
-        monthly: dict[str, dict[str, float]] = {}
-        for op in self.items:
-            date_str = str(op.get("operation_date", ""))[:7]  # YYYY-MM
-            if not date_str:
-                continue
-            if date_str not in monthly:
-                monthly[date_str] = {"month": date_str, "income": 0.0, "expense": 0.0}
-            amount = float(op.get("amount", 0))
-            if amount >= 0:
-                monthly[date_str]["income"] += amount
-            else:
-                monthly[date_str]["expense"] += abs(amount)
-        result = sorted(monthly.values(), key=lambda x: x["month"])
-        return [
-            {
-                "month": m["month"],
-                "income": round(m["income"], 2),
-                "expense": round(m["expense"], 2),
-            }
-            for m in result
-        ]
+        return aggregate_monthly_income_expense(self.items)
 
     @rx.var
     def category_expense_data(self) -> list[dict]:
         """Aggregate expenses by category for pie chart."""
-        categories: dict[str, float] = {}
-        for op in self.items:
-            amount = float(op.get("amount", 0))
-            if amount >= 0:
-                continue
-            cat = op.get("category", "Uncategorized") or "Uncategorized"
-            categories[cat] = categories.get(cat, 0.0) + abs(amount)
-        return [
-            {"name": k, "value": round(v, 2), "fill": _PIE_COLORS[i % len(_PIE_COLORS)]}
-            for i, (k, v) in enumerate(
-                sorted(categories.items(), key=lambda x: x[1], reverse=True)
-            )
-        ]
+        return aggregate_expenses_by_category(self.items)
 
     @rx.event
     def load_entries(self) -> None:

@@ -2,6 +2,7 @@
 
 import reflex as rx
 
+from ..components.chart_toggle import chart_table_toggle
 from ..states.cash_operations_state import CashOperationsState
 from ..templates import template, t
 from ..views.charts.expense_chart import expense_chart
@@ -23,22 +24,7 @@ def cash_operations() -> rx.Component:
                 size="5",
             ),
             rx.spacer(),
-            rx.button(
-                rx.cond(
-                    CashOperationsState.chart_view,
-                    rx.icon("table", size=16),
-                    rx.icon("bar-chart-3", size=16),
-                ),
-                rx.cond(
-                    CashOperationsState.chart_view,
-                    t("btn.table_view"),
-                    t("btn.chart_view"),
-                ),
-                variant="ghost",
-                size="2",
-                on_click=CashOperationsState.toggle_chart_view,
-                cursor="pointer",
-            ),
+            chart_table_toggle(CashOperationsState),
             align="center",
             width="100%",
         ),

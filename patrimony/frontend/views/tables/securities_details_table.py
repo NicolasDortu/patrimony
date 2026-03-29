@@ -1,6 +1,6 @@
 import reflex as rx
 
-from .common import header_cell
+from .common import header_cell, table_row
 from .pagination import pagination_view
 from .spreadsheet_view import spreadsheet_toggle_button
 from ...states.securities_details_state import TableStateDetails
@@ -10,24 +10,13 @@ from ...templates import ThemeState
 
 
 def _show_item(item: SecurityPosition, index: int) -> rx.Component:
-    bg_color = rx.cond(
-        index % 2 == 0,
-        rx.color("gray", 1),
-        rx.color("accent", 2),
-    )
-    hover_color = rx.cond(
-        index % 2 == 0,
-        rx.color("gray", 3),
-        rx.color("accent", 3),
-    )
-    return rx.table.row(
+    return table_row(
         rx.table.row_header_cell(item.id),
         rx.table.cell(item.ticker),
         rx.table.cell(ThemeState.currency_symbol + f"{item.price:.2f}"),
         rx.table.cell(item.quantity),
         rx.table.cell(item.date),
-        style={"_hover": {"bg": hover_color}, "bg": bg_color},
-        align="center",
+        index=index,
     )
 
 
