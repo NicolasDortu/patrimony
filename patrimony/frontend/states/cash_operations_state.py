@@ -5,6 +5,7 @@ from datetime import datetime
 import reflex as rx
 
 from ..services import CashService, EntryType
+from ..utils import tauri_save_file
 from .aggregation_helpers import (
     aggregate_expenses_by_category,
     aggregate_monthly_income_expense,
@@ -140,9 +141,9 @@ class CashOperationsState(SpreadsheetMixin, SearchSortMixin, PaginationMixin, rx
         rows = [",".join(str(op.get(col, "")) for col in columns) for op in operations]
 
         data = str(header + "\n" + "\n".join(rows))
-        return rx.download(
-            data=data,
-            filename=f"operations_{self.account_number}.csv",
+        return tauri_save_file(
+            data,
+            f"operations_{self.account_number}.csv",
         )
 
     # ── Spreadsheet mode ──

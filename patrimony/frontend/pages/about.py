@@ -3,6 +3,7 @@
 import reflex as rx
 
 from ..templates import template, t
+from ..utils import tauri_open_url
 
 
 _FEATURES = [
@@ -55,15 +56,12 @@ def about() -> rx.Component:
             size="3",
             color=rx.color("gray", 11),
         ),
-        rx.link(
-            rx.button(
-                rx.icon("external-link", size=16),
-                t("page.about.github_link"),
-                size="3",
-                variant="surface",
-            ),
-            href=_GITHUB_URL,
-            is_external=True,
+        rx.button(
+            rx.icon("external-link", size=16),
+            t("page.about.github_link"),
+            size="3",
+            variant="surface",
+            on_click=tauri_open_url(_GITHUB_URL),
         ),
         spacing="5",
         width="100%",
