@@ -2,6 +2,7 @@ import reflex as rx
 
 from ...components.card import card
 from ...states.portfolio_state import PortfolioState
+from ...templates import ThemeState, t
 
 
 def performer_item(item: dict) -> rx.Component:
@@ -28,11 +29,13 @@ def performer_item(item: dict) -> rx.Component:
         rx.vstack(
             rx.text(
                 item["return"],
+                "%",
                 size="3",
                 weight="medium",
                 color=rx.color(item["color"], 9),
             ),
             rx.text(
+                ThemeState.currency_symbol,
                 item["value"],
                 size="2",
                 color=rx.color("gray", 11),
@@ -53,7 +56,11 @@ def top_performers_card() -> rx.Component:
         rx.vstack(
             rx.hstack(
                 rx.icon("trophy", size=20),
-                rx.text("Top Performers", size="4", weight="medium"),
+                rx.text(
+                    t("kpi.top_performers"),
+                    size="4",
+                    weight="medium",
+                ),
                 align="center",
                 spacing="2",
             ),
@@ -68,7 +75,7 @@ def top_performers_card() -> rx.Component:
                     width="100%",
                 ),
                 rx.text(
-                    "No performance data available",
+                    t("kpi.no_performance_data"),
                     size="2",
                     color=rx.color("gray", 10),
                 ),
@@ -84,8 +91,12 @@ def bottom_performers_card() -> rx.Component:
     return card(
         rx.vstack(
             rx.hstack(
-                rx.icon("triangle-alert", size=20),
-                rx.text("Needs Attention", size="4", weight="medium"),
+                rx.icon("trending-down", size=20),
+                rx.text(
+                    t("kpi.least_performers"),
+                    size="4",
+                    weight="medium",
+                ),
                 align="center",
                 spacing="2",
             ),
@@ -100,7 +111,7 @@ def bottom_performers_card() -> rx.Component:
                     width="100%",
                 ),
                 rx.text(
-                    "No performance data available",
+                    t("kpi.no_performance_data"),
                     size="2",
                     color=rx.color("gray", 10),
                 ),

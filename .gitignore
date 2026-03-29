@@ -8,4 +8,5 @@ assets/external/
 .web
 __pycache__/
 venv/
-data/
+bin/
+uploaded_files/

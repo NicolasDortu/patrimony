@@ -1,204 +1,28 @@
 import reflex as rx
 
-from .common import header_cell
+from .common import header_cell, table_row
+from .pagination import pagination_view
+from .spreadsheet_view import spreadsheet_toggle_button
 from ...states.cash_state import CashTableState
-from ...dialogs.add_cash import open_add_cash_dialog
+from ...dialogs.cash_dialog import open_add_cash_dialog
 
 
 def _show_item(item: dict, index: int) -> rx.Component:
-    bg_color = rx.cond(
-        index % 2 == 0,
-        rx.color("gray", 1),
-        rx.color("accent", 2),
-    )
-    hover_color = rx.cond(
-        index % 2 == 0,
-        rx.color("gray", 3),
-        rx.color("accent", 3),
-    )
-    return rx.table.row(
+    return table_row(
         rx.table.cell(item["bank"]),
         rx.table.cell(item["account_number"]),
         rx.table.cell(item["currency"]),
         rx.table.cell(f"{item['balance']:.2f}"),
         rx.table.cell(
-            rx.hstack(
-                rx.dialog.root(
-                    rx.dialog.trigger(
-                        rx.icon_button(
-                            rx.icon("pencil", size=18),
-                            variant="ghost",
-                            color_scheme="blue",
-                            on_click=lambda: CashTableState.open_edit_dialog(item),
-                        ),
-                    ),
-                    rx.dialog.content(
-                        rx.dialog.title("Edit Cash Entry"),
-                        rx.dialog.description(
-                            "Update the balance for this cash entry.",
-                        ),
-                        rx.form(
-                            rx.flex(
-                                rx.input(
-                                    placeholder="Bank Name",
-                                    name="bank",
-                                    default_value=CashTableState.edit_bank,
-                                    required=True,
-                                ),
-                                rx.input(
-                                    placeholder="Account Number",
-                                    name="account_number",
-                                    default_value=CashTableState.edit_account_number,
-                                    required=True,
-                                ),
-                                rx.select(
-                                    [
-                                        "EUR",
-                                        "USD",
-                                        "GBP",
-                                        "JPY",
-                                    ],  # TODO: make it dynamic based on available currencies
-                                    placeholder="Currency",
-                                    name="currency",
-                                    default_value=CashTableState.edit_currency,
-                                    required=True,
-                                ),
-                                rx.input(
-                                    placeholder="Balance",
-                                    name="balance",
-                                    type="number",
-                                    min="0",
-                                    step="0.01",
-                                    value=CashTableState.edit_balance.to_string(),
-                                    on_change=CashTableState.set_edit_balance,
-                                    required=True,
-                                ),
-                                rx.flex(
-                                    rx.dialog.close(
-                                        rx.button(
-                                            "Cancel",
-                                            variant="soft",
-                                            color_scheme="gray",
-                                        ),
-                                    ),
-                                    rx.dialog.close(
-                                        rx.button("Save Changes", type="submit"),
-                                    ),
-                                    spacing="3",
-                                    justify="end",
-                                ),
-                                direction="column",
-                                spacing="4",
-                            ),
-                            on_submit=CashTableState.update_cash_entry,
-                            reset_on_submit=False,
-                        ),
-                        max_width="450px",
-                    ),
+            rx.icon_button(
+                rx.icon("arrow_right_to_line", size=18),
+                variant="ghost",
+                on_click=lambda: CashTableState.open_operations_view(
+                    item["account_number"], item["currency"]
                 ),
-                rx.alert_dialog.root(
-                    rx.alert_dialog.trigger(
-                        rx.icon_button(
-                            rx.icon("trash-2", size=18),
-                            variant="ghost",
-                            color_scheme="red",
-                        ),
-                    ),
-                    rx.alert_dialog.content(
-                        rx.alert_dialog.title("Delete Cash Entry"),
-                        rx.alert_dialog.description(
-                            "Are you sure you want to delete this cash entry? This action cannot be undone.",
-                        ),
-                        rx.flex(
-                            rx.alert_dialog.cancel(
-                                rx.button(
-                                    "Cancel", variant="soft", color_scheme="gray"
-                                ),
-                            ),
-                            rx.alert_dialog.action(
-                                rx.button(
-                                    "Delete",
-                                    color_scheme="red",
-                                    on_click=lambda: CashTableState.delete_cash_entry(
-                                        item
-                                    ),
-                                ),
-                            ),
-                            spacing="3",
-                            justify="end",
-                        ),
-                    ),
-                ),
-                spacing="2",
-            )
+            ),
         ),
-        style={"_hover": {"bg": hover_color}, "bg": bg_color},
-        align="center",
-    )
-
-
-def _pagination_view() -> rx.Component:
-    return rx.hstack(
-        rx.text(
-            "Page ",
-            rx.code(CashTableState.page_number),
-            f" of {CashTableState.total_pages}",
-            justify="end",
-        ),
-        rx.hstack(
-            rx.icon_button(
-                rx.icon("chevrons-left", size=18),
-                on_click=CashTableState.first_page,
-                opacity=rx.cond(CashTableState.page_number == 1, 0.6, 1),
-                color_scheme=rx.cond(CashTableState.page_number == 1, "gray", "accent"),
-                variant="soft",
-            ),
-            rx.icon_button(
-                rx.icon("chevron-left", size=18),
-                on_click=CashTableState.prev_page,
-                opacity=rx.cond(CashTableState.page_number == 1, 0.6, 1),
-                color_scheme=rx.cond(CashTableState.page_number == 1, "gray", "accent"),
-                variant="soft",
-            ),
-            rx.icon_button(
-                rx.icon("chevron-right", size=18),
-                on_click=CashTableState.next_page,
-                opacity=rx.cond(
-                    CashTableState.page_number == CashTableState.total_pages,
-                    0.6,
-                    1,
-                ),
-                color_scheme=rx.cond(
-                    CashTableState.page_number == CashTableState.total_pages,
-                    "gray",
-                    "accent",
-                ),
-                variant="soft",
-            ),
-            rx.icon_button(
-                rx.icon("chevrons-right", size=18),
-                on_click=CashTableState.last_page,
-                opacity=rx.cond(
-                    CashTableState.page_number == CashTableState.total_pages,
-                    0.6,
-                    1,
-                ),
-                color_scheme=rx.cond(
-                    CashTableState.page_number == CashTableState.total_pages,
-                    "gray",
-                    "accent",
-                ),
-                variant="soft",
-            ),
-            align="center",
-            spacing="2",
-            justify="end",
-        ),
-        spacing="5",
-        margin_top="1em",
-        align="center",
-        width="100%",
-        justify="end",
+        index=index,
     )
 
 
@@ -206,13 +30,12 @@ def cash_table() -> rx.Component:
     """Main cash table component."""
     return rx.box(
         rx.flex(
-            open_add_cash_dialog(CashTableState.add_cash_entry),
-            align="center",
-            justify="start",
-            spacing="4",
-            padding_bottom="1.5em",
-        ),
-        rx.flex(
+            rx.flex(
+                open_add_cash_dialog(CashTableState.add_cash_entry),
+                spreadsheet_toggle_button(CashTableState),
+                align="center",
+                spacing="3",
+            ),
             rx.flex(
                 rx.cond(
                     CashTableState.sort_reverse,
@@ -274,7 +97,7 @@ def cash_table() -> rx.Component:
                     header_cell("Account Number", "hash"),
                     header_cell("Currency", "badge-euro"),
                     header_cell("Balance", "wallet"),
-                    header_cell("Actions", "settings"),
+                    header_cell("", "eye"),
                 ),
             ),
             rx.table.body(
@@ -287,6 +110,6 @@ def cash_table() -> rx.Component:
             size="3",
             width="100%",
         ),
-        _pagination_view(),
+        pagination_view(CashTableState),
         width="100%",
     )
