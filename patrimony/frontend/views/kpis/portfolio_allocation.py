@@ -17,6 +17,8 @@ def allocation_pie_chart() -> rx.Component:
             label=True,
             inner_radius="100",
             outer_radius="120",
+            stroke="none",
+            fill_opacity=0.7,
         ),
         rx.recharts.legend(),
         rx.recharts.graphing_tooltip(),

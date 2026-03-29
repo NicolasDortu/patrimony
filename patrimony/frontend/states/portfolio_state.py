@@ -4,7 +4,7 @@ from typing import Literal
 
 import reflex as rx
 
-from ..services import PortfolioService
+from ..services import DividendService, PortfolioService
 from ..templates import ThemeState
 
 
@@ -24,6 +24,7 @@ class PortfolioState(rx.State):
     _cash_data: list[dict] = []
     _chart_data: list[dict] = []
     _asset_colors: dict[str, str] = {}
+    _dividends_data: list[dict] = []
 
     # Loading flag
     is_loaded: bool = False
@@ -248,6 +249,32 @@ class PortfolioState(rx.State):
             )
         return allocation
 
+    #####################
+    ### Dividend data ###
+    #####################
+    @rx.var
+    def total_dividends_received(self) -> str:
+        """Total dividends received, formatted."""
+        total = sum(d.get("amount", 0.0) for d in self._dividends_data)
+        return f"{total:,.2f}"
+
+    @rx.var
+    def recent_dividends(self) -> list[dict]:
+        """Return last 5 dividends sorted by date descending."""
+        sorted_divs = sorted(
+            self._dividends_data,
+            key=lambda d: d.get("date", ""),
+            reverse=True,
+        )
+        return [
+            {
+                "ticker": d.get("ticker", ""),
+                "amount": f"{d.get('amount', 0.0):,.2f}",
+                "date": str(d.get("date", ""))[:10],
+            }
+            for d in sorted_divs[:5]
+        ]
+
     #################
     ### Load data ###
     #################
@@ -277,4 +304,5 @@ class PortfolioState(rx.State):
         self.cash_value = portfolio_data.cash_value
 
         await self._load_chart_data()
+        self._dividends_data = DividendService.get_all_dividends()
         self.is_loaded = True

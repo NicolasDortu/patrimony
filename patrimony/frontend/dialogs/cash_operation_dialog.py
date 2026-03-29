@@ -34,6 +34,11 @@ def open_add_operation_dialog(on_submit: callable) -> rx.Component:
                         required=True,
                     ),
                     rx.input(
+                        placeholder=t("label.category"),
+                        name="category",
+                        default_value="Uncategorized",
+                    ),
+                    rx.input(
                         placeholder=t("label.date"),
                         name="operation_date",
                         type="date",

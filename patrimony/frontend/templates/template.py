@@ -75,6 +75,7 @@ class ThemeState(rx.State):
     crypto_color: str = "yellow"
     commodity_color: str = "red"
     cash_color: str = "green"
+    all_color: str = "blue"
 
     @rx.var
     def currency_symbol(self) -> str:
@@ -95,6 +96,7 @@ class ThemeState(rx.State):
             "crypto_color": self.crypto_color,
             "commodity_color": self.commodity_color,
             "cash_color": self.cash_color,
+            "all_color": self.all_color,
         }
         _get_settings_path().write_text(json.dumps(data, indent=2))
 
@@ -115,6 +117,7 @@ class ThemeState(rx.State):
             self.crypto_color = data.get("crypto_color", self.crypto_color)
             self.commodity_color = data.get("commodity_color", self.commodity_color)
             self.cash_color = data.get("cash_color", self.cash_color)
+            self.all_color = data.get("all_color", self.all_color)
         self.translations = load_translations(self.language)
 
     @rx.event
@@ -171,6 +174,11 @@ class ThemeState(rx.State):
     @rx.event
     def set_cash_color(self, value: str):
         self.cash_color = value
+        self._save()
+
+    @rx.event
+    def set_all_color(self, value: str):
+        self.all_color = value
         self._save()
 
 

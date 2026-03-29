@@ -113,6 +113,7 @@ CREATE_BALANCE_OPERATIONS_TABLE = """
         amount DOUBLE NOT NULL,
         balance DOUBLE NOT NULL,
         title VARCHAR,
+        category VARCHAR DEFAULT 'Uncategorized',
         operation_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         entry_type VARCHAR NOT NULL DEFAULT 'MANUAL',
         FOREIGN KEY (account_number) REFERENCES cash(account_number)

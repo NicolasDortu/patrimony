@@ -153,6 +153,7 @@ class CashService:
         title: str,
         operation_date: datetime,
         entry_type: EntryType = EntryType.MANUAL,
+        category: str = "Uncategorized",
     ) -> OperationResult:
         """Make an operation on cash balance."""
         try:
@@ -162,6 +163,7 @@ class CashService:
                 title=title,
                 operation_date=operation_date,
                 entry_type=entry_type,
+                category=category,
             )
             return OperationResult(
                 success=True,
@@ -204,6 +206,7 @@ class CashService:
         title: str,
         operation_date: datetime,
         entry_type: EntryType,
+        category: str = "Uncategorized",
     ) -> OperationResult:
         """Update a balance operation by ID."""
         try:
@@ -213,6 +216,7 @@ class CashService:
                 title=title,
                 operation_date=operation_date,
                 entry_type=entry_type,
+                category=category,
             )
             return OperationResult(
                 success=True, message="Operation updated successfully"

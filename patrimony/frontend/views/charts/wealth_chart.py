@@ -2,13 +2,14 @@
 
 import reflex as rx
 
-from .common import create_gradient, create_dynamic_gradient, period_selector
+from .common import create_dynamic_gradient, period_selector
 from ...states.portfolio_state import PortfolioState
-from ...templates import t
+from ...templates import ThemeState, t
 
 
 def _wealth_area_chart() -> rx.Component:
     """Area chart showing portfolio value over time."""
+    all_css = "var(--" + ThemeState.all_color + "-9)"
     stock_css = "var(--" + PortfolioState.stock_color + "-9)"
     etf_css = "var(--" + PortfolioState.etf_color + "-9)"
     crypto_css = "var(--" + PortfolioState.crypto_color + "-9)"
@@ -16,7 +17,7 @@ def _wealth_area_chart() -> rx.Component:
     cash_css = "var(--" + PortfolioState.cash_color + "-9)"
 
     return rx.recharts.area_chart(
-        create_gradient("blue", "colorTotal"),
+        create_dynamic_gradient(ThemeState.all_color, "colorTotal"),
         create_dynamic_gradient(PortfolioState.cash_color, "colorCash"),
         create_dynamic_gradient(PortfolioState.stock_color, "colorStocks"),
         create_dynamic_gradient(PortfolioState.etf_color, "colorETFs"),
@@ -26,7 +27,7 @@ def _wealth_area_chart() -> rx.Component:
             PortfolioState.asset_filter == "all",
             rx.recharts.area(
                 data_key="Total",
-                stroke=rx.color("blue", 9),
+                stroke=all_css,
                 fill="url(#colorTotal)",
                 type_="monotone",
             ),

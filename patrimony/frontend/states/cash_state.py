@@ -7,6 +7,22 @@ from ..services import CashService, Currency
 from .mixins import PaginationMixin
 from .spreadsheet_mixin import SpreadsheetMixin
 
+# Distinct color palette for pie chart slices
+_PIE_COLORS = [
+    "var(--blue-9)",
+    "var(--orange-9)",
+    "var(--green-9)",
+    "var(--purple-9)",
+    "var(--red-9)",
+    "var(--cyan-9)",
+    "var(--yellow-9)",
+    "var(--pink-9)",
+    "var(--teal-9)",
+    "var(--indigo-9)",
+    "var(--lime-9)",
+    "var(--amber-9)",
+]
+
 
 class CashTableState(SpreadsheetMixin, PaginationMixin, rx.State):
     """State for the cash table."""
@@ -17,12 +33,8 @@ class CashTableState(SpreadsheetMixin, PaginationMixin, rx.State):
     sort_value: str = ""
     sort_reverse: bool = False
 
-    # Edit dialog state
-    edit_id: int = 0
-    edit_bank: str = ""
-    edit_account_number: str = ""
-    edit_currency: str = "EUR"
-    edit_balance: float = 0.0
+    # Chart view
+    chart_view: bool = False
 
     @rx.event
     def set_search_value(self, value: str) -> None:
@@ -116,57 +128,6 @@ class CashTableState(SpreadsheetMixin, PaginationMixin, rx.State):
             return rx.toast.error(result.message, position="top-center")
 
     @rx.event
-    def open_edit_dialog(self, item: dict) -> None:
-        """Open the edit dialog with the item's current values."""
-        self.edit_id = item.get("id", 0)
-        self.edit_bank = item.get("bank", "")
-        self.edit_account_number = item.get("account_number", "")
-        self.edit_currency = item.get("currency", "EUR")
-        self.edit_balance = float(item.get("balance", 0))
-
-    @rx.event
-    def set_edit_bank(self, value: str) -> None:
-        self.edit_bank = value
-
-    @rx.event
-    def set_edit_account_number(self, value: str) -> None:
-        self.edit_account_number = value
-
-    @rx.event
-    def set_edit_currency(self, value: str) -> None:
-        self.edit_currency = value
-
-    @rx.event
-    def set_edit_balance(self, value: str) -> None:
-        """Set the edit balance value."""
-        try:
-            self.edit_balance = float(value) if value else 0.0
-        except ValueError:
-            self.edit_balance = 0.0
-
-    @rx.event
-    def update_cash_entry(self, form_data: dict) -> None:
-        """Update an existing cash entry."""
-        currency_str = form_data.get("currency", self.edit_currency)
-        try:
-            currency = Currency[currency_str]
-        except KeyError:
-            currency = Currency.EUR
-
-        result = CashService.update_cash(
-            bank=form_data.get("bank", self.edit_bank),
-            account_number=form_data.get("account_number", self.edit_account_number),
-            currency=currency,
-            last_updated=datetime.now(),
-        )
-
-        if result.success:
-            self.load_entries()
-            return rx.toast.success(result.message, position="top-center")
-        else:
-            return rx.toast.error(result.message, position="top-center")
-
-    @rx.event
     def delete_cash_entry(self, id: Union[int, dict]) -> None:
         """Delete a cash entry by ID."""
         if isinstance(id, dict):
@@ -187,6 +148,67 @@ class CashTableState(SpreadsheetMixin, PaginationMixin, rx.State):
             f"/cash_operations?account_number={account_number}&currency={currency}"
         )
 
+    @rx.event
+    def toggle_chart_view(self):
+        self.chart_view = not self.chart_view
+
+    @rx.var
+    def all_operations_expense_data(self) -> list[dict]:
+        """Aggregate all operations across all accounts into monthly income vs expense."""
+        all_ops = CashService.get_all_operations()
+        monthly: dict[str, dict[str, float]] = {}
+        for op in all_ops:
+            date_str = str(op.get("operation_date", ""))[:7]
+            if not date_str:
+                continue
+            if date_str not in monthly:
+                monthly[date_str] = {"month": date_str, "income": 0.0, "expense": 0.0}
+            amount = float(op.get("amount", 0))
+            if amount >= 0:
+                monthly[date_str]["income"] += amount
+            else:
+                monthly[date_str]["expense"] += abs(amount)
+        result = sorted(monthly.values(), key=lambda x: x["month"])
+        return [
+            {
+                "month": m["month"],
+                "income": round(m["income"], 2),
+                "expense": round(m["expense"], 2),
+            }
+            for m in result
+        ]
+
+    @rx.var
+    def all_operations_category_data(self) -> list[dict]:
+        """Aggregate expenses by category across all accounts."""
+        all_ops = CashService.get_all_operations()
+        categories: dict[str, float] = {}
+        for op in all_ops:
+            amount = float(op.get("amount", 0))
+            if amount >= 0:
+                continue
+            cat = op.get("category", "Uncategorized") or "Uncategorized"
+            categories[cat] = categories.get(cat, 0.0) + abs(amount)
+        return [
+            {"name": k, "value": round(v, 2), "fill": _PIE_COLORS[i % len(_PIE_COLORS)]}
+            for i, (k, v) in enumerate(
+                sorted(categories.items(), key=lambda x: x[1], reverse=True)
+            )
+        ]
+
+    @rx.var
+    def balance_by_account_data(self) -> list[dict]:
+        """Balance distribution across all accounts for pie chart."""
+        return [
+            {
+                "name": f"{item.get('bank', '')} - {item.get('account_number', '')}",
+                "value": round(float(item.get("balance", 0)), 2),
+                "fill": _PIE_COLORS[i % len(_PIE_COLORS)],
+            }
+            for i, item in enumerate(self.items)
+            if float(item.get("balance", 0)) > 0
+        ]
+
     # ── Spreadsheet mode ──
 
     @rx.var
@@ -198,84 +220,56 @@ class CashTableState(SpreadsheetMixin, PaginationMixin, rx.State):
             {"title": "Balance", "type": "float", "editable": False},
         ]
 
-    @rx.event
-    def toggle_spreadsheet_mode(self) -> None:
-        if not self.spreadsheet_mode:
-            cash_entries = CashService.get_all_cash()
-            for entry in cash_entries:
-                try:
-                    balance = CashService.get_balance(entry.get("account_number", ""))
-                    entry["balance"] = balance if balance is not None else 0.0
-                except Exception:
-                    entry["balance"] = 0.0
-            self._spreadsheet_data = [
-                [
-                    e.get("bank", ""),
-                    e.get("account_number", ""),
-                    e.get("currency", "EUR"),
-                    e.get("balance", 0.0),
-                ]
-                for e in cash_entries
+    def _load_spreadsheet_rows(self) -> tuple[list[list], list]:
+        cash_entries = CashService.get_all_cash()
+        for entry in cash_entries:
+            try:
+                balance = CashService.get_balance(entry.get("account_number", ""))
+                entry["balance"] = balance if balance is not None else 0.0
+            except Exception:
+                entry["balance"] = 0.0
+        data = [
+            [
+                e.get("bank", ""),
+                e.get("account_number", ""),
+                e.get("currency", "EUR"),
+                e.get("balance", 0.0),
             ]
-            # Use account_number as the row identifier
-            self._row_ids = [e.get("account_number", "") for e in cash_entries]
-            self._deleted_ids = []
-            self._has_edits = False
-            self.spreadsheet_mode = True
-        else:
-            self._exit_spreadsheet_mode()
+            for e in cash_entries
+        ]
+        ids = [e.get("account_number", "") for e in cash_entries]
+        return data, ids
 
-    @rx.event
-    def save_spreadsheet_changes(self) -> None:
-        errors: list[str] = []
-        original_accounts = set(
-            rid for rid in self._row_ids if rid is not None and rid != ""
-        )
-        seen_accounts: set[str] = set()
-
-        for i, row in enumerate(self._spreadsheet_data):
-            bank = str(row[0]).strip()
-            account_number = str(row[1]).strip()
-            currency_str = str(row[2]).strip().upper() or "EUR"
-
-            if not account_number:
-                continue
-
-            try:
-                currency = Currency[currency_str]
-            except KeyError:
-                currency = Currency.EUR
-
-            try:
-                if account_number in original_accounts:
-                    CashService.update_cash(
-                        bank=bank,
-                        account_number=account_number,
-                        currency=currency,
-                        last_updated=datetime.now(),
-                    )
-                else:
-                    CashService.add_cash(
-                        bank=bank,
-                        account_number=account_number,
-                        currency=currency,
-                        balance=0.0,
-                        last_updated=datetime.now(),
-                    )
-                seen_accounts.add(account_number)
-            except Exception as e:
-                errors.append(f"Row {i + 1}: {e}")
-
-        # Delete rows the user removed
-        for del_id in self._deleted_ids:
-            if del_id:
-                CashService.delete_cash(del_id)
-
-        self._exit_spreadsheet_mode()
-        self.load_entries()
-
-        if errors:
-            return rx.toast.error(
-                f"Saved with {len(errors)} error(s)", position="top-center"
+    def _save_spreadsheet_row(self, row, index, rid, is_new):
+        bank = str(row[0]).strip()
+        account_number = str(row[1]).strip()
+        currency_str = str(row[2]).strip().upper() or "EUR"
+        if not account_number:
+            return "skip"
+        try:
+            currency = Currency[currency_str]
+        except KeyError:
+            currency = Currency.EUR
+        if is_new:
+            CashService.add_cash(
+                bank=bank,
+                account_number=account_number,
+                currency=currency,
+                balance=0.0,
+                last_updated=datetime.now(),
             )
-        return rx.toast.success("Changes saved", position="top-center")
+        else:
+            CashService.update_cash(
+                bank=bank,
+                account_number=account_number,
+                currency=currency,
+                last_updated=datetime.now(),
+            )
+        return None
+
+    def _delete_spreadsheet_row(self, rid):
+        if rid:
+            CashService.delete_cash(rid)
+
+    async def _after_spreadsheet_save(self):
+        self.load_entries()

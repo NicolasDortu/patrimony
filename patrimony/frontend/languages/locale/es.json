@@ -2,6 +2,7 @@
   "nav.overview": "Resumen",
   "nav.securities": "Valores",
   "nav.cash": "Efectivo",
+  "nav.cash_expenses": "Efectivo y Gastos",
   "nav.connectors": "Conectores",
   "nav.settings": "Ajustes",
   "nav.about": "Acerca de",
@@ -63,6 +64,8 @@
   "dialog.add_position.desc": "Busque por ticker o nombre de empresa.",
   "dialog.add_position.submit": "Añadir posición",
 
+  "dialog.edit_position.title": "Editar posición",
+
   "dialog.add_operation.title": "Añadir operación",
   "dialog.add_operation.desc": "Introduzca los detalles del depósito o gasto.",
   "dialog.add_operation.submit": "Añadir operación",
@@ -74,11 +77,16 @@
   "dialog.add_dividend.desc": "Registre un pago de dividendo recibido.",
   "dialog.add_dividend.submit": "Añadir dividendo",
 
+  "dialog.edit_dividend.title": "Editar dividendo",
+
   "btn.cancel": "Cancelar",
   "btn.delete": "Eliminar",
   "btn.save": "Guardar cambios",
   "btn.export": "Exportar",
   "btn.back": "Volver",
+  "btn.edit_mode": "Modo Edición",
+  "btn.chart_view": "Vista gráfica",
+  "btn.table_view": "Vista tabla",
 
   "label.bank_name": "Nombre del banco",
   "label.account_number": "Número de cuenta",
@@ -91,15 +99,18 @@
   "label.fees": "Comisiones",
   "label.ticker": "Ticker",
   "label.title": "Título",
+  "label.category": "Categoría",
   "label.search": "Buscar...",
   "label.sort_by": "Ordenar por",
   "label.purchase_date": "Fecha de compra",
   "label.actions": "Acciones",
+  "label.total": "Total",
   "label.page": "Página",
   "label.of": "de",
 
   "kpi.top_performers": "Mejores rendimientos",
   "kpi.needs_attention": "Requiere atención",
+  "kpi.least_performers": "Peores rendimientos",
   "kpi.asset_allocation": "Asignación de activos",
   "kpi.no_data": "Sin datos",
   "kpi.no_performance_data": "No hay datos de rendimiento disponibles",
@@ -107,9 +118,20 @@
   "kpi.total_portfolio": "Portafolio total",
   "kpi.stocks_value": "Valor de valores",
   "kpi.cash_holdings": "Efectivo",
+  "kpi.dividends": "Dividendos recibidos",
+  "kpi.no_dividend_data": "Ningún dividendo registrado",
 
   "chart.wealth_overview": "Resumen patrimonial",
   "chart.price_history": "Historial de precios",
+  "chart.asset_allocation": "Asignación por tipo de activo",
+  "chart.performance_heatmap": "Mapa de rendimiento",
+  "chart.income_vs_expense": "Ingresos vs Gastos",
+  "chart.expense_by_category": "Gastos por categoría",
+  "chart.balance_by_account": "Saldo por cuenta",
+  "chart.securities_type_allocation": "Asignación por tipo de valor",
+
+  "tab.positions": "Posiciones",
+  "tab.dividends": "Dividendos",
 
   "cash_ops.title_prefix": "Operaciones de la cuenta",
   "cash_ops.back": "Volver a efectivo",

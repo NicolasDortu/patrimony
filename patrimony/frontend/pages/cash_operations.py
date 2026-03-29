@@ -2,11 +2,11 @@
 
 import reflex as rx
 
-from ..dialogs.cash_operation_dialog import open_add_operation_dialog
 from ..states.cash_operations_state import CashOperationsState
 from ..templates import template, t
+from ..views.charts.expense_chart import expense_chart
 from ..views.tables.cash_operations_table import cash_operations_table
-from ..views.tables.spreadsheet_view import spreadsheet_toolbar, spreadsheet_or_table
+from ..views.tables.spreadsheet_view import spreadsheet_or_table
 
 
 @template(
@@ -15,27 +15,34 @@ from ..views.tables.spreadsheet_view import spreadsheet_toolbar, spreadsheet_or_
     on_load=[CashOperationsState.on_page_load],
 )
 def cash_operations() -> rx.Component:
-    """The cash operations page.
-
-    Returns:
-        The UI for the cash operations page.
-    """
+    """The cash operations page."""
     return rx.vstack(
-        rx.heading(
-            t("cash_ops.title_prefix") + " " + CashOperationsState.account_number,
-            size="5",
+        rx.hstack(
+            rx.heading(
+                t("cash_ops.title_prefix") + " " + CashOperationsState.account_number,
+                size="5",
+            ),
+            rx.spacer(),
+            rx.button(
+                rx.cond(
+                    CashOperationsState.chart_view,
+                    rx.icon("table", size=16),
+                    rx.icon("bar-chart-3", size=16),
+                ),
+                rx.cond(
+                    CashOperationsState.chart_view,
+                    t("btn.table_view"),
+                    t("btn.chart_view"),
+                ),
+                variant="ghost",
+                size="2",
+                on_click=CashOperationsState.toggle_chart_view,
+                cursor="pointer",
+            ),
+            align="center",
+            width="100%",
         ),
         rx.flex(
-            open_add_operation_dialog(CashOperationsState.add_operation),
-            spreadsheet_toolbar(CashOperationsState),
-            rx.button(
-                rx.icon("arrow-down-to-line", size=20),
-                t("btn.export"),
-                size="3",
-                variant="surface",
-                display=["none", "none", "none", "flex"],
-                on_click=CashOperationsState.export_csv,
-            ),
             rx.button(
                 rx.icon("arrow-left", size=20),
                 t("cash_ops.back"),
@@ -43,10 +50,14 @@ def cash_operations() -> rx.Component:
                 variant="soft",
                 on_click=rx.redirect("/cash"),
             ),
-            justify="between",
+            justify="end",
             width="100%",
         ),
-        spreadsheet_or_table(CashOperationsState, cash_operations_table()),
+        rx.cond(
+            CashOperationsState.chart_view,
+            expense_chart(),
+            spreadsheet_or_table(CashOperationsState, cash_operations_table()),
+        ),
         spacing="5",
         width="100%",
     )

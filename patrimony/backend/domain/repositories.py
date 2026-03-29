@@ -90,6 +90,7 @@ class CashOperationRepository(ABC):
         title: str,
         operation_date: datetime,
         entry_type: EntryType = EntryType.MANUAL,
+        category: str = "Uncategorized",
     ) -> int:
         """Record a cash operation on the balance and return the operation ID."""
         pass
@@ -112,6 +113,7 @@ class CashOperationRepository(ABC):
         title: str,
         operation_date: datetime,
         entry_type: EntryType,
+        category: str = "Uncategorized",
     ) -> None:
         """Update a balance operation by ID."""
         pass

@@ -7,9 +7,11 @@ class SpreadsheetMixin(rx.State, mixin=True):
     """Shared spreadsheet editing infrastructure.
 
     Concrete states must implement:
-    - enter_spreadsheet_mode(): populate _spreadsheet_data, _row_ids
-    - save_spreadsheet_changes(): diff and persist to DB
     - spreadsheet_columns @rx.var: column definitions for the grid
+    - _load_spreadsheet_rows() -> tuple[list[list], list]: load data + row ids
+    - _save_spreadsheet_row(row, index, rid, is_new) -> str|None: persist one row
+    - _delete_spreadsheet_row(rid): delete a removed row
+    - _after_spreadsheet_save(): reload entries after save (can be async)
     """
 
     spreadsheet_mode: bool = False
@@ -98,5 +100,66 @@ class SpreadsheetMixin(rx.State, mixin=True):
         self.spreadsheet_mode = False
         self._spreadsheet_data = []
         self._row_ids = []
+        self._deleted_ids = []
+        self._has_edits = False
+
+    # ── Override points for concrete states ──
+
+    def _load_spreadsheet_rows(self) -> tuple[list[list], list]:
+        """Load data rows and their IDs. Override in subclass."""
+        return [], []
+
+    def _save_spreadsheet_row(self, row: list, index: int, rid, is_new: bool):
+        """Save a single row. Return error string to report, or None.
+        Return 'skip' to silently skip the row. Override in subclass."""
+        return None
+
+    def _delete_spreadsheet_row(self, rid) -> None:
+        """Delete a removed row by its ID. Override in subclass."""
+        pass
+
+    async def _after_spreadsheet_save(self) -> None:
+        """Called after save completes. Override to reload entries."""
+        pass
+
+    @rx.event
+    def toggle_spreadsheet_mode(self) -> None:
+        """Toggle between normal table view and spreadsheet editing mode."""
+        if not self.spreadsheet_mode:
+            data, ids = self._load_spreadsheet_rows()
+            self._spreadsheet_data = data
+            self._row_ids = ids
+            self._deleted_ids = []
+            self._has_edits = False
+            self.spreadsheet_mode = True
+        else:
+            self._exit_spreadsheet_mode()
+
+    @rx.event
+    async def save_spreadsheet_changes(self) -> None:
+        """Save all pending spreadsheet changes (updates, inserts, deletes)."""
+        errors: list[str] = []
+
+        for i, row in enumerate(self._spreadsheet_data):
+            rid = self._row_ids[i] if i < len(self._row_ids) else None
+            is_new = rid is None
+            try:
+                result = self._save_spreadsheet_row(row, i, rid, is_new)
+                if result and result != "skip":
+                    errors.append(result)
+            except Exception as e:
+                errors.append(f"Row {i + 1}: {e}")
+
+        for del_id in self._deleted_ids:
+            self._delete_spreadsheet_row(del_id)
+
+        self._exit_spreadsheet_mode()
+        await self._after_spreadsheet_save()
+
+        if errors:
+            return rx.toast.error(
+                f"Saved with {len(errors)} error(s)", position="top-center"
+            )
+        return rx.toast.success("Changes saved", position="top-center")
         self._deleted_ids = []
         self._has_edits = False

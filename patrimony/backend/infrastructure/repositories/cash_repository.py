@@ -28,20 +28,22 @@ class CashOperationRepositoryImpl(CashOperationRepository):
         title: str,
         operation_date: datetime,
         entry_type: EntryType,
+        category: str = "Uncategorized",
     ) -> str:
         """Record a cash operation on the balance and return the operation ID."""
         with self._conn.transaction():
             result = self._conn.execute(
                 """
                 INSERT INTO balance_operations
-                (account_number, amount, balance, rank, title, operation_date, entry_type)
-                VALUES (?, ?, 0, 0, ?, ?, ?)
+                (account_number, amount, balance, rank, title, category, operation_date, entry_type)
+                VALUES (?, ?, 0, 0, ?, ?, ?, ?)
                 RETURNING account_number
                 """,
                 [
                     account_number,
                     amount,
                     title,
+                    category,
                     operation_date,
                     entry_type.value,
                 ],
@@ -101,6 +103,7 @@ class CashOperationRepositoryImpl(CashOperationRepository):
         title: str,
         operation_date: datetime,
         entry_type: EntryType,
+        category: str = "Uncategorized",
     ) -> None:
         """Update a balance operation by ID and recalculate ranks/balances."""
         with self._conn.transaction():
@@ -112,10 +115,10 @@ class CashOperationRepositoryImpl(CashOperationRepository):
             self._conn.execute(
                 """
                 UPDATE balance_operations
-                SET amount = ?, title = ?, operation_date = ?, entry_type = ?
+                SET amount = ?, title = ?, category = ?, operation_date = ?, entry_type = ?
                 WHERE id = ?
                 """,
-                [amount, title, operation_date, entry_type.value, id],
+                [amount, title, category, operation_date, entry_type.value, id],
             )
             self._recalculate_ranks_and_balances(account_number)
 

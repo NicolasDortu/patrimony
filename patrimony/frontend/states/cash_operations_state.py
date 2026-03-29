@@ -8,6 +8,21 @@ from ..services import CashService, EntryType
 from .mixins import PaginationMixin
 from .spreadsheet_mixin import SpreadsheetMixin
 
+_PIE_COLORS = [
+    "var(--blue-9)",
+    "var(--orange-9)",
+    "var(--green-9)",
+    "var(--purple-9)",
+    "var(--red-9)",
+    "var(--cyan-9)",
+    "var(--yellow-9)",
+    "var(--pink-9)",
+    "var(--teal-9)",
+    "var(--indigo-9)",
+    "var(--lime-9)",
+    "var(--amber-9)",
+]
+
 
 class CashOperationsState(SpreadsheetMixin, PaginationMixin, rx.State):
     """State for cash operations table (per-account view)."""
@@ -20,11 +35,8 @@ class CashOperationsState(SpreadsheetMixin, PaginationMixin, rx.State):
     sort_value: str = ""
     sort_reverse: bool = False
 
-    # Edit dialog state
-    edit_id: int = 0
-    edit_title: str = ""
-    edit_amount: float = 0.0
-    edit_operation_date: str = ""
+    # Chart view
+    chart_view: bool = False
 
     @rx.event
     def on_page_load(self) -> None:
@@ -88,12 +100,50 @@ class CashOperationsState(SpreadsheetMixin, PaginationMixin, rx.State):
         return self.filtered_sorted_items[start_index:end_index]
 
     @rx.event
-    def open_edit_dialog(self, item: dict) -> None:
-        """Open the edit dialog with the item's current values."""
-        self.edit_id = item.get("id", 0)
-        self.edit_title = item.get("title", "")
-        self.edit_amount = float(item.get("amount", 0))
-        self.edit_operation_date = item.get("operation_date", "")
+    def toggle_chart_view(self):
+        self.chart_view = not self.chart_view
+
+    @rx.var
+    def expense_earning_data(self) -> list[dict]:
+        """Aggregate operations into income vs expense totals by month."""
+        monthly: dict[str, dict[str, float]] = {}
+        for op in self.items:
+            date_str = str(op.get("operation_date", ""))[:7]  # YYYY-MM
+            if not date_str:
+                continue
+            if date_str not in monthly:
+                monthly[date_str] = {"month": date_str, "income": 0.0, "expense": 0.0}
+            amount = float(op.get("amount", 0))
+            if amount >= 0:
+                monthly[date_str]["income"] += amount
+            else:
+                monthly[date_str]["expense"] += abs(amount)
+        result = sorted(monthly.values(), key=lambda x: x["month"])
+        return [
+            {
+                "month": m["month"],
+                "income": round(m["income"], 2),
+                "expense": round(m["expense"], 2),
+            }
+            for m in result
+        ]
+
+    @rx.var
+    def category_expense_data(self) -> list[dict]:
+        """Aggregate expenses by category for pie chart."""
+        categories: dict[str, float] = {}
+        for op in self.items:
+            amount = float(op.get("amount", 0))
+            if amount >= 0:
+                continue
+            cat = op.get("category", "Uncategorized") or "Uncategorized"
+            categories[cat] = categories.get(cat, 0.0) + abs(amount)
+        return [
+            {"name": k, "value": round(v, 2), "fill": _PIE_COLORS[i % len(_PIE_COLORS)]}
+            for i, (k, v) in enumerate(
+                sorted(categories.items(), key=lambda x: x[1], reverse=True)
+            )
+        ]
 
     @rx.event
     def load_entries(self) -> None:
@@ -112,6 +162,7 @@ class CashOperationsState(SpreadsheetMixin, PaginationMixin, rx.State):
         try:
             amount = float(form_data.get("amount", 0))
             title = form_data.get("title", "")
+            category = form_data.get("category", "Uncategorized")
             operation_date_str = form_data.get("operation_date", "")
 
             if operation_date_str:
@@ -125,6 +176,7 @@ class CashOperationsState(SpreadsheetMixin, PaginationMixin, rx.State):
                 title=title,
                 operation_date=operation_date,
                 entry_type=EntryType.MANUAL,
+                category=category,
             )
 
             if result.success:
@@ -135,38 +187,6 @@ class CashOperationsState(SpreadsheetMixin, PaginationMixin, rx.State):
         except Exception as e:
             return rx.toast.error(
                 f"Failed to add operation: {str(e)}", position="top-center"
-            )
-
-    @rx.event
-    def update_operation(self, form_data: dict) -> None:
-        """Update an existing cash operation from form data."""
-        try:
-            id = self.edit_id
-            amount = float(form_data.get("amount", 0))
-            title = form_data.get("title", "")
-            operation_date_str = form_data.get("operation_date", "")
-
-            if operation_date_str:
-                operation_date = datetime.fromisoformat(operation_date_str)
-            else:
-                operation_date = datetime.now()
-
-            result = CashService.update_operation_by_id(
-                id=id,
-                amount=amount,
-                title=title,
-                operation_date=operation_date,
-                entry_type=EntryType.MANUAL,
-            )
-
-            if result.success:
-                self.load_entries()
-                return rx.toast.success(result.message, position="top-center")
-            else:
-                return rx.toast.error(result.message, position="top-center")
-        except Exception as e:
-            return rx.toast.error(
-                f"Failed to update operation: {str(e)}", position="top-center"
             )
 
     @rx.event
@@ -219,72 +239,57 @@ class CashOperationsState(SpreadsheetMixin, PaginationMixin, rx.State):
             {"title": "Title", "type": "str"},
             {"title": "Amount", "type": "float"},
             {"title": "Date", "type": "str"},
+            {"title": "Category", "type": "str"},
             {"title": "Balance", "type": "float", "editable": False},
         ]
 
-    @rx.event
-    def toggle_spreadsheet_mode(self) -> None:
-        if not self.spreadsheet_mode:
-            operations = CashService.get_operations_by_account(self.account_number)
-            self._spreadsheet_data = [
-                [
-                    op.get("title", ""),
-                    op.get("amount", 0.0),
-                    str(op.get("operation_date", ""))[:10],
-                    op.get("balance", 0.0),
-                ]
-                for op in operations
+    def _load_spreadsheet_rows(self) -> tuple[list[list], list]:
+        operations = CashService.get_operations_by_account(self.account_number)
+        data = [
+            [
+                op.get("title", ""),
+                op.get("amount", 0.0),
+                str(op.get("operation_date", ""))[:10],
+                op.get("category", "Uncategorized"),
+                op.get("balance", 0.0),
             ]
-            self._row_ids = [op.get("id") for op in operations]
-            self._deleted_ids = []
-            self._has_edits = False
-            self.spreadsheet_mode = True
-        else:
-            self._exit_spreadsheet_mode()
+            for op in operations
+        ]
+        ids = [op.get("id") for op in operations]
+        return data, ids
 
-    @rx.event
-    def save_spreadsheet_changes(self) -> None:
-        errors: list[str] = []
-
-        for i, row in enumerate(self._spreadsheet_data):
-            rid = self._row_ids[i]
-            try:
-                title = str(row[0]).strip() or "Operation"
-                amount = float(row[1]) if row[1] != "" else 0.0
-                date_str = str(row[2]).strip()
-                operation_date = (
-                    datetime.fromisoformat(date_str) if date_str else datetime.now()
-                )
-
-                if rid is not None:
-                    CashService.update_operation_by_id(
-                        id=rid,
-                        amount=amount,
-                        title=title,
-                        operation_date=operation_date,
-                        entry_type=EntryType.MANUAL,
-                    )
-                else:
-                    if amount == 0.0 and title == "Operation":
-                        continue
-                    CashService.add_operation_balance(
-                        account_number=self.account_number,
-                        amount=amount,
-                        title=title,
-                        operation_date=operation_date,
-                        entry_type=EntryType.MANUAL,
-                    )
-            except Exception as e:
-                errors.append(f"Row {i + 1}: {e}")
-
-        for del_id in self._deleted_ids:
-            CashService.delete_operation_by_id(del_id)
-
-        self._exit_spreadsheet_mode()
-        self.load_entries()
-
-        if errors:
-            return rx.toast.error(
-                f"Saved with {len(errors)} error(s)", position="top-center"
+    def _save_spreadsheet_row(self, row, index, rid, is_new):
+        title = str(row[0]).strip() or "Operation"
+        amount = float(row[1]) if row[1] != "" else 0.0
+        date_str = str(row[2]).strip()
+        category = str(row[3]).strip() or "Uncategorized"
+        operation_date = (
+            datetime.fromisoformat(date_str) if date_str else datetime.now()
+        )
+        if is_new:
+            if amount == 0.0 and title == "Operation":
+                return "skip"
+            CashService.add_operation_balance(
+                account_number=self.account_number,
+                amount=amount,
+                title=title,
+                operation_date=operation_date,
+                entry_type=EntryType.MANUAL,
+                category=category,
             )
-        return rx.toast.success("Changes saved", position="top-center")
+        else:
+            CashService.update_operation_by_id(
+                id=rid,
+                amount=amount,
+                title=title,
+                operation_date=operation_date,
+                entry_type=EntryType.MANUAL,
+                category=category,
+            )
+        return None
+
+    def _delete_spreadsheet_row(self, rid):
+        CashService.delete_operation_by_id(rid)
+
+    async def _after_spreadsheet_save(self):
+        self.load_entries()

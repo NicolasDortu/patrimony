@@ -10,6 +10,7 @@ from ..views.charts.wealth_chart import wealth_chart
 from ..views.kpis.portfolio_stats_card import portfolio_kpi_cards
 from ..views.kpis.portfolio_performers import portfolio_performers_card
 from ..views.kpis.portfolio_allocation import allocation_card
+from ..views.kpis.dividend_summary import dividend_summary_card
 
 
 def _loading_state() -> rx.Component:
@@ -89,7 +90,7 @@ def _dashboard() -> rx.Component:
     """The main dashboard shown when data exists."""
     return rx.vstack(
         rx.flex(
-            rx.heading(t("page.overview.title"), size="5"),
+            rx.heading(t("page.overview.title"), size="5", white_space="nowrap"),
             rx.flex(
                 notification("message-square-text", "plum", 0),
                 spacing="4",
@@ -106,13 +107,14 @@ def _dashboard() -> rx.Component:
         rx.grid(
             portfolio_performers_card(),
             allocation_card(),
+            dividend_summary_card(),
             gap="1rem",
             grid_template_columns=[
                 "1fr",
                 "1fr",
-                "1fr 2fr",
-                "1fr 2fr",
-                "1fr 2fr",
+                "1fr 1fr 1fr",
+                "1fr 1fr 1fr",
+                "1fr 1fr 1fr",
             ],
             width="100%",
         ),

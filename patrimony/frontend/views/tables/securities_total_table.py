@@ -2,6 +2,7 @@ import reflex as rx
 
 from .common import header_cell
 from .pagination import pagination_view
+from .spreadsheet_view import spreadsheet_toggle_button
 from ...states.securities_total_state import TableStateTotal
 from ...services import SecurityTotal
 from ...dialogs import open_add_position_dialog
@@ -39,13 +40,18 @@ def _show_item(item: SecurityTotal, index: int) -> rx.Component:
 def main_table() -> rx.Component:
     return rx.box(
         rx.flex(
-            open_add_position_dialog(TableStateTotal.add_stock),
-            align="center",
-            justify="start",
-            spacing="4",
-            padding_bottom="1.5em",
-        ),
-        rx.flex(
+            rx.flex(
+                open_add_position_dialog(TableStateTotal.add_stock),
+                spreadsheet_toggle_button(TableStateTotal),
+                rx.icon_button(
+                    rx.icon("arrow-down-to-line", size=20),
+                    variant="surface",
+                    size="3",
+                    on_click=TableStateTotal.export_csv,
+                ),
+                align="center",
+                spacing="3",
+            ),
             rx.flex(
                 rx.cond(
                     TableStateTotal.sort_reverse,
@@ -98,14 +104,6 @@ def main_table() -> rx.Component:
                 align="center",
                 justify="end",
                 spacing="3",
-            ),
-            rx.button(
-                rx.icon("arrow-down-to-line", size=20),
-                "Export",
-                size="3",
-                variant="surface",
-                display=["none", "none", "none", "flex"],
-                on_click=TableStateTotal.export_csv,
             ),
             spacing="3",
             justify="between",

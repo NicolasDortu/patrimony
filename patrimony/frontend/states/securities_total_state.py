@@ -28,6 +28,9 @@ class TableStateTotal(SpreadsheetMixin, PaginationMixin, rx.State):
     # Asset type filter for the table
     selected_asset_filter: str = "all"
 
+    # Chart view mode
+    chart_view: bool = False
+
     # Position form autocomplete state
     ticker_search: str = ""
     _ticker_suggestions: list[dict] = []
@@ -57,6 +60,50 @@ class TableStateTotal(SpreadsheetMixin, PaginationMixin, rx.State):
             if at in owned:
                 filters.append({"label": label, "value": value})
         return filters
+
+    @rx.event
+    def toggle_chart_view(self):
+        self.chart_view = not self.chart_view
+
+    @rx.var
+    def asset_type_allocation(self) -> list[dict]:
+        """Group positions by asset type for pie chart with colors from settings."""
+        groups: dict[str, float] = {}
+        for item in self.items:
+            at = item.asset_type or "STOCK"
+            val = item.total_value or 0.0
+            groups[at] = groups.get(at, 0.0) + val
+        return [
+            {
+                "name": k,
+                "value": round(v, 2),
+                "fill": self._asset_colors.get(k, "var(--gray-9)"),
+            }
+            for k, v in sorted(groups.items())
+        ]
+
+    @rx.var
+    def heatmap_data(self) -> list[dict]:
+        """Position-level data for weighted heatmap (ticker, return %, value, weight %)."""
+        result = []
+        total = sum((item.total_value or 0.0) for item in self.items)
+        for item in self.items:
+            if not item.avg_price or item.avg_price == 0 or not item.current_price:
+                continue
+            ret_pct = round(
+                (item.current_price - item.avg_price) / item.avg_price * 100, 2
+            )
+            val = round(item.total_value or 0.0, 2)
+            weight = round(val / total * 100, 2) if total > 0 else 0.0
+            result.append(
+                {
+                    "ticker": item.ticker,
+                    "return_pct": ret_pct,
+                    "value": val,
+                    "weight": weight,
+                }
+            )
+        return sorted(result, key=lambda x: x["value"], reverse=True)
 
     @rx.var
     def filtered_sorted_items(self) -> list[SecurityTotal]:
@@ -108,9 +155,18 @@ class TableStateTotal(SpreadsheetMixin, PaginationMixin, rx.State):
         end_index = start_index + self.limit
         return self.filtered_sorted_items[start_index:end_index]
 
+    # Asset type colors cached from ThemeState
+    _asset_colors: dict[str, str] = {}
+
     @rx.event
     async def load_entries(self) -> None:
         theme_state = await self.get_state(ThemeState)
+        self._asset_colors = {
+            "STOCK": f"var(--{theme_state.stock_color}-9)",
+            "ETF": f"var(--{theme_state.etf_color}-9)",
+            "CRYPTO": f"var(--{theme_state.crypto_color}-9)",
+            "COMMODITY": f"var(--{theme_state.commodity_color}-9)",
+        }
         positions = SecuritiesService.get_aggregated_positions(
             theme_state.default_currency
         )
@@ -291,100 +347,57 @@ class TableStateTotal(SpreadsheetMixin, PaginationMixin, rx.State):
         self._spreadsheet_data = new_data
         self._has_edits = True
 
-    @rx.event
-    def toggle_spreadsheet_mode(self) -> None:
-        if not self.spreadsheet_mode:
-            positions = SecuritiesService.get_all_positions()
-            self._spreadsheet_data = [
-                [
-                    p.get("ticker", ""),
-                    p.get("price", 0.0),
-                    p.get("quantity", 1.0),
-                    p.get("fees", 0.0),
-                    p.get("asset_type", "STOCK"),
-                    str(p.get("date", ""))[:10],
-                ]
-                for p in positions
+    def _load_spreadsheet_rows(self) -> tuple[list[list], list]:
+        positions = SecuritiesService.get_all_positions()
+        data = [
+            [
+                p.get("ticker", ""),
+                p.get("price", 0.0),
+                p.get("quantity", 1.0),
+                p.get("fees", 0.0),
+                p.get("asset_type", "STOCK"),
+                str(p.get("date", ""))[:10],
             ]
-            self._row_ids = [p.get("id") for p in positions]
-            self._deleted_ids = []
-            self._has_edits = False
-            self.spreadsheet_mode = True
-        else:
-            self._exit_spreadsheet_mode()
+            for p in positions
+        ]
+        ids = [p.get("id") for p in positions]
+        return data, ids
 
-    @rx.event
-    async def save_spreadsheet_changes(self) -> None:
-        errors: list[str] = []
-
-        # Update existing rows
-        for i, row in enumerate(self._spreadsheet_data):
-            rid = self._row_ids[i]
-            if rid is not None:
-                try:
-                    ticker = str(row[0]).strip().upper()
-                    price = float(row[1]) if row[1] != "" else 0.0
-                    quantity = float(row[2]) if row[2] != "" else 1.0
-                    fees = float(row[3]) if row[3] != "" else 0.0
-                    asset_type_str = str(row[4]).strip().upper() or "STOCK"
-                    date_str = str(row[5]).strip()
-                    date = (
-                        datetime.strptime(date_str, "%Y-%m-%d")
-                        if date_str
-                        else datetime.now()
-                    )
-                    SecuritiesService.update_position(
-                        id=rid,
-                        ticker=ticker,
-                        price=price,
-                        quantity=quantity,
-                        entry_type=EntryType.MANUAL,
-                        asset_type=AssetType(asset_type_str),
-                        date=date,
-                        fees=fees,
-                    )
-                except Exception as e:
-                    errors.append(f"Row {i + 1}: {e}")
-
-        # Add new rows
-        for i, row in enumerate(self._spreadsheet_data):
-            rid = self._row_ids[i]
-            if rid is None:
-                ticker = str(row[0]).strip().upper()
-                if not ticker:
-                    continue
-                try:
-                    price = float(row[1]) if row[1] != "" else 0.0
-                    quantity = float(row[2]) if row[2] != "" else 1.0
-                    fees = float(row[3]) if row[3] != "" else 0.0
-                    asset_type_str = str(row[4]).strip().upper() or "STOCK"
-                    date_str = str(row[5]).strip()
-                    date = (
-                        datetime.strptime(date_str, "%Y-%m-%d")
-                        if date_str
-                        else datetime.now()
-                    )
-                    SecuritiesService.add_position(
-                        ticker=ticker,
-                        price=price,
-                        quantity=quantity,
-                        entry_type=EntryType.MANUAL,
-                        asset_type=AssetType(asset_type_str),
-                        date=date,
-                        fees=fees,
-                    )
-                except Exception as e:
-                    errors.append(f"New row {i + 1}: {e}")
-
-        # Delete removed rows
-        for del_id in self._deleted_ids:
-            SecuritiesService.delete_position(del_id)
-
-        self._exit_spreadsheet_mode()
-        await self.load_entries()
-
-        if errors:
-            return rx.toast.error(
-                f"Saved with {len(errors)} error(s)", position="top-center"
+    def _save_spreadsheet_row(self, row, index, rid, is_new):
+        ticker = str(row[0]).strip().upper()
+        if is_new and not ticker:
+            return "skip"
+        price = float(row[1]) if row[1] != "" else 0.0
+        quantity = float(row[2]) if row[2] != "" else 1.0
+        fees = float(row[3]) if row[3] != "" else 0.0
+        asset_type_str = str(row[4]).strip().upper() or "STOCK"
+        date_str = str(row[5]).strip()
+        date = datetime.strptime(date_str, "%Y-%m-%d") if date_str else datetime.now()
+        if is_new:
+            SecuritiesService.add_position(
+                ticker=ticker,
+                price=price,
+                quantity=quantity,
+                entry_type=EntryType.MANUAL,
+                asset_type=AssetType(asset_type_str),
+                date=date,
+                fees=fees,
             )
-        return rx.toast.success("Changes saved", position="top-center")
+        else:
+            SecuritiesService.update_position(
+                id=rid,
+                ticker=ticker,
+                price=price,
+                quantity=quantity,
+                entry_type=EntryType.MANUAL,
+                asset_type=AssetType(asset_type_str),
+                date=date,
+                fees=fees,
+            )
+        return None
+
+    def _delete_spreadsheet_row(self, rid):
+        SecuritiesService.delete_position(rid)
+
+    async def _after_spreadsheet_save(self):
+        await self.load_entries()

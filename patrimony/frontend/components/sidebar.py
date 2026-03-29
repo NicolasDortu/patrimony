@@ -8,7 +8,7 @@ from ..styles import styles
 _NAV_ITEMS = [
     ("/", "nav.overview", "home"),
     ("/securities", "nav.securities", "table-2"),
-    ("/cash", "nav.cash", "wallet"),
+    ("/cash", "nav.cash_expenses", "wallet"),
     ("/connectors", "nav.connectors", "plug"),
     ("/settings", "nav.settings", "settings"),
 ]

@@ -2,7 +2,9 @@ import reflex as rx
 
 from .common import header_cell
 from .pagination import pagination_view
+from .spreadsheet_view import spreadsheet_toggle_button
 from ...states.cash_operations_state import CashOperationsState
+from ...dialogs.cash_operation_dialog import open_add_operation_dialog
 
 
 def _show_item(item: dict, index: int) -> rx.Component:
@@ -27,112 +29,9 @@ def _show_item(item: dict, index: int) -> rx.Component:
             )
         ),
         rx.table.cell(item["balance"]),
+        rx.table.cell(item["category"]),
         rx.table.cell(item["operation_date"]),
         rx.table.cell(item["entry_type"]),
-        rx.table.cell(
-            rx.hstack(
-                # Edit button with dialog
-                rx.dialog.root(
-                    rx.dialog.trigger(
-                        rx.icon_button(
-                            rx.icon("pencil", size=18),
-                            variant="ghost",
-                            color_scheme="blue",
-                            on_click=lambda: CashOperationsState.open_edit_dialog(item),
-                        ),
-                    ),
-                    rx.dialog.content(
-                        rx.dialog.title("Edit Operation"),
-                        rx.dialog.description(
-                            "Update the details for this operation.",
-                        ),
-                        rx.form(
-                            rx.flex(
-                                rx.input(
-                                    placeholder="Title",
-                                    name="title",
-                                    default_value=CashOperationsState.edit_title,
-                                    required=True,
-                                ),
-                                rx.input(
-                                    placeholder="Amount",
-                                    name="amount",
-                                    type="number",
-                                    step="0.01",
-                                    default_value=CashOperationsState.edit_amount.to(
-                                        str
-                                    ),
-                                    required=True,
-                                ),
-                                rx.input(
-                                    placeholder="Operation Date",
-                                    name="operation_date",
-                                    type="date",
-                                    default_value=CashOperationsState.edit_operation_date,
-                                    required=True,
-                                ),
-                                rx.flex(
-                                    rx.dialog.close(
-                                        rx.button(
-                                            "Cancel",
-                                            variant="soft",
-                                            color_scheme="gray",
-                                        ),
-                                    ),
-                                    rx.dialog.close(
-                                        rx.button("Save Changes", type="submit"),
-                                    ),
-                                    spacing="3",
-                                    justify="end",
-                                ),
-                                direction="column",
-                                spacing="4",
-                            ),
-                            on_submit=CashOperationsState.update_operation,
-                            reset_on_submit=False,
-                        ),
-                        max_width="450px",
-                    ),
-                ),
-                # Delete button with confirmation dialog
-                rx.alert_dialog.root(
-                    rx.alert_dialog.trigger(
-                        rx.icon_button(
-                            rx.icon("trash-2", size=18),
-                            variant="ghost",
-                            color_scheme="red",
-                        ),
-                    ),
-                    rx.alert_dialog.content(
-                        rx.alert_dialog.title("Delete Operation"),
-                        rx.alert_dialog.description(
-                            "Are you sure you want to delete this operation? This action cannot be undone.",
-                        ),
-                        rx.flex(
-                            rx.alert_dialog.cancel(
-                                rx.button(
-                                    "Cancel",
-                                    variant="soft",
-                                    color_scheme="gray",
-                                ),
-                            ),
-                            rx.alert_dialog.action(
-                                rx.button(
-                                    "Delete",
-                                    color_scheme="red",
-                                    on_click=lambda: CashOperationsState.delete_operation(
-                                        item["id"]
-                                    ),
-                                ),
-                            ),
-                            spacing="3",
-                            justify="end",
-                        ),
-                    ),
-                ),
-                spacing="2",
-            ),
-        ),
         style={"_hover": {"bg": hover_color}, "bg": bg_color},
         align="center",
     )
@@ -142,6 +41,18 @@ def cash_operations_table() -> rx.Component:
     """Main cash operations table component."""
     return rx.box(
         rx.flex(
+            rx.flex(
+                open_add_operation_dialog(CashOperationsState.add_operation),
+                spreadsheet_toggle_button(CashOperationsState),
+                rx.icon_button(
+                    rx.icon("arrow-down-to-line", size=20),
+                    variant="surface",
+                    size="3",
+                    on_click=CashOperationsState.export_csv,
+                ),
+                align="center",
+                spacing="3",
+            ),
             rx.flex(
                 rx.cond(
                     CashOperationsState.sort_reverse,
@@ -210,9 +121,9 @@ def cash_operations_table() -> rx.Component:
                     header_cell("Title", "text"),
                     header_cell("Amount", "dollar-sign"),
                     header_cell("Balance", "wallet"),
+                    header_cell("Category", "folder"),
                     header_cell("Date", "calendar"),
                     header_cell("Entry Type", "tag"),
-                    header_cell("Actions", "cog"),
                 ),
             ),
             rx.table.body(

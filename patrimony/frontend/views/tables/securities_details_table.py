@@ -2,8 +2,10 @@ import reflex as rx
 
 from .common import header_cell
 from .pagination import pagination_view
+from .spreadsheet_view import spreadsheet_toggle_button
 from ...states.securities_details_state import TableStateDetails
 from ...services import SecurityPosition
+from ...dialogs import open_add_position_dialog
 from ...templates import ThemeState
 
 
@@ -24,14 +26,6 @@ def _show_item(item: SecurityPosition, index: int) -> rx.Component:
         rx.table.cell(ThemeState.currency_symbol + f"{item.price:.2f}"),
         rx.table.cell(item.quantity),
         rx.table.cell(item.date),
-        rx.table.cell(
-            rx.icon_button(
-                rx.icon("trash", size=22),
-                color_scheme="red",
-                variant="ghost",
-                on_click=lambda: TableStateDetails.delete_stock(item.id),
-            )
-        ),
         style={"_hover": {"bg": hover_color}, "bg": bg_color},
         align="center",
     )
@@ -40,6 +34,18 @@ def _show_item(item: SecurityPosition, index: int) -> rx.Component:
 def main_table() -> rx.Component:
     return rx.box(
         rx.flex(
+            rx.flex(
+                open_add_position_dialog(TableStateDetails.add_stock),
+                spreadsheet_toggle_button(TableStateDetails),
+                rx.icon_button(
+                    rx.icon("arrow-down-to-line", size=20),
+                    variant="surface",
+                    size="3",
+                    on_click=TableStateDetails.export_csv,
+                ),
+                align="center",
+                spacing="3",
+            ),
             rx.flex(
                 rx.cond(
                     TableStateDetails.sort_reverse,

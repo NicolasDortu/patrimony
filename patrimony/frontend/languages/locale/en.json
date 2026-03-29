@@ -2,6 +2,7 @@
   "nav.overview": "Overview",
   "nav.securities": "Securities",
   "nav.cash": "Cash",
+  "nav.cash_expenses": "Cash & Expenses",
   "nav.connectors": "Connectors",
   "nav.settings": "Settings",
   "nav.about": "About",
@@ -63,6 +64,8 @@
   "dialog.add_position.desc": "Search by ticker or company name.",
   "dialog.add_position.submit": "Add Position",
 
+  "dialog.edit_position.title": "Edit Position",
+
   "dialog.add_operation.title": "Add Cash Operation",
   "dialog.add_operation.desc": "Enter the details for the deposit or expense.",
   "dialog.add_operation.submit": "Add Operation",
@@ -74,11 +77,16 @@
   "dialog.add_dividend.desc": "Record a dividend payment received.",
   "dialog.add_dividend.submit": "Add Dividend",
 
+  "dialog.edit_dividend.title": "Edit Dividend",
+
   "btn.cancel": "Cancel",
   "btn.delete": "Delete",
   "btn.save": "Save Changes",
   "btn.export": "Export",
   "btn.back": "Back",
+  "btn.edit_mode": "Edit Mode",
+  "btn.chart_view": "Chart View",
+  "btn.table_view": "Table View",
 
   "label.bank_name": "Bank Name",
   "label.account_number": "Account Number",
@@ -91,15 +99,18 @@
   "label.fees": "Fees",
   "label.ticker": "Ticker",
   "label.title": "Title",
+  "label.category": "Category",
   "label.search": "Search here...",
   "label.sort_by": "Sort By",
   "label.purchase_date": "Purchase Date",
   "label.actions": "Actions",
+  "label.total": "Total",
   "label.page": "Page",
   "label.of": "of",
 
   "kpi.top_performers": "Top Performers",
   "kpi.needs_attention": "Needs Attention",
+  "kpi.least_performers": "Least Performers",
   "kpi.asset_allocation": "Asset Allocation",
   "kpi.no_data": "No Data",
   "kpi.no_performance_data": "No performance data available",
@@ -107,9 +118,20 @@
   "kpi.total_portfolio": "Total Portfolio",
   "kpi.stocks_value": "Stocks Value",
   "kpi.cash_holdings": "Cash Holdings",
+  "kpi.dividends": "Dividends Received",
+  "kpi.no_dividend_data": "No dividends recorded yet",
 
   "chart.wealth_overview": "Wealth Overview",
   "chart.price_history": "Price History",
+  "chart.asset_allocation": "Asset Type Allocation",
+  "chart.performance_heatmap": "Performance Heatmap",
+  "chart.income_vs_expense": "Income vs Expense",
+  "chart.expense_by_category": "Expenses by Category",
+  "chart.balance_by_account": "Balance by Account",
+  "chart.securities_type_allocation": "Securities Type Allocation",
+
+  "tab.positions": "Positions",
+  "tab.dividends": "Dividends",
 
   "cash_ops.title_prefix": "Operations for account",
   "cash_ops.back": "Back to Cash",
