@@ -171,6 +171,53 @@ SELECT DISTINCT asset_type
 FROM positions
 """
 
+CREATE_CONNECTOR_MASTER_KEY_TABLE = """
+CREATE TABLE IF NOT EXISTS connector_master_key (
+    id INTEGER PRIMARY KEY DEFAULT 1,
+    salt BLOB NOT NULL,
+    verification_hash BLOB NOT NULL
+);
+"""
+
+CREATE_CONNECTOR_CREDENTIALS_TABLE = """
+CREATE TABLE IF NOT EXISTS connector_credentials (
+    profile_id VARCHAR PRIMARY KEY,
+    encrypted_username BLOB NOT NULL,
+    encrypted_password BLOB NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+"""
+
+CREATE_CONNECTOR_HISTORY_TABLE = """
+CREATE SEQUENCE IF NOT EXISTS connector_history_id_seq;
+CREATE TABLE IF NOT EXISTS connector_history (
+    id INTEGER PRIMARY KEY DEFAULT nextval('connector_history_id_seq'),
+    connector_type VARCHAR NOT NULL,
+    profile_id VARCHAR,
+    source_name VARCHAR NOT NULL,
+    source_path VARCHAR,
+    import_mode VARCHAR NOT NULL,
+    column_mapping TEXT,
+    delimiter VARCHAR DEFAULT ',',
+    asset_type_overrides TEXT,
+    new_accounts TEXT,
+    imported INTEGER DEFAULT 0,
+    skipped INTEGER DEFAULT 0,
+    errors TEXT,
+    status VARCHAR NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+"""
+
+CREATE_IMPORT_HASHES_TABLE = """
+CREATE TABLE IF NOT EXISTS import_hashes (
+    hash VARCHAR PRIMARY KEY,
+    import_type VARCHAR NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+"""
+
 DDL_COMMANDS = [
     CREATE_POSITIONS_TABLE,
     CREATE_POSITIONS_CLOSED_TABLE,
@@ -185,4 +232,8 @@ DDL_COMMANDS = [
     CREATE_TICKER_CURRENCY_TABLE,
     CREATE_EXCHANGE_RATE_CACHE_TABLE,
     CREATE_USER_ASSET_TYPES_VIEW,
+    CREATE_CONNECTOR_MASTER_KEY_TABLE,
+    CREATE_CONNECTOR_CREDENTIALS_TABLE,
+    CREATE_CONNECTOR_HISTORY_TABLE,
+    CREATE_IMPORT_HASHES_TABLE,
 ]

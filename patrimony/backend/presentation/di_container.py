@@ -1,11 +1,16 @@
 from dependency_injector import containers, providers
 
 from ..infrastructure.database.connection import DatabaseConnection
-from ..infrastructure.integrations import YahooFinanceProvider, ExcelCsvConnector
-from ..domain.services.connector_service import ConnectorService
+from ..infrastructure.integrations import (
+    YahooFinanceProvider,
+    ExcelCsvConnector,
+    PlaywrightConnector,
+)
+from ..domain.services.file_connector_service import FileConnectorService
 from ..domain.services.currency_service import CurrencyService
 from ..domain.services.portfolio_service import PortfolioService
 from ..domain.services.securities_service import SecuritiesService
+from ..domain.services.web_connector_service import WebConnectorService
 from ..infrastructure.repositories import (
     CashRepositoryImpl,
     SecuritiesRepositoryImpl,
@@ -13,6 +18,10 @@ from ..infrastructure.repositories import (
     ReferenceRepositoryImpl,
     CurrencyRepositoryImpl,
     DividendRepositoryImpl,
+    ConnectorProfileRepositoryImpl,
+    CredentialRepositoryImpl,
+    ImportHashRepositoryImpl,
+    ConnectorHistoryRepositoryImpl,
 )
 
 
@@ -33,6 +42,7 @@ class Container(containers.DeclarativeContainer):
     # External Services - Singletons
     market_data_provider = providers.Singleton(YahooFinanceProvider)
     file_connector = providers.Singleton(ExcelCsvConnector)
+    web_connector = providers.Singleton(PlaywrightConnector)
 
     # Repository Layer - Factories (new instance per call, but with singleton deps)
     cash_repository = providers.Factory(
@@ -66,6 +76,25 @@ class Container(containers.DeclarativeContainer):
         connection=database,
     )
 
+    connector_profile_repository = providers.Singleton(
+        ConnectorProfileRepositoryImpl,
+    )
+
+    import_hash_repository = providers.Factory(
+        ImportHashRepositoryImpl,
+        connection=database,
+    )
+
+    credential_repository = providers.Factory(
+        CredentialRepositoryImpl,
+        connection=database,
+    )
+
+    connector_history_repository = providers.Factory(
+        ConnectorHistoryRepositoryImpl,
+        connection=database,
+    )
+
     # Domain Services
     currency_service = providers.Factory(
         CurrencyService,
@@ -91,11 +120,20 @@ class Container(containers.DeclarativeContainer):
     )
 
     connector_service = providers.Factory(
-        ConnectorService,
+        FileConnectorService,
         file_connector=file_connector,
         securities_repo=securities_repository,
         cash_repo=cash_repository,
         reference_repo=reference_repository,
+        hash_repo=import_hash_repository,
+    )
+
+    web_connector_service = providers.Factory(
+        WebConnectorService,
+        web_connector=web_connector,
+        file_connector=file_connector,
+        connector_service=connector_service,
+        profile_repo=connector_profile_repository,
     )
 
 

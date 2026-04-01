@@ -17,6 +17,7 @@ class CashTableState(SpreadsheetMixin, SearchSortMixin, PaginationMixin, rx.Stat
     """State for the cash table."""
 
     items: list[dict] = []
+    is_loading: bool = False
 
     @rx.var
     def filtered_sorted_items(self) -> list[dict]:
@@ -32,6 +33,14 @@ class CashTableState(SpreadsheetMixin, SearchSortMixin, PaginationMixin, rx.Stat
     @rx.var(initial_value=[])
     def get_current_page(self) -> list[dict]:
         return self.filtered_sorted_items[self.offset : self.offset + self.limit]
+
+    @rx.event
+    def on_page_load(self):
+        """Handle page load with loading indicator."""
+        self.is_loading = True
+        yield
+        self.load_entries()
+        self.is_loading = False
 
     @rx.event
     def load_entries(self) -> None:

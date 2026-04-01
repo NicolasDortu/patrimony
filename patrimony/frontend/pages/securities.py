@@ -3,6 +3,7 @@
 import reflex as rx
 
 from ..components.chart_toggle import chart_table_toggle
+from ..components.loading import loading_spinner
 from ..states.securities_total_state import TableStateTotal
 from ..templates import template, t
 from ..views.charts.securities_charts import securities_charts
@@ -37,9 +38,13 @@ def securities() -> rx.Component:
             width="100%",
         ),
         rx.cond(
-            TableStateTotal.chart_view,
-            securities_charts(),
-            spreadsheet_or_table(TableStateTotal, main_table()),
+            TableStateTotal.is_loading,
+            loading_spinner(),
+            rx.cond(
+                TableStateTotal.chart_view,
+                securities_charts(),
+                spreadsheet_or_table(TableStateTotal, main_table()),
+            ),
         ),
         spacing="5",
         width="100%",

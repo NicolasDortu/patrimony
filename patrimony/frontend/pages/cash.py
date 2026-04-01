@@ -3,6 +3,7 @@
 import reflex as rx
 
 from ..components.chart_toggle import chart_table_toggle
+from ..components.loading import loading_spinner
 from ..templates import template, t
 from ..views.tables.cash_table import cash_table
 from ..states.cash_state import CashTableState
@@ -10,7 +11,7 @@ from ..views.tables.spreadsheet_view import spreadsheet_or_table
 from ..views.charts.cash_charts import cash_charts
 
 
-@template(route="/cash", title="Cash", on_load=CashTableState.load_entries)
+@template(route="/cash", title="Cash", on_load=CashTableState.on_page_load)
 def cash() -> rx.Component:
     """The cash page."""
     return rx.vstack(
@@ -22,9 +23,13 @@ def cash() -> rx.Component:
             width="100%",
         ),
         rx.cond(
-            CashTableState.chart_view,
-            cash_charts(),
-            spreadsheet_or_table(CashTableState, cash_table()),
+            CashTableState.is_loading,
+            loading_spinner(),
+            rx.cond(
+                CashTableState.chart_view,
+                cash_charts(),
+                spreadsheet_or_table(CashTableState, cash_table()),
+            ),
         ),
         spacing="5",
         width="100%",

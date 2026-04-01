@@ -4,7 +4,13 @@ from typing import Optional
 
 import polars as pl
 
-from .entities import AssetType, Currency, EntryType
+from .entities import (
+    AssetType,
+    ConnectorHistoryEntry,
+    ConnectorProfile,
+    Currency,
+    EntryType,
+)
 from .interfaces import CurrencyProvider, PriceProvider
 
 
@@ -241,4 +247,111 @@ class DividendRepository(BaseRepository, ABC):
     @abstractmethod
     def get_by_ticker(self, ticker: str) -> Optional[pl.DataFrame]:
         """Get all dividends for a specific ticker."""
+        pass
+
+
+class ConnectorProfileRepository(ABC):
+    """Repository for loading and persisting connector profiles."""
+
+    @abstractmethod
+    def list_profiles(self) -> list[ConnectorProfile]:
+        """Return all available connector profiles."""
+        pass
+
+    @abstractmethod
+    def get_profile(self, profile_id: str) -> ConnectorProfile | None:
+        """Load a specific profile by ID."""
+        pass
+
+    @abstractmethod
+    def save_profile(self, profile: ConnectorProfile) -> None:
+        """Persist a connector profile."""
+        pass
+
+
+class CredentialRepository(ABC):
+    """Repository for encrypted credential storage with master password."""
+
+    @abstractmethod
+    def has_master_password(self) -> bool:
+        """Check if a master password has been configured."""
+        pass
+
+    @abstractmethod
+    def setup_master_password(self, password: str) -> bytes:
+        """Set up a new master password. Returns Fernet key."""
+        pass
+
+    @abstractmethod
+    def verify_master_password(self, password: str) -> bytes | None:
+        """Verify the master password. Returns Fernet key if correct, None otherwise."""
+        pass
+
+    @abstractmethod
+    def store_credentials(
+        self, profile_id: str, username: str, password: str, fernet_key: bytes
+    ) -> None:
+        """Encrypt and store credentials for a profile."""
+        pass
+
+    @abstractmethod
+    def get_credentials(
+        self, profile_id: str, fernet_key: bytes
+    ) -> tuple[str, str] | None:
+        """Decrypt and return (username, password) for a profile, or None."""
+        pass
+
+    @abstractmethod
+    def delete_credentials(self, profile_id: str) -> None:
+        """Delete stored credentials for a profile."""
+        pass
+
+    @abstractmethod
+    def reset_master_password(self) -> None:
+        """Delete the master password and all stored credentials."""
+        pass
+
+    @abstractmethod
+    def list_stored_profiles(self) -> list[str]:
+        """Return profile IDs that have stored credentials."""
+        pass
+
+
+class ConnectorHistoryRepository(ABC):
+    """Repository for connector import history."""
+
+    @abstractmethod
+    def add_entry(self, entry: ConnectorHistoryEntry) -> int:
+        """Record a connector history entry and return its ID."""
+        pass
+
+    @abstractmethod
+    def get_all(self) -> list[ConnectorHistoryEntry]:
+        """Return all history entries, newest first."""
+        pass
+
+    @abstractmethod
+    def get_latest_by_source(
+        self, connector_type: str, source_identifier: str
+    ) -> ConnectorHistoryEntry | None:
+        """Get the most recent entry for a given source."""
+        pass
+
+    @abstractmethod
+    def delete(self, entry_id: int) -> None:
+        """Delete a history entry."""
+        pass
+
+
+class ImportHashRepository(ABC):
+    """Repository for tracking imported row hashes (deduplication)."""
+
+    @abstractmethod
+    def existing_hashes(self, hashes: set[str]) -> set[str]:
+        """Return the subset of hashes that already exist in the store."""
+        pass
+
+    @abstractmethod
+    def add_hashes(self, hashes: list[str], import_type: str) -> None:
+        """Persist new hashes."""
         pass

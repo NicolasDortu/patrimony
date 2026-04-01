@@ -22,6 +22,7 @@ class TableStateTotal(SpreadsheetMixin, SearchSortMixin, PaginationMixin, rx.Sta
     """The state class."""
 
     items: list[SecurityTotal] = []
+    is_loading: bool = False
 
     # Asset type filter for the table
     selected_asset_filter: str = "all"
@@ -131,7 +132,10 @@ class TableStateTotal(SpreadsheetMixin, SearchSortMixin, PaginationMixin, rx.Sta
 
     @rx.event
     async def on_page_load(self):
+        self.is_loading = True
+        yield
         await self.load_entries()
+        self.is_loading = False
         if was_market_data_fetched():
             yield rx.toast.info("Market data refreshed", position="bottom-right")
 

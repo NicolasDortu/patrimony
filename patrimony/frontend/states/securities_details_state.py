@@ -23,6 +23,7 @@ class TableStateDetails(SpreadsheetMixin, SearchSortMixin, PaginationMixin, rx.S
 
     items: list[SecurityPosition] = []
     ticker: str = ""
+    is_loading: bool = False
 
     # Stock chart state
     selected_period: str = "6M"
@@ -34,6 +35,8 @@ class TableStateDetails(SpreadsheetMixin, SearchSortMixin, PaginationMixin, rx.S
     @rx.event
     async def on_page_load(self):
         """Handle page load - get ticker from URL and load entries."""
+        self.is_loading = True
+        yield
         ticker = self.router.url.query_parameters.get("ticker", "")
         self.ticker = ticker
         self.load_entries()
@@ -48,6 +51,7 @@ class TableStateDetails(SpreadsheetMixin, SearchSortMixin, PaginationMixin, rx.S
         dividends_state = await self.get_state(DividendsState)
         dividends_state.ticker = ticker
         dividends_state.load_entries()
+        self.is_loading = False
         if was_market_data_fetched():
             yield rx.toast.info("Market data refreshed", position="bottom-right")
 

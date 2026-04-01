@@ -5,9 +5,13 @@ from external sources (market data APIs, exchange rate services, etc.).
 """
 
 from abc import ABC, abstractmethod
+from collections.abc import Callable
 from datetime import datetime
+from pathlib import Path
 
 import polars as pl
+
+from .entities import ConnectorProfile
 
 
 class PriceProvider(ABC):
@@ -105,5 +109,31 @@ class FileConnector(ABC):
 
         Returns:
             A Polars DataFrame with the raw file contents.
+        """
+        pass
+
+
+class WebConnector(ABC):
+    """Interface for browser-based automated data download."""
+
+    @abstractmethod
+    async def execute_profile(
+        self,
+        profile: ConnectorProfile,
+        credentials: dict[str, str],
+        download_dir: Path,
+        on_status: Callable[[str], None] | None = None,
+        headless: bool = False,
+    ) -> Path:
+        """Execute a connector profile to download a file.
+
+        Args:
+            profile: The connector profile with steps and URL.
+            credentials: Dict with "username" and "password" keys.
+            download_dir: Directory where the downloaded file will be saved.
+            on_status: Optional callback receiving status messages.
+
+        Returns:
+            Path to the downloaded file.
         """
         pass

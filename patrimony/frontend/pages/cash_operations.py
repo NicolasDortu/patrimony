@@ -3,6 +3,7 @@
 import reflex as rx
 
 from ..components.chart_toggle import chart_table_toggle
+from ..components.loading import loading_spinner
 from ..states.cash_operations_state import CashOperationsState
 from ..templates import template, t
 from ..views.charts.expense_chart import expense_chart
@@ -40,9 +41,13 @@ def cash_operations() -> rx.Component:
             width="100%",
         ),
         rx.cond(
-            CashOperationsState.chart_view,
-            expense_chart(),
-            spreadsheet_or_table(CashOperationsState, cash_operations_table()),
+            CashOperationsState.is_loading,
+            loading_spinner(),
+            rx.cond(
+                CashOperationsState.chart_view,
+                expense_chart(),
+                spreadsheet_or_table(CashOperationsState, cash_operations_table()),
+            ),
         ),
         spacing="5",
         width="100%",

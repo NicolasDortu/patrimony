@@ -1,6 +1,7 @@
 """State for the file connector wizard (CSV/Excel import)."""
 
 import logging
+from pathlib import Path
 
 import reflex as rx
 
@@ -38,6 +39,7 @@ class ConnectorState(rx.State):
     # Upload state
     filename: str = ""
     _file_bytes: bytes = b""
+    _source_path: str = ""
     delimiter: str = ","
 
     # Parsed data
@@ -121,6 +123,7 @@ class ConnectorState(rx.State):
         self.step = 1
         self.filename = ""
         self._file_bytes = b""
+        self._source_path = ""
         self.delimiter = ","
         self.file_columns = []
         self.preview_rows = []
@@ -136,7 +139,7 @@ class ConnectorState(rx.State):
 
     @rx.event
     async def handle_upload(self, files: list[rx.UploadFile]):
-        """Handle file upload from rx.upload."""
+        """Handle file upload from rx.upload (browser fallback)."""
         if not files:
             return
 
@@ -144,6 +147,7 @@ class ConnectorState(rx.State):
         self.filename = file.filename or "unknown"
         upload_data = await file.read()
         self._file_bytes = upload_data
+        self._source_path = ""  # No original path available in browser mode
 
         try:
             columns, preview = FileConnectorService.read_file(
@@ -152,6 +156,32 @@ class ConnectorState(rx.State):
             self.file_columns = columns
             self.preview_rows = preview
             # Initialize mapping with empty values
+            self.column_mapping = {col: "" for col in columns}
+            self.step = 2
+        except Exception as e:
+            yield rx.toast.error(f"Failed to read file: {e}", position="top-center")
+
+    @rx.event
+    def handle_file_path(self, path: str):
+        """Handle file selection from Tauri native dialog (full path)."""
+        if not path:
+            return
+
+        file_path = Path(path)
+        if not file_path.is_file():
+            yield rx.toast.error(f"File not found: {path}", position="top-center")
+            return
+
+        self.filename = file_path.name
+        self._file_bytes = file_path.read_bytes()
+        self._source_path = str(file_path)
+
+        try:
+            columns, preview = FileConnectorService.read_file(
+                self._file_bytes, self.filename, self.delimiter
+            )
+            self.file_columns = columns
+            self.preview_rows = preview
             self.column_mapping = {col: "" for col in columns}
             self.step = 2
         except Exception as e:
@@ -284,6 +314,7 @@ class ConnectorState(rx.State):
                 column_mapping=clean_mapping,
                 delimiter=self.delimiter,
                 asset_type_overrides=self.asset_type_overrides,
+                source_path=self._source_path,
             )
         else:
             result = FileConnectorService.import_cash_operations(
@@ -294,6 +325,7 @@ class ConnectorState(rx.State):
                 new_accounts=self.new_account_details
                 if self.unknown_accounts
                 else None,
+                source_path=self._source_path,
             )
 
         self.result_message = result.message

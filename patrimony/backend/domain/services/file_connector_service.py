@@ -4,6 +4,7 @@ Handles column mapping, validation, asset type resolution,
 and batch insertion of positions and cash operations.
 """
 
+import hashlib
 import logging
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -14,6 +15,7 @@ from ..entities import AssetType, EntryType
 from ..interfaces import FileConnector
 from ..repositories import (
     CashRepository,
+    ImportHashRepository,
     ReferenceRepository,
     SecuritiesRepository,
 )
@@ -39,7 +41,7 @@ class ImportResult:
     errors: list[str] = field(default_factory=list)
 
 
-class ConnectorService:
+class FileConnectorService:
     """Domain service for importing data from uploaded files."""
 
     def __init__(
@@ -48,11 +50,13 @@ class ConnectorService:
         securities_repo: SecuritiesRepository,
         cash_repo: CashRepository,
         reference_repo: ReferenceRepository,
+        hash_repo: ImportHashRepository | None = None,
     ):
         self._file_connector = file_connector
         self._securities_repo = securities_repo
         self._cash_repo = cash_repo
         self._reference_repo = reference_repo
+        self._hash_repo = hash_repo
 
     def read_file(
         self, file_bytes: bytes, filename: str, delimiter: str = ","
@@ -111,12 +115,27 @@ class ConnectorService:
         }
         mapped_df = df.select(list(rename_map.keys())).rename(rename_map)
 
+        # Pre-compute hashes for deduplication
+        row_hashes: dict[int, str] = {}
+        known_hashes: set[str] = set()
+        if self._hash_repo:
+            for i, row in enumerate(mapped_df.iter_rows(named=True)):
+                row_hashes[i] = _position_hash(row)
+            known_hashes = self._hash_repo.existing_hashes(set(row_hashes.values()))
+
         imported = 0
         skipped = 0
         errors: list[str] = []
+        new_hashes: list[str] = []
 
         for i, row in enumerate(mapped_df.iter_rows(named=True), start=1):
             try:
+                # Dedup check
+                h = row_hashes.get(i - 1)
+                if h and h in known_hashes:
+                    skipped += 1
+                    continue
+
                 ticker = str(row["ticker"]).strip().upper()
                 price = float(row["price"])
                 quantity = float(row["quantity"])
@@ -162,13 +181,18 @@ class ConnectorService:
                     fees=fees,
                 )
                 imported += 1
+                if h:
+                    new_hashes.append(h)
 
             except Exception as e:
                 errors.append(f"Row {i}: {e}")
                 skipped += 1
 
+        if self._hash_repo and new_hashes:
+            self._hash_repo.add_hashes(new_hashes, "positions")
+
         return ImportResult(
-            success=imported > 0,
+            success=imported > 0 or (skipped > 0 and not errors),
             imported=imported,
             skipped=skipped,
             errors=errors,
@@ -257,12 +281,27 @@ class ConnectorService:
         }
         mapped_df = df.select(list(rename_map.keys())).rename(rename_map)
 
+        # Pre-compute hashes for deduplication
+        row_hashes: dict[int, str] = {}
+        known_hashes: set[str] = set()
+        if self._hash_repo:
+            for i, row in enumerate(mapped_df.iter_rows(named=True)):
+                row_hashes[i] = _cash_hash(row)
+            known_hashes = self._hash_repo.existing_hashes(set(row_hashes.values()))
+
         imported = 0
         skipped = 0
         errors: list[str] = []
+        new_hashes: list[str] = []
 
         for i, row in enumerate(mapped_df.iter_rows(named=True), start=1):
             try:
+                # Dedup check
+                h = row_hashes.get(i - 1)
+                if h and h in known_hashes:
+                    skipped += 1
+                    continue
+
                 account_number = str(row["account_number"]).strip()
                 amount = float(row["amount"])
                 title = str(row.get("title") or "Imported operation")
@@ -286,13 +325,18 @@ class ConnectorService:
                     entry_type=entry_type,
                 )
                 imported += 1
+                if h:
+                    new_hashes.append(h)
 
             except Exception as e:
                 errors.append(f"Row {i}: {e}")
                 skipped += 1
 
+        if self._hash_repo and new_hashes:
+            self._hash_repo.add_hashes(new_hashes, "cash")
+
         return ImportResult(
-            success=imported > 0,
+            success=imported > 0 or (skipped > 0 and not errors),
             imported=imported,
             skipped=skipped,
             errors=errors,
@@ -307,3 +351,36 @@ def _parse_date(value: str) -> datetime:
         except ValueError:
             continue
     raise ValueError(f"Unrecognized date format: '{value}'")
+
+
+def _normalize_date(val) -> str:
+    """Normalize a date value to ISO format string for hashing."""
+    if isinstance(val, str):
+        try:
+            return _parse_date(val).date().isoformat()
+        except ValueError:
+            return val.strip()
+    elif isinstance(val, datetime):
+        return val.date().isoformat()
+    return ""
+
+
+def _position_hash(row: dict) -> str:
+    """Compute SHA-256 hash for a position row."""
+    ticker = str(row.get("ticker", "")).strip().upper()
+    price = str(float(row.get("price", 0)))
+    quantity = str(float(row.get("quantity", 0)))
+    fees = str(float(row.get("fees") or 0)) if "fees" in row else "0.0"
+    date = _normalize_date(row.get("date")) if "date" in row else ""
+    raw = f"{ticker}|{price}|{quantity}|{fees}|{date}"
+    return hashlib.sha256(raw.encode()).hexdigest()
+
+
+def _cash_hash(row: dict) -> str:
+    """Compute SHA-256 hash for a cash operation row."""
+    account = str(row.get("account_number", "")).strip()
+    amount = str(float(row.get("amount", 0)))
+    title = str(row.get("title") or "").strip()
+    date = _normalize_date(row.get("operation_date")) if "operation_date" in row else ""
+    raw = f"{account}|{amount}|{title}|{date}"
+    return hashlib.sha256(raw.encode()).hexdigest()

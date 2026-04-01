@@ -20,15 +20,19 @@ class CashOperationsState(SpreadsheetMixin, SearchSortMixin, PaginationMixin, rx
     items: list[dict] = []
     account_number: str = ""
     account_currency: str = "EUR"
+    is_loading: bool = False
 
     @rx.event
     def on_page_load(self) -> None:
         """Handle page load - get account_number from URL and load operations."""
+        self.is_loading = True
+        yield
         account_number = self.router.url.query_parameters.get("account_number", "")
         currency = self.router.url.query_parameters.get("currency", "EUR")
         self.account_number = account_number
         self.account_currency = currency
         self.load_entries()
+        self.is_loading = False
 
     @rx.event
     def set_account_number(self, account_number: str) -> None:

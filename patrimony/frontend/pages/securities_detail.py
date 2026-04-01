@@ -3,6 +3,7 @@
 import reflex as rx
 
 from ..components.card import card
+from ..components.loading import loading_spinner
 from ..states.securities_details_state import TableStateDetails
 from ..states.dividends_state import DividendsState
 from ..templates import template, ThemeState, t
@@ -76,19 +77,23 @@ def _dividends_tab() -> rx.Component:
 )
 def securities_detail() -> rx.Component:
     """The securities detail page."""
-    return rx.vstack(
-        _header(),
-        card(stock_chart()),
-        rx.tabs.root(
-            rx.tabs.list(
-                rx.tabs.trigger(t("tab.positions"), value="positions"),
-                rx.tabs.trigger(t("tab.dividends"), value="dividends"),
+    return rx.cond(
+        TableStateDetails.is_loading,
+        loading_spinner(),
+        rx.vstack(
+            _header(),
+            card(stock_chart()),
+            rx.tabs.root(
+                rx.tabs.list(
+                    rx.tabs.trigger(t("tab.positions"), value="positions"),
+                    rx.tabs.trigger(t("tab.dividends"), value="dividends"),
+                ),
+                rx.tabs.content(_positions_tab(), value="positions"),
+                rx.tabs.content(_dividends_tab(), value="dividends"),
+                default_value="positions",
+                width="100%",
             ),
-            rx.tabs.content(_positions_tab(), value="positions"),
-            rx.tabs.content(_dividends_tab(), value="dividends"),
-            default_value="positions",
+            spacing="5",
             width="100%",
         ),
-        spacing="5",
-        width="100%",
     )

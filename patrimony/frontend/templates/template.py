@@ -64,6 +64,9 @@ class ThemeState(rx.State):
     cash_color: str = "green"
     all_color: str = "blue"
 
+    # Connector settings
+    show_browser: bool = True
+
     @rx.var
     def currency_symbol(self) -> str:
         """Get the display symbol for the selected currency."""
@@ -83,6 +86,7 @@ class ThemeState(rx.State):
         "commodity_color",
         "cash_color",
         "all_color",
+        "show_browser",
     ]
 
     def _save(self) -> None:
@@ -154,6 +158,11 @@ class ThemeState(rx.State):
     @rx.event
     def set_all_color(self, value: str):
         self._set_and_save("all_color", value)
+
+    @rx.event
+    def set_show_browser(self, value: bool):
+        self.show_browser = value
+        self._save()
 
 
 def t(key: str):

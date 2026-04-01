@@ -1,0 +1,34 @@
+id: sandbox
+name: Sandbox Broker
+description: "Test broker for development — accepts any credentials."
+url: http://localhost:5050/login
+import_mode: positions
+delimiter: ","
+
+steps:
+  - action: fill
+    selector: "#username"
+    value: "{{username}}"
+
+  - action: fill
+    selector: "#password"
+    value: "{{password}}"
+
+  - action: click
+    selector: "#login-btn"
+
+  - action: wait
+    selector: .dashboard
+    timeout: 30
+
+  - action: download
+    selector: "#export-positions-csv"
+    timeout: 15
+
+column_mapping:
+  Ticker: ticker
+  Price: price
+  Quantity: quantity
+  Fees: fees
+  Date: date
+  Type: asset_type

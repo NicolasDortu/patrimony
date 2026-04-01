@@ -17,6 +17,23 @@ DELIMITER_OPTIONS = [
     {"value": "|", "label": "Pipe ( | )"},
 ]
 
+# JavaScript to open Tauri native file dialog (returns full path)
+_PICK_FILE_JS = """
+(async function() {
+    if (!window.__TAURI__) return '';
+    try {
+        const path = await window.__TAURI__.dialog.open({
+            multiple: false,
+            directory: false,
+            filters: [{name: 'Spreadsheets', extensions: ['csv', 'xlsx', 'xls']}]
+        });
+        return path || '';
+    } catch (e) {
+        return '';
+    }
+})()
+"""
+
 
 # ============================================================================
 # Step 1: Upload
@@ -69,60 +86,22 @@ def step_upload() -> rx.Component:
             color=rx.color("gray", 10),
         ),
         rx.separator(),
-        rx.upload(
-            rx.vstack(
-                rx.icon("upload", size=40, color=rx.color("accent", 9)),
-                rx.text(
-                    "Drag and drop or click to upload",
-                    size="3",
-                    weight="bold",
-                ),
-                rx.text(
-                    "Supports .csv, .xlsx, .xls files",
-                    size="2",
-                    color=rx.color("gray", 10),
-                ),
-                align="center",
-                spacing="2",
-            ),
-            id="connector_upload",
-            accept={
-                "text/csv": [".csv"],
-                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": [
-                    ".xlsx"
-                ],
-                "application/vnd.ms-excel": [".xls"],
-            },
-            max_files=1,
-            border=f"2px dashed {rx.color('accent', 6)}",
-            border_radius="var(--radius-3)",
-            padding="3em",
-            width="100%",
-            cursor="pointer",
-            _hover={"border_color": rx.color("accent", 9)},
-        ),
-        rx.cond(
-            rx.selected_files("connector_upload"),
-            rx.hstack(
-                rx.icon("file-check", size=16, color=rx.color("green", 9)),
-                rx.text(
-                    rx.selected_files("connector_upload")[0],
-                    size="2",
-                    weight="bold",
-                    color=rx.color("green", 11),
-                ),
-                align="center",
-                spacing="2",
-            ),
-        ),
+        # Tauri native file picker (full path)
         rx.button(
-            "Read File",
-            on_click=ConnectorState.handle_upload(
-                rx.upload_files(upload_id="connector_upload")
+            rx.icon("folder-open", size=20),
+            "Browse File",
+            on_click=rx.call_script(
+                _PICK_FILE_JS,
+                callback=ConnectorState.handle_file_path,
             ),
-            disabled=~rx.selected_files("connector_upload"),
             size="3",
             width="100%",
+            variant="outline",
+        ),
+        rx.text(
+            "Supports .csv, .xlsx, .xls files",
+            size="1",
+            color=rx.color("gray", 10),
         ),
         spacing="4",
         width="100%",
