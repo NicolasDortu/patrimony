@@ -78,3 +78,26 @@ def tauri_save_file(data: str, filename: str) -> rx.event.EventSpec:
         }})()
         """
     )
+
+
+def export_csv(
+    rows: list[dict],
+    columns: list[str],
+    filename: str,
+) -> rx.event.EventSpec:
+    """Build a CSV string from rows/columns and trigger a file save.
+
+    Args:
+        rows: List of dicts (or dataclass-like objects with __dataclass_fields__).
+        columns: Ordered list of column names.
+        filename: Suggested filename for the download.
+    """
+    header = ",".join(columns)
+    body = "\n".join(
+        ",".join(
+            str(row.get(col, "") if isinstance(row, dict) else getattr(row, col, ""))
+            for col in columns
+        )
+        for row in rows
+    )
+    return tauri_save_file(f"{header}\n{body}", filename)

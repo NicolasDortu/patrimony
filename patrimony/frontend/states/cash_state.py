@@ -1,3 +1,4 @@
+import logging
 from datetime import datetime
 from typing import Union
 
@@ -11,6 +12,8 @@ from .aggregation_helpers import (
 )
 from .mixins import PaginationMixin, SearchSortMixin, apply_sort_and_search
 from .spreadsheet_mixin import SpreadsheetMixin
+
+logger = logging.getLogger(__name__)
 
 
 class CashTableState(SpreadsheetMixin, SearchSortMixin, PaginationMixin, rx.State):
@@ -35,7 +38,7 @@ class CashTableState(SpreadsheetMixin, SearchSortMixin, PaginationMixin, rx.Stat
         return self.filtered_sorted_items[self.offset : self.offset + self.limit]
 
     @rx.event
-    def on_page_load(self):
+    async def on_page_load(self):
         """Handle page load with loading indicator."""
         self.is_loading = True
         yield
@@ -52,8 +55,10 @@ class CashTableState(SpreadsheetMixin, SearchSortMixin, PaginationMixin, rx.Stat
                 balance = CashService.get_balance(entry.get("account_number", ""))
                 entry["balance"] = balance if balance is not None else 0.0
             except Exception as e:
-                print(
-                    f"Failed to get balance for account {entry.get('account_number', '')}: {e}"
+                logger.warning(
+                    "Failed to get balance for account %s: %s",
+                    entry.get("account_number", ""),
+                    e,
                 )
                 entry["balance"] = 0.0
         self.items = cash_entries

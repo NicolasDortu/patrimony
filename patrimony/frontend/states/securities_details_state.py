@@ -12,7 +12,7 @@ from ..services import (
     was_market_data_fetched,
 )
 from ..templates import ThemeState
-from ..utils import tauri_save_file
+from ..utils import export_csv
 from .dividends_state import DividendsState
 from .mixins import PaginationMixin, SearchSortMixin, apply_sort_and_search
 from .spreadsheet_mixin import SpreadsheetMixin
@@ -125,12 +125,7 @@ class TableStateDetails(SpreadsheetMixin, SearchSortMixin, PaginationMixin, rx.S
     def export_csv(self):
         positions = SecuritiesService.get_all_positions()
         columns = list(SecurityPosition.__dataclass_fields__.keys())
-
-        header = ",".join(columns)
-        rows = [",".join(str(pos[col]) for col in columns) for pos in positions]
-
-        data = str(header + "\n" + "\n".join(rows))
-        return tauri_save_file(data, "positions.csv")
+        return export_csv(positions, columns, "positions.csv")
 
     async def _load_chart_data(self):
         """Fetch stock price history for the chart."""

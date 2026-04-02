@@ -23,12 +23,13 @@ class CurrencyService:
         """Get the native currency of a ticker, caching the result."""
         cached = self._currency_repo.get_ticker_currency(ticker)
         if cached:
-            return cached
+            return cached.upper()
 
         currency = self._market_data.get_ticker_currency(ticker)
         if currency:
-            self._currency_repo.set_ticker_currency(ticker, currency)
-            return currency.upper()
+            normalized = currency.upper()
+            self._currency_repo.set_ticker_currency(ticker, normalized)
+            return normalized
 
         return "USD"
 

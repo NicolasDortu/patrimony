@@ -1,10 +1,8 @@
 """State for connector history display and refresh operations."""
 
-import logging
-
 import reflex as rx
 
-from ..file_connector_config import file_connector_paths
+from ..config.file_connector_config import file_connector_paths
 from ..services import (
     ConnectorHistoryService,
     CredentialService,
@@ -12,8 +10,6 @@ from ..services import (
     WebConnectorService,
 )
 from ..templates.template import ThemeState
-
-logger = logging.getLogger(__name__)
 
 
 class ConnectorHistoryState(rx.State):

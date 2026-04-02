@@ -1,13 +1,10 @@
 """State for the file connector wizard (CSV/Excel import)."""
 
-import logging
 from pathlib import Path
 
 import reflex as rx
 
 from ..services import FileConnectorService
-
-logger = logging.getLogger(__name__)
 
 # Fields the user can map to
 POSITION_TARGET_FIELDS: list[str] = [

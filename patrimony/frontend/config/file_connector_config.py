@@ -2,7 +2,7 @@
 
 import json
 
-from .utils import get_settings_path
+from ..utils import get_settings_path
 
 
 class FileConnectorPathStore:

@@ -20,11 +20,11 @@ def enrich_with_prices(df: pl.DataFrame, price_repo: PriceRepository) -> pl.Data
     if df is None or df.is_empty() or "ticker" not in df.columns:
         return df
 
+    tickers = df["ticker"].to_list()
     prices = []
-    for ticker in df["ticker"].to_list():
+    for ticker in tickers:
         try:
-            price = price_repo.get_current_price(ticker)
-            prices.append(price)
+            prices.append(price_repo.get_current_price(ticker))
         except Exception as e:
             logger.error("Error fetching price for %s: %s", ticker, e)
             prices.append(None)
@@ -60,3 +60,17 @@ def normalize_date(dt) -> date:
     if hasattr(dt, "date") and callable(dt.date):
         return dt.date()
     return dt
+
+
+def forward_fill_prices(prices: dict, sorted_dates: list) -> None:
+    """Fill missing/invalid prices in-place using the last valid price.
+
+    A price is considered invalid if it is None, NaN, or <= 0.
+    """
+    last_valid = None
+    for dt in sorted_dates:
+        price = prices.get(dt)
+        if price is not None and price == price and price > 0:
+            last_valid = price
+        elif last_valid is not None:
+            prices[dt] = last_valid

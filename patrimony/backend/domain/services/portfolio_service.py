@@ -4,7 +4,6 @@ Orchestrates securities, cash, prices, and currency conversion
 to provide portfolio views and chart data.
 """
 
-import logging
 from datetime import datetime, timedelta
 from typing import Optional
 
@@ -22,10 +21,9 @@ from .currency_service import CurrencyService
 from .enrichment_utilities import (
     apply_currency_conversion,
     enrich_with_prices,
+    forward_fill_prices,
     normalize_date,
 )
-
-logger = logging.getLogger(__name__)
 
 
 class PortfolioService:
@@ -199,8 +197,10 @@ class PortfolioService:
         current_prices: list[float],
     ) -> tuple[float, float, float]:
         """Calculate total invested, current value, and return percentage."""
-        total_invested = sum(q * p for q, p in zip(quantities, buy_prices))
-        total_value = sum(q * p for q, p in zip(quantities, current_prices))
+        import math
+
+        total_invested = math.fsum(q * p for q, p in zip(quantities, buy_prices))
+        total_value = math.fsum(q * p for q, p in zip(quantities, current_prices))
         return_percentage = (
             ((total_value - total_invested) / total_invested * 100)
             if total_invested > 0
@@ -262,13 +262,16 @@ class PortfolioService:
         df = self._securities_repo.get_aggregated_positions()
         if df is None or df.is_empty():
             return {}
+        df = df.filter(pl.col("total_quantity") > 0)
+        if df.is_empty():
+            return {}
         return {
-            row["ticker"]: {
-                "quantity": float(row["total_quantity"]),
-                "asset_type": row.get("asset_type", "STOCK"),
-            }
-            for row in df.iter_rows(named=True)
-            if row.get("total_quantity", 0) > 0
+            t: {"quantity": float(q), "asset_type": at}
+            for t, q, at in zip(
+                df["ticker"].to_list(),
+                df["total_quantity"].to_list(),
+                df["asset_type"].to_list(),
+            )
         }
 
     def _build_quantity_timeline(self) -> dict[str, list[tuple]]:
@@ -280,15 +283,19 @@ class PortfolioService:
         if df is None or df.is_empty():
             return {}
 
+        result = df.sort("date").with_columns(
+            pl.col("quantity").cum_sum().over("ticker").alias("cum_qty"),
+            pl.col("date")
+            .map_elements(normalize_date, return_dtype=pl.Date)
+            .alias("norm_date"),
+        )
+
         timeline: dict[str, list[tuple]] = {}
-        for ticker in df["ticker"].unique().to_list():
-            ticker_df = df.filter(pl.col("ticker") == ticker).sort("date")
-            cumulative = 0.0
-            entries: list[tuple] = []
-            for row in ticker_df.iter_rows(named=True):
-                cumulative += row["quantity"]
-                entries.append((normalize_date(row["date"]), cumulative))
-            timeline[ticker] = entries
+        for ticker in result["ticker"].unique().to_list():
+            ticker_df = result.filter(pl.col("ticker") == ticker)
+            timeline[ticker] = list(
+                zip(ticker_df["norm_date"].to_list(), ticker_df["cum_qty"].to_list())
+            )
         return timeline
 
     @staticmethod
@@ -336,33 +343,30 @@ class PortfolioService:
                 if earliest_dt > start:
                     start = earliest_dt
             end = datetime.now()
-            # Ensure at least a 1-day range so yfinance doesn't return empty
-            if (end - start).days < 1:
-                start = end - timedelta(days=1)
+            # Ensure at least a 2-day range so charts always have data
+            if (end - start).days < 2:
+                start = end - timedelta(days=2)
             self._price_repo.sync_price_history(tickers, start)
             df = self._price_repo.get_price_history(tickers, start, end)
             if df is not None and not df.is_empty():
-                for t_df in df.partition_by("ticker", as_dict=False):
-                    ticker = t_df["ticker"][0]
+                # Build ticker -> {date: price} dicts using column access
+                for ticker in df["ticker"].unique().to_list():
+                    mask = df["ticker"] == ticker
+                    t_df = df.filter(mask)
                     dates = t_df["date"].to_list()
                     prices = t_df["close_price"].to_list()
+                    td = {}
                     for d, p in zip(dates, prices):
                         day = normalize_date(d)
-                        ticker_data.setdefault(ticker, {})[day] = p
+                        td[day] = p
                         all_dates_set.add(day)
+                    ticker_data[ticker] = td
 
         sorted_dates = sorted(all_dates_set)
 
         # Forward-fill: replace missing/0/None with last known price
         for ticker in ticker_data:
-            prices = ticker_data[ticker]
-            last_valid = None
-            for dt in sorted_dates:
-                price = prices.get(dt)
-                if price is not None and price == price and price > 0:
-                    last_valid = price
-                elif last_valid is not None:
-                    prices[dt] = last_valid
+            forward_fill_prices(ticker_data[ticker], sorted_dates)
 
         return ticker_data, sorted_dates
 

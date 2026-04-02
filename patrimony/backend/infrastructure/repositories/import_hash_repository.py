@@ -1,11 +1,9 @@
 """Repository for tracking imported row hashes (deduplication)."""
 
-import logging
+import duckdb
 
 from ...domain.repositories import ImportHashRepository
 from ..database.connection import DatabaseConnection
-
-logger = logging.getLogger(__name__)
 
 
 class ImportHashRepositoryImpl(ImportHashRepository):
@@ -35,5 +33,5 @@ class ImportHashRepositoryImpl(ImportHashRepository):
                     "INSERT INTO import_hashes (hash, import_type) VALUES (?, ?)",
                     [h, import_type],
                 )
-            except Exception:
+            except duckdb.ConstraintException:
                 pass  # hash already exists — safe to ignore

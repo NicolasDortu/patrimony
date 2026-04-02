@@ -61,7 +61,7 @@ class ConnectorProfileRepositoryImpl(ConnectorProfileRepository):
         for path in sorted(directory.glob("*.yaml")):
             try:
                 profiles.append(_load_profile(path))
-            except Exception:
+            except (yaml.YAMLError, KeyError, TypeError, ValueError):
                 logger.warning("Failed to load profile: %s", path, exc_info=True)
         return profiles
 

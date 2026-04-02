@@ -7,6 +7,7 @@ from ..components.loading import loading_spinner
 from ..components.notification import notification
 from ..templates import template, t
 from ..states.portfolio_state import PortfolioState
+from ..states.notification_state import NotificationState
 from ..views.charts.wealth_chart import wealth_chart
 from ..views.kpis.portfolio_stats_card import portfolio_kpi_cards
 from ..views.kpis.portfolio_performers import portfolio_performers_card
@@ -75,7 +76,7 @@ def _dashboard() -> rx.Component:
         rx.flex(
             rx.heading(t("page.overview.title"), size="5", white_space="nowrap"),
             rx.flex(
-                notification("message-square-text", "plum", 0),
+                notification("message-square-text", "plum"),
                 spacing="4",
                 width="100%",
                 wrap="nowrap",
@@ -106,7 +107,11 @@ def _dashboard() -> rx.Component:
     )
 
 
-@template(route="/", title="Overview", on_load=PortfolioState.load_portfolio_data)
+@template(
+    route="/",
+    title="Overview",
+    on_load=[PortfolioState.load_portfolio_data, NotificationState.load_events],
+)
 def index() -> rx.Component:
     """The overview page."""
     return rx.cond(

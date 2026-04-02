@@ -5,7 +5,7 @@ from datetime import datetime
 import reflex as rx
 
 from ..services import CashService, EntryType
-from ..utils import tauri_save_file
+from ..utils import export_csv
 from .aggregation_helpers import (
     aggregate_expenses_by_category,
     aggregate_monthly_income_expense,
@@ -23,7 +23,7 @@ class CashOperationsState(SpreadsheetMixin, SearchSortMixin, PaginationMixin, rx
     is_loading: bool = False
 
     @rx.event
-    def on_page_load(self) -> None:
+    async def on_page_load(self):
         """Handle page load - get account_number from URL and load operations."""
         self.is_loading = True
         yield
@@ -140,13 +140,9 @@ class CashOperationsState(SpreadsheetMixin, SearchSortMixin, PaginationMixin, rx
             "operation_date",
             "entry_type",
         ]
-
-        header = ",".join(columns)
-        rows = [",".join(str(op.get(col, "")) for col in columns) for op in operations]
-
-        data = str(header + "\n" + "\n".join(rows))
-        return tauri_save_file(
-            data,
+        return export_csv(
+            operations,
+            columns,
             f"operations_{self.account_number}.csv",
         )
 

@@ -19,7 +19,7 @@ from ..backend.domain.entities import (
 )
 from ..backend.presentation.di_container import container
 
-from .file_connector_config import file_connector_paths
+from .config.file_connector_config import file_connector_paths
 
 logger = logging.getLogger(__name__)
 
@@ -643,8 +643,14 @@ class FileConnectorService:
             if history_id and source_path:
                 file_connector_paths.set(history_id, source_path)
 
+            if op_result.success:
+                logger.info("File import: %s", op_result.message)
+            else:
+                logger.error("File import failed: %s", op_result.message)
+
             return op_result
         except Exception as e:
+            logger.error("File import exception: %s", e)
             return OperationResult(success=False, message=f"Import failed: {e}")
 
     @staticmethod
@@ -719,8 +725,14 @@ class FileConnectorService:
             if history_id and source_path:
                 file_connector_paths.set(history_id, source_path)
 
+            if op_result.success:
+                logger.info("Cash import: %s", op_result.message)
+            else:
+                logger.error("Cash import failed: %s", op_result.message)
+
             return op_result
         except Exception as e:
+            logger.error("Cash import exception: %s", e)
             return OperationResult(success=False, message=f"Import failed: {e}")
 
     @staticmethod

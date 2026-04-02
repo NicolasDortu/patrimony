@@ -1,13 +1,9 @@
 """State for the web connector wizard (browser-based automated import)."""
 
-import logging
-
 import reflex as rx
 
 from ..services import CredentialService, WebConnectorService
 from ..templates.template import ThemeState
-
-logger = logging.getLogger(__name__)
 
 
 class WebConnectorState(rx.State):

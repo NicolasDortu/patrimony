@@ -4,7 +4,6 @@ Handles price enrichment, currency conversion, and chart data
 for individual tickers.
 """
 
-import logging
 from datetime import datetime, timedelta
 from typing import Optional
 
@@ -17,9 +16,11 @@ from ..repositories import (
     SecuritiesRepository,
 )
 from .currency_service import CurrencyService
-from .enrichment_utilities import apply_currency_conversion, enrich_with_prices
-
-logger = logging.getLogger(__name__)
+from .enrichment_utilities import (
+    apply_currency_conversion,
+    enrich_with_prices,
+    forward_fill_prices,
+)
 
 
 class SecuritiesService:
@@ -72,21 +73,18 @@ class SecuritiesService:
         )
 
         rows = []
-        last_valid_price = None
-        for row in price_df.iter_rows(named=True):
-            price = row["close_price"]
-            if price is not None and price == price and price > 0:
-                last_valid_price = price
-            elif last_valid_price is not None:
-                price = last_valid_price
-            else:
+        prices_dict = {
+            row["date"]: row["close_price"] for row in price_df.iter_rows(named=True)
+        }
+        sorted_dates = sorted(prices_dict.keys())
+        forward_fill_prices(prices_dict, sorted_dates)
+
+        for dt in sorted_dates:
+            price = prices_dict[dt]
+            if price is None or price <= 0:
                 continue
 
-            date_str = (
-                row["date"].strftime(date_fmt)
-                if hasattr(row["date"], "strftime")
-                else str(row["date"])
-            )
+            date_str = dt.strftime(date_fmt) if hasattr(dt, "strftime") else str(dt)
             rows.append(
                 {
                     "name": date_str,
@@ -131,8 +129,8 @@ class SecuritiesService:
             if earliest_dt > start:
                 start = earliest_dt
         end = datetime.now()
-        # Ensure at least a 1-day range so yfinance doesn't return empty
-        if (end - start).days < 1:
-            start = end - timedelta(days=1)
+        # Ensure at least a 2-day range so charts always have data
+        if (end - start).days < 2:
+            start = end - timedelta(days=2)
         self._price_repo.sync_price_history([ticker], start)
         return self._price_repo.get_price_history([ticker], start, end)

@@ -128,6 +128,16 @@ class FileConnectorService:
         errors: list[str] = []
         new_hashes: list[str] = []
 
+        # Batch-resolve asset types for all tickers before the loop
+        all_tickers = list(
+            {
+                str(row["ticker"]).strip().upper()
+                for row in mapped_df.iter_rows(named=True)
+                if row.get("ticker")
+            }
+        )
+        resolved_types = self.resolve_asset_types(all_tickers)
+
         for i, row in enumerate(mapped_df.iter_rows(named=True), start=1):
             try:
                 # Dedup check
@@ -158,18 +168,14 @@ class FileConnectorService:
                     asset_type = AssetType(str(row["asset_type"]).strip().upper())
                 elif ticker in asset_type_overrides:
                     asset_type = AssetType(asset_type_overrides[ticker])
+                elif resolved_types.get(ticker):
+                    asset_type = AssetType(resolved_types[ticker])
                 else:
-                    # Try reference table
-                    resolved = self.resolve_asset_types([ticker])
-                    ref_type = resolved.get(ticker)
-                    if ref_type:
-                        asset_type = AssetType(ref_type)
-                    else:
-                        errors.append(
-                            f"Row {i}: Unknown asset type for ticker '{ticker}', skipped"
-                        )
-                        skipped += 1
-                        continue
+                    errors.append(
+                        f"Row {i}: Unknown asset type for ticker '{ticker}', skipped"
+                    )
+                    skipped += 1
+                    continue
 
                 self._securities_repo.add_position(
                     ticker=ticker,

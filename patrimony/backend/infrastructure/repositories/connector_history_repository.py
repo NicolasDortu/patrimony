@@ -1,14 +1,11 @@
 """DuckDB implementation of the connector history repository."""
 
 import json
-import logging
 from datetime import datetime
 
 from ...domain.entities import ConnectorHistoryEntry
 from ...domain.repositories import ConnectorHistoryRepository
 from ..database.connection import DatabaseConnection
-
-logger = logging.getLogger(__name__)
 
 
 class ConnectorHistoryRepositoryImpl(ConnectorHistoryRepository):

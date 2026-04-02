@@ -44,20 +44,24 @@ class PortfolioState(rx.State):
         return len(self._stocks_total_data) > 0 or self.cash_value > 0
 
     @rx.var
+    def _owned_types(self) -> set[str]:
+        return {s.get("asset_type") for s in self._stocks_total_data}
+
+    @rx.var
     def has_stocks(self) -> bool:
-        return any(s.get("asset_type") == "STOCK" for s in self._stocks_total_data)
+        return "STOCK" in self._owned_types
 
     @rx.var
     def has_etfs(self) -> bool:
-        return any(s.get("asset_type") == "ETF" for s in self._stocks_total_data)
+        return "ETF" in self._owned_types
 
     @rx.var
     def has_crypto(self) -> bool:
-        return any(s.get("asset_type") == "CRYPTO" for s in self._stocks_total_data)
+        return "CRYPTO" in self._owned_types
 
     @rx.var
     def has_commodity(self) -> bool:
-        return any(s.get("asset_type") == "COMMODITY" for s in self._stocks_total_data)
+        return "COMMODITY" in self._owned_types
 
     @rx.var
     def has_cash(self) -> bool:

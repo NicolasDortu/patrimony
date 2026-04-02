@@ -1,5 +1,7 @@
 """Reusable state mixins for frontend components."""
 
+import math
+
 import reflex as rx
 
 
@@ -59,11 +61,7 @@ class PaginationMixin(rx.State, mixin=True):
 
     @rx.var
     def total_pages(self) -> int:
-        return max(
-            1,
-            (self.total_items // self.limit)
-            + (1 if self.total_items % self.limit else 0),
-        )
+        return max(1, math.ceil(self.total_items / self.limit))
 
     def prev_page(self) -> None:
         if self.page_number > 1:

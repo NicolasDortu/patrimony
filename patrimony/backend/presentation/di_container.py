@@ -44,34 +44,34 @@ class Container(containers.DeclarativeContainer):
     file_connector = providers.Singleton(ExcelCsvConnector)
     web_connector = providers.Singleton(PlaywrightConnector)
 
-    # Repository Layer - Factories (new instance per call, but with singleton deps)
-    cash_repository = providers.Factory(
+    # Repository Layer - Singletons (stateless, share singleton DB connection)
+    cash_repository = providers.Singleton(
         CashRepositoryImpl,
         connection=database,
     )
 
-    securities_repository = providers.Factory(
+    securities_repository = providers.Singleton(
         SecuritiesRepositoryImpl,
         connection=database,
     )
 
-    price_repository = providers.Factory(
+    price_repository = providers.Singleton(
         PriceRepositoryImpl,
         connection=database,
         market_data_provider=market_data_provider,
     )
 
-    reference_repository = providers.Factory(
+    reference_repository = providers.Singleton(
         ReferenceRepositoryImpl,
         connection=database,
     )
 
-    currency_repository = providers.Factory(
+    currency_repository = providers.Singleton(
         CurrencyRepositoryImpl,
         connection=database,
     )
 
-    dividend_repository = providers.Factory(
+    dividend_repository = providers.Singleton(
         DividendRepositoryImpl,
         connection=database,
     )
@@ -80,17 +80,17 @@ class Container(containers.DeclarativeContainer):
         ConnectorProfileRepositoryImpl,
     )
 
-    import_hash_repository = providers.Factory(
+    import_hash_repository = providers.Singleton(
         ImportHashRepositoryImpl,
         connection=database,
     )
 
-    credential_repository = providers.Factory(
+    credential_repository = providers.Singleton(
         CredentialRepositoryImpl,
         connection=database,
     )
 
-    connector_history_repository = providers.Factory(
+    connector_history_repository = providers.Singleton(
         ConnectorHistoryRepositoryImpl,
         connection=database,
     )
