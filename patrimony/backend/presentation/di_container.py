@@ -22,6 +22,7 @@ from ..infrastructure.repositories import (
     CredentialRepositoryImpl,
     ImportHashRepositoryImpl,
     ConnectorHistoryRepositoryImpl,
+    PropertyRepositoryImpl,
 )
 
 
@@ -95,6 +96,11 @@ class Container(containers.DeclarativeContainer):
         connection=database,
     )
 
+    property_repository = providers.Singleton(
+        PropertyRepositoryImpl,
+        connection=database,
+    )
+
     # Domain Services
     currency_service = providers.Factory(
         CurrencyService,
@@ -109,6 +115,7 @@ class Container(containers.DeclarativeContainer):
         price_repo=price_repository,
         currency_service=currency_service,
         market_data=market_data_provider,
+        property_repo=property_repository,
     )
 
     securities_service = providers.Factory(

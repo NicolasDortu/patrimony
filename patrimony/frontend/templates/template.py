@@ -62,6 +62,7 @@ class ThemeState(rx.State):
     crypto_color: str = "yellow"
     commodity_color: str = "red"
     cash_color: str = "green"
+    property_color: str = "indigo"
     all_color: str = "blue"
 
     # Connector settings
@@ -85,6 +86,7 @@ class ThemeState(rx.State):
         "crypto_color",
         "commodity_color",
         "cash_color",
+        "property_color",
         "all_color",
         "show_browser",
     ]
@@ -158,6 +160,10 @@ class ThemeState(rx.State):
     @rx.event
     def set_all_color(self, value: str):
         self._set_and_save("all_color", value)
+
+    @rx.event
+    def set_property_color(self, value: str):
+        self._set_and_save("property_color", value)
 
     @rx.event
     def set_show_browser(self, value: bool):

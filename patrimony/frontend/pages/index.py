@@ -91,17 +91,17 @@ def _dashboard() -> rx.Component:
         rx.grid(
             portfolio_performers_card(),
             allocation_card(),
-            dividend_summary_card(),
             gap="1rem",
             grid_template_columns=[
                 "1fr",
                 "1fr",
-                "1fr 1fr 1fr",
-                "1fr 1fr 1fr",
-                "1fr 1fr 1fr",
+                "1fr 2fr",
+                "1fr 2fr",
+                "1fr 2fr",
             ],
             width="100%",
         ),
+        dividend_summary_card(),
         spacing="8",
         width="100%",
     )

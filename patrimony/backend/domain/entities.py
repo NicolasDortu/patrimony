@@ -14,6 +14,7 @@ class AssetType(StrEnum):
     BOND = "BOND"
     ETF = "ETF"
     COMMODITY = "COMMODITY"
+    PROPERTY = "PROPERTY"
 
 
 class EntryType(StrEnum):
@@ -140,6 +141,7 @@ class PortfolioOverview:
     total_return: float
     securities_value: float
     cash_value: float
+    properties_value: float = 0.0
 
 
 @dataclass(slots=True)

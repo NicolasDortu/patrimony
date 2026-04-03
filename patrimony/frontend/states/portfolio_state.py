@@ -8,7 +8,9 @@ from ..services import DividendService, PortfolioService, was_market_data_fetche
 from ..templates import ThemeState
 
 
-AssetFilter = Literal["all", "stocks", "etfs", "crypto", "commodity", "cash"]
+AssetFilter = Literal[
+    "all", "stocks", "etfs", "crypto", "commodity", "cash", "properties"
+]
 
 
 class PortfolioState(rx.State):
@@ -35,13 +37,19 @@ class PortfolioState(rx.State):
     total_return: float = 0.0
     stocks_value: float = 0.0
     cash_value: float = 0.0
+    properties_value: float = 0.0
+    _total_dividends: float = 0.0
 
     ####################
     ### Asset types  ###
     ####################
     @rx.var
     def has_data(self) -> bool:
-        return len(self._stocks_total_data) > 0 or self.cash_value > 0
+        return (
+            len(self._stocks_total_data) > 0
+            or self.cash_value > 0
+            or self.properties_value > 0
+        )
 
     @rx.var
     def _owned_types(self) -> set[str]:
@@ -67,6 +75,10 @@ class PortfolioState(rx.State):
     def has_cash(self) -> bool:
         return self.cash_value > 0
 
+    @rx.var
+    def has_properties(self) -> bool:
+        return self.properties_value > 0
+
     # Expose asset color names for chart components
     @rx.var
     def stock_color(self) -> str:
@@ -89,6 +101,10 @@ class PortfolioState(rx.State):
         return self._asset_colors.get("CASH", "green")
 
     @rx.var
+    def property_color(self) -> str:
+        return self._asset_colors.get("PROPERTY", "indigo")
+
+    @rx.var
     def available_filters(self) -> list[dict]:
         """Filter options based on owned asset types."""
         filters = [{"label": "All", "value": "all"}]
@@ -104,6 +120,8 @@ class PortfolioState(rx.State):
                 filters.append({"label": label, "value": value})
         if self.cash_value > 0:
             filters.append({"label": "Cash", "value": "cash"})
+        if self.properties_value > 0:
+            filters.append({"label": "Properties", "value": "properties"})
         return filters
 
     ####################
@@ -186,71 +204,81 @@ class PortfolioState(rx.State):
     #######################
     ### Allocation data ###
     #######################
+    _ASSET_COLOR_DEFAULTS: dict[str, str] = {
+        "STOCK": "purple",
+        "ETF": "orange",
+        "CRYPTO": "yellow",
+        "COMMODITY": "red",
+        "CASH": "green",
+        "PROPERTY": "indigo",
+    }
+
     def _calc_percentage(self, value: float) -> float:
         return round((value / self.total_value * 100), 2)
 
     def _get_asset_color_map(self) -> dict[str, str]:
         """Build asset_type -> CSS var color map from current color settings."""
+        color_map = {
+            at: f"var(--{self._asset_colors.get(at, default)}-9)"
+            for at, default in self._ASSET_COLOR_DEFAULTS.items()
+        }
+        color_map["NONE"] = "var(--gray-5)"
+        return color_map
+
+    def _alloc_entry(self, name: str, value: float, fill: str) -> dict:
+        """Build a single allocation entry."""
         return {
-            "STOCK": f"var(--{self._asset_colors.get('STOCK', 'purple')}-9)",
-            "ETF": f"var(--{self._asset_colors.get('ETF', 'orange')}-9)",
-            "CRYPTO": f"var(--{self._asset_colors.get('CRYPTO', 'yellow')}-9)",
-            "COMMODITY": f"var(--{self._asset_colors.get('COMMODITY', 'red')}-9)",
-            "CASH": f"var(--{self._asset_colors.get('CASH', 'green')}-9)",
-            "NONE": "var(--gray-5)",
+            "name": name,
+            "value": round(value, 2),
+            "percentage": self._calc_percentage(value),
+            "fill": fill,
         }
 
     @rx.var
     def allocation_data(self) -> list[dict]:
         """Calculate asset allocation for pie chart."""
-        allocation = []
-        color_map = self._get_asset_color_map()
-
-        if self.total_value > 0:
-            # Group securities by asset_type
-            asset_totals: dict[str, float] = {}
-            for stock in self._stocks_total_data:
-                at = stock.get("asset_type", "STOCK")
-                val = stock.get("total_value") or 0.0
-                if val > 0:
-                    asset_totals[at] = asset_totals.get(at, 0.0) + val
-
-            asset_type_labels = {
-                "STOCK": "Stocks",
-                "ETF": "ETFs",
-                "CRYPTO": "Crypto",
-                "COMMODITY": "Commodity",
-            }
-
-            for at, total in asset_totals.items():
-                label = asset_type_labels.get(at, at)
-                allocation.append(
-                    {
-                        "name": label,
-                        "value": round(total, 2),
-                        "percentage": self._calc_percentage(total),
-                        "fill": color_map.get(at, "var(--blue-9)"),
-                    }
-                )
-
-            if self.cash_value > 0:
-                allocation.append(
-                    {
-                        "name": "Cash",
-                        "value": round(self.cash_value, 2),
-                        "percentage": self._calc_percentage(self.cash_value),
-                        "fill": color_map.get("CASH", "var(--green-9)"),
-                    }
-                )
-        else:
-            allocation.append(
+        if self.total_value <= 0:
+            return [
                 {
                     "name": "No Data",
                     "value": 1,
                     "percentage": 100.0,
                     "fill": "var(--gray-5)",
                 }
+            ]
+
+        color_map = self._get_asset_color_map()
+        allocation = []
+
+        # Group securities by asset_type
+        asset_totals: dict[str, float] = {}
+        for stock in self._stocks_total_data:
+            at = stock.get("asset_type", "STOCK")
+            val = stock.get("total_value") or 0.0
+            if val > 0:
+                asset_totals[at] = asset_totals.get(at, 0.0) + val
+
+        labels = {
+            "STOCK": "Stocks",
+            "ETF": "ETFs",
+            "CRYPTO": "Crypto",
+            "COMMODITY": "Commodity",
+        }
+        for at, total in asset_totals.items():
+            allocation.append(
+                self._alloc_entry(
+                    labels.get(at, at), total, color_map.get(at, "var(--blue-9)")
+                )
             )
+
+        # Non-security assets
+        for key, label, value in [
+            ("CASH", "Cash", self.cash_value),
+            ("PROPERTY", "Properties", self.properties_value),
+        ]:
+            if value > 0:
+                allocation.append(self._alloc_entry(label, value, color_map[key]))
+
         return allocation
 
     #####################
@@ -259,8 +287,7 @@ class PortfolioState(rx.State):
     @rx.var
     def total_dividends_received(self) -> str:
         """Total dividends received, formatted."""
-        total = sum(d.get("amount", 0.0) for d in self._dividends_data)
-        return f"{total:,.2f}"
+        return f"{self._total_dividends:,.2f}"
 
     @rx.var
     def recent_dividends(self) -> list[dict]:
@@ -288,11 +315,8 @@ class PortfolioState(rx.State):
         self.is_loaded = False
         theme_state = await self.get_state(ThemeState)
         self._asset_colors = {
-            "STOCK": theme_state.stock_color,
-            "ETF": theme_state.etf_color,
-            "CRYPTO": theme_state.crypto_color,
-            "COMMODITY": theme_state.commodity_color,
-            "CASH": theme_state.cash_color,
+            at: getattr(theme_state, f"{at.lower()}_color", default)
+            for at, default in self._ASSET_COLOR_DEFAULTS.items()
         }
         portfolio_data = PortfolioService.get_portfolio_overview(
             theme_state.default_currency
@@ -306,9 +330,11 @@ class PortfolioState(rx.State):
         self.total_return = portfolio_data.total_return
         self.stocks_value = portfolio_data.securities_value
         self.cash_value = portfolio_data.cash_value
+        self.properties_value = portfolio_data.properties_value
 
         await self._load_chart_data()
         self._dividends_data = DividendService.get_all_dividends()
+        self._total_dividends = DividendService.get_total_amount()
         self.is_loaded = True
         if was_market_data_fetched():
             yield rx.toast.info("Market data refreshed", position="bottom-right")

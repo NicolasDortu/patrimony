@@ -37,6 +37,11 @@ class DividendRepositoryImpl(DividendRepository):
             [ticker.upper()],
         ).pl()
 
+    def get_total_amount(self) -> float:
+        """Return the total amount of all dividends."""
+        result = self._conn.execute("SELECT COALESCE(SUM(amount), 0) FROM dividends")
+        return result.fetchone()[0]
+
     def get_by_id(self, id: int) -> pl.DataFrame:
         """Get a dividend by ID."""
         return self._conn.execute("SELECT * FROM dividends WHERE id = ?", [id]).pl()

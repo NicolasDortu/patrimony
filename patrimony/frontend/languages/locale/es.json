@@ -1,8 +1,7 @@
 {
   "nav.overview": "Resumen",
   "nav.securities": "Valores",
-  "nav.cash": "Efectivo",
-  "nav.cash_expenses": "Efectivo y Gastos",
+  "nav.cash": "Efectivo y Gastos",
   "nav.connectors": "Conectores",
   "nav.settings": "Ajustes",
   "nav.about": "Acerca de",
@@ -140,7 +139,7 @@
   "kpi.total_portfolio": "Portafolio total",
   "kpi.stocks_value": "Valor de valores",
   "kpi.cash_holdings": "Efectivo",
-  "kpi.dividends": "Dividendos recibidos",
+  "kpi.dividends": "Dividendos recibidos y próximos",
   "kpi.no_dividend_data": "Ningún dividendo registrado",
 
   "chart.wealth_overview": "Resumen patrimonial",
@@ -174,5 +173,17 @@
 
   "spreadsheet.toggle": "Alternar modo hoja de c\u00e1lculo",
   "spreadsheet.save": "Guardar cambios",
-  "spreadsheet.discard": "Descartar"
+  "spreadsheet.discard": "Descartar",
+
+  "nav.properties": "Propiedades",
+  "page.properties.title": "Sus propiedades",
+  "dialog.add_property.title": "Agregar propiedad",
+  "dialog.add_property.desc": "Ingrese los detalles de su activo físico.",
+  "dialog.add_property.submit": "Agregar",
+  "label.name": "Nombre",
+  "label.description": "Descripción",
+  "label.value": "Valor",
+  "empty.securities": "Sin valores aún. ¡Añada su primera posición para comenzar!",
+  "empty.cash": "Sin cuentas de efectivo. ¡Añada su primera cuenta!",
+  "empty.properties": "Sin propiedades aún. ¡Añada su primer activo!"
 }

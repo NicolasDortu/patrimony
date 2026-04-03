@@ -18,6 +18,12 @@ ASSET_TYPES = [
         ThemeState.set_commodity_color,
     ),
     ("Cash", "cash_color", ThemeState.cash_color, ThemeState.set_cash_color),
+    (
+        "Properties",
+        "property_color",
+        ThemeState.property_color,
+        ThemeState.set_property_color,
+    ),
 ]
 
 

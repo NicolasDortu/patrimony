@@ -15,6 +15,7 @@ from ..interfaces import MarketDataProvider
 from ..repositories import (
     CashRepository,
     PriceRepository,
+    PropertyRepository,
     SecuritiesRepository,
 )
 from .currency_service import CurrencyService
@@ -36,12 +37,14 @@ class PortfolioService:
         price_repo: PriceRepository,
         currency_service: CurrencyService,
         market_data: MarketDataProvider,
+        property_repo: PropertyRepository | None = None,
     ):
         self._securities_repo = securities_repo
         self._cash_repo = cash_repo
         self._price_repo = price_repo
         self._currency_service = currency_service
         self._market_data = market_data
+        self._property_repo = property_repo
 
     # -- Portfolio Overview --------------------------------------------------
 
@@ -63,14 +66,20 @@ class PortfolioService:
         cash_df = self._cash_repo.get_all()
         cash_value = self._calculate_cash_value(cash_df, user_currency)
 
+        # Properties
+        properties_value = (
+            self._property_repo.get_total_value() if self._property_repo else 0.0
+        )
+
         return PortfolioOverview(
             securities_total=securities_df,
             cash_entries=cash_df,
-            total_value=securities_value + cash_value,
+            total_value=securities_value + cash_value + properties_value,
             total_invested=total_invested,
             total_return=total_return,
             securities_value=securities_value,
             cash_value=cash_value,
+            properties_value=properties_value,
         )
 
     # -- Chart Data ----------------------------------------------------------
@@ -398,6 +407,9 @@ class PortfolioService:
         quantity_timeline: dict[str, list[tuple]] | None = None,
     ) -> list[dict]:
         rows = []
+        properties = (
+            self._property_repo.get_total_value() if self._property_repo else 0.0
+        )
         for dt in all_dates:
             asset_values = {v: 0.0 for v in ASSET_TYPE_LABELS.values()}
             for ticker, info in securities.items():
@@ -416,15 +428,11 @@ class PortfolioService:
             cash = self._get_cash_at_date(cash_timeline, dt, current_cash)
             securities_total = sum(asset_values.values())
             date_str = dt.strftime(date_fmt) if hasattr(dt, "strftime") else str(dt)
-            rows.append(
-                {
-                    "Date": date_str,
-                    "Stocks": round(asset_values["Stocks"], 2),
-                    "ETFs": round(asset_values["ETFs"], 2),
-                    "Crypto": round(asset_values["Crypto"], 2),
-                    "Commodity": round(asset_values["Commodity"], 2),
-                    "Cash": round(cash, 2),
-                    "Total": round(securities_total + cash, 2),
-                }
-            )
+
+            row = {"Date": date_str}
+            row.update({k: round(v, 2) for k, v in asset_values.items()})
+            row["Properties"] = round(properties, 2)
+            row["Cash"] = round(cash, 2)
+            row["Total"] = round(securities_total + cash + properties, 2)
+            rows.append(row)
         return rows

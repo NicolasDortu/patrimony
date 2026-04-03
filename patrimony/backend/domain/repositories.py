@@ -166,6 +166,11 @@ class CashRepository(BaseRepository, CashOperationRepository, ABC):
         """Get the current balance of a cash account."""
         pass
 
+    @abstractmethod
+    def get_total_balance(self) -> float:
+        """Return the total balance across all cash accounts (raw, no currency conversion)."""
+        pass
+
 
 class PriceRepository(PriceProvider, ABC):
     """Repository for asset price data."""
@@ -247,6 +252,46 @@ class DividendRepository(BaseRepository, ABC):
     @abstractmethod
     def get_by_ticker(self, ticker: str) -> Optional[pl.DataFrame]:
         """Get all dividends for a specific ticker."""
+        pass
+
+    @abstractmethod
+    def get_total_amount(self) -> float:
+        """Return the total amount of all dividends."""
+        pass
+
+
+class PropertyRepository(BaseRepository, ABC):
+    """Repository for physical properties (real estate, valuables, etc.)."""
+
+    @abstractmethod
+    def add_property(
+        self,
+        name: str,
+        value: float,
+        purchase_date: datetime,
+        description: str = "",
+        category: str = "Other",
+        entry_type: EntryType = EntryType.MANUAL,
+    ) -> int:
+        """Add a new property and return its id."""
+        pass
+
+    @abstractmethod
+    def update_property(
+        self,
+        id: int,
+        name: str,
+        value: float,
+        purchase_date: datetime,
+        description: str = "",
+        category: str = "Other",
+    ) -> None:
+        """Update an existing property by ID."""
+        pass
+
+    @abstractmethod
+    def get_total_value(self) -> float:
+        """Return the total value of all properties."""
         pass
 
 

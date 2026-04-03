@@ -10,6 +10,7 @@ from .connector_profile_repository import ConnectorProfileRepositoryImpl
 from .credential_repository import CredentialRepositoryImpl
 from .import_hash_repository import ImportHashRepositoryImpl
 from .connector_history_repository import ConnectorHistoryRepositoryImpl
+from .property_repository import PropertyRepositoryImpl
 
 __all__ = [
     "CashRepositoryImpl",
@@ -22,4 +23,5 @@ __all__ = [
     "CredentialRepositoryImpl",
     "ImportHashRepositoryImpl",
     "ConnectorHistoryRepositoryImpl",
+    "PropertyRepositoryImpl",
 ]

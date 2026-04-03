@@ -103,7 +103,7 @@ class TableStateTotal(SpreadsheetMixin, SearchSortMixin, PaginationMixin, rx.Sta
             self.sort_value,
             self.sort_reverse,
             self.search_value,
-            numeric_sort_fields=["price"],
+            numeric_sort_fields=["current_price", "total_value", "total_quantity"],
             search_fields=["ticker", "date"],
             accessor="attr",
         )

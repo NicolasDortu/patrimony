@@ -236,6 +236,13 @@ class CashRepositoryImpl(CashRepository, CashOperationRepositoryImpl):
         )
         return result.fetchone()[0]
 
+    def get_total_balance(self) -> float:
+        """Return the total balance across all cash accounts (raw, no currency conversion)."""
+        result = self._conn.execute(
+            "SELECT COALESCE(SUM(balance), 0) FROM cash_balance"
+        )
+        return result.fetchone()[0]
+
     def delete(self, account_number: str) -> None:
         """Delete a cash account by account number. And also delete all related balance operations."""
         with self._conn.transaction():

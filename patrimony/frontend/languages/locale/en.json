@@ -1,8 +1,7 @@
 {
   "nav.overview": "Overview",
   "nav.securities": "Securities",
-  "nav.cash": "Cash",
-  "nav.cash_expenses": "Cash & Expenses",
+  "nav.cash": "Cash & Expenses",
   "nav.connectors": "Connectors",
   "nav.settings": "Settings",
   "nav.about": "About",
@@ -140,7 +139,7 @@
   "kpi.total_portfolio": "Total Portfolio",
   "kpi.stocks_value": "Stocks Value",
   "kpi.cash_holdings": "Cash Holdings",
-  "kpi.dividends": "Dividends Received",
+  "kpi.dividends": "Dividends Received & Upcoming",
   "kpi.no_dividend_data": "No dividends recorded yet",
 
   "chart.wealth_overview": "Wealth Overview",
@@ -174,5 +173,17 @@
 
   "spreadsheet.toggle": "Toggle spreadsheet mode",
   "spreadsheet.save": "Save changes",
-  "spreadsheet.discard": "Discard"
+  "spreadsheet.discard": "Discard",
+
+  "nav.properties": "Properties",
+  "page.properties.title": "Your Properties",
+  "dialog.add_property.title": "Add Property",
+  "dialog.add_property.desc": "Enter the details for your physical asset.",
+  "dialog.add_property.submit": "Add Property",
+  "label.name": "Name",
+  "label.description": "Description",
+  "label.value": "Value",
+  "empty.securities": "No securities yet. Add your first position to get started!",
+  "empty.cash": "No cash accounts yet. Add your first account to get started!",
+  "empty.properties": "No properties yet. Add your first asset to get started!"
 }

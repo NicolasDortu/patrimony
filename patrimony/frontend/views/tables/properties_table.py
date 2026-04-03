@@ -3,55 +3,47 @@ import reflex as rx
 from .common import header_cell, table_row
 from .pagination import pagination_view
 from .spreadsheet_view import spreadsheet_toggle_button
-from ...states.cash_state import CashTableState
-from ...dialogs.cash_dialog import open_add_cash_dialog
+from ...states.properties_state import PropertiesState
+from ...dialogs.property_dialog import open_add_property_dialog
+from ...templates import ThemeState
 
 
 def _show_item(item: dict, index: int) -> rx.Component:
     return table_row(
-        rx.table.cell(item["bank"]),
-        rx.table.cell(item["account_number"]),
-        rx.table.cell(item["currency"]),
-        rx.table.cell(f"{item['balance']:.2f}"),
-        rx.table.cell(
-            rx.icon_button(
-                rx.icon("arrow_right_to_line", size=18),
-                variant="ghost",
-                on_click=lambda: CashTableState.open_operations_view(
-                    item["account_number"], item["currency"]
-                ),
-            ),
-        ),
+        rx.table.cell(item["name"]),
+        rx.table.cell(item.get("description", "")),
+        rx.table.cell(ThemeState.currency_symbol + f"{item['value']:.2f}"),
+        rx.table.cell(item.get("category", "Other")),
+        rx.table.cell(item.get("purchase_date", "")),
         index=index,
     )
 
 
-def cash_table() -> rx.Component:
-    """Main cash table component."""
+def properties_table() -> rx.Component:
     return rx.box(
         rx.flex(
             rx.flex(
-                open_add_cash_dialog(CashTableState.add_cash_entry),
-                spreadsheet_toggle_button(CashTableState),
+                open_add_property_dialog(PropertiesState.add_property),
+                spreadsheet_toggle_button(PropertiesState),
                 rx.icon_button(
                     rx.icon("arrow-down-to-line", size=20),
                     variant="surface",
                     size="3",
-                    on_click=CashTableState.export_csv,
+                    on_click=PropertiesState.export_csv,
                 ),
                 align="center",
                 spacing="3",
             ),
             rx.flex(
                 rx.cond(
-                    CashTableState.sort_reverse,
+                    PropertiesState.sort_reverse,
                     rx.icon(
                         "arrow-down-z-a",
                         size=28,
                         stroke_width=1.5,
                         cursor="pointer",
                         flex_shrink="0",
-                        on_click=CashTableState.toggle_sort,
+                        on_click=PropertiesState.toggle_sort,
                     ),
                     rx.icon(
                         "arrow-down-a-z",
@@ -59,14 +51,14 @@ def cash_table() -> rx.Component:
                         stroke_width=1.5,
                         cursor="pointer",
                         flex_shrink="0",
-                        on_click=CashTableState.toggle_sort,
+                        on_click=PropertiesState.toggle_sort,
                     ),
                 ),
                 rx.select(
-                    ["bank", "account_number", "currency", "balance"],
-                    placeholder="Sort By: bank",
+                    ["name", "value", "category", "purchase_date"],
+                    placeholder="Sort By: name",
                     size="3",
-                    on_change=CashTableState.set_sort_value,
+                    on_change=PropertiesState.set_sort_value,
                 ),
                 rx.input(
                     rx.input.slot(rx.icon("search")),
@@ -74,17 +66,17 @@ def cash_table() -> rx.Component:
                         rx.icon("x"),
                         justify="end",
                         cursor="pointer",
-                        on_click=CashTableState.set_search_value(""),
-                        display=rx.cond(CashTableState.search_value, "flex", "none"),
+                        on_click=PropertiesState.set_search_value(""),
+                        display=rx.cond(PropertiesState.search_value, "flex", "none"),
                     ),
-                    value=CashTableState.search_value,
+                    value=PropertiesState.search_value,
                     placeholder="Search here...",
                     size="3",
                     max_width=["150px", "150px", "200px", "250px"],
                     width="100%",
                     variant="surface",
                     color_scheme="gray",
-                    on_change=CashTableState.set_search_value,
+                    on_change=PropertiesState.set_search_value,
                 ),
                 align="center",
                 justify="end",
@@ -99,16 +91,16 @@ def cash_table() -> rx.Component:
         rx.table.root(
             rx.table.header(
                 rx.table.row(
-                    header_cell("bank", "landmark"),
-                    header_cell("account_number", "hash"),
-                    header_cell("currency", "badge-euro"),
-                    header_cell("balance", "wallet"),
-                    header_cell("", "eye"),
+                    header_cell("name", "tag"),
+                    header_cell("description", "text"),
+                    header_cell("value", "dollar-sign"),
+                    header_cell("category", "folder"),
+                    header_cell("purchase_date", "calendar"),
                 ),
             ),
             rx.table.body(
                 rx.foreach(
-                    CashTableState.get_current_page,
+                    PropertiesState.get_current_page,
                     lambda item, index: _show_item(item, index),
                 )
             ),
@@ -116,6 +108,6 @@ def cash_table() -> rx.Component:
             size="3",
             width="100%",
         ),
-        pagination_view(CashTableState),
+        pagination_view(PropertiesState),
         width="100%",
     )

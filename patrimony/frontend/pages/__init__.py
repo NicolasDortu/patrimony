@@ -8,6 +8,7 @@ from .connectors import connectors
 from .file_connector import file_connector
 from .web_connector import web_connector
 from .about import about
+from .properties import properties
 
 __all__ = [
     "index",
@@ -20,4 +21,5 @@ __all__ = [
     "file_connector",
     "web_connector",
     "about",
+    "properties",
 ]

@@ -506,6 +506,11 @@ class DividendService:
         return df.to_dicts() if df is not None else []
 
     @staticmethod
+    def get_total_amount() -> float:
+        """Get total amount of all dividends."""
+        return container.dividend_repository().get_total_amount()
+
+    @staticmethod
     def delete_dividend(id: int) -> OperationResult:
         """Delete a dividend by ID."""
         try:
@@ -545,6 +550,110 @@ class DividendService:
             return OperationResult(
                 success=False,
                 message=f"Failed to update dividend: {e}",
+            )
+
+
+# ============================================================================
+# BACKEND INTERFACE - Property Operations
+# ============================================================================
+
+
+@dataclass(slots=True)
+class Property:
+    """Frontend model for a physical property."""
+
+    id: Optional[int] = None
+    name: str = ""
+    description: str = ""
+    value: float = 0.0
+    purchase_date: datetime = field(default_factory=datetime.now)
+    category: str = "Other"
+    entry_type: str = "MANUAL"
+
+
+class PropertyService:
+    """Frontend service for physical property operations."""
+
+    @staticmethod
+    def add_property(
+        name: str,
+        value: float,
+        purchase_date: Optional[datetime] = None,
+        description: str = "",
+        category: str = "Other",
+    ) -> OperationResult:
+        try:
+            if purchase_date is None:
+                purchase_date = datetime.now()
+            prop_id = container.property_repository().add_property(
+                name=name,
+                value=value,
+                purchase_date=purchase_date,
+                description=description,
+                category=category,
+            )
+            return OperationResult(
+                success=True,
+                message=f"Property '{name}' added successfully",
+                data={"id": prop_id},
+            )
+        except Exception as e:
+            return OperationResult(
+                success=False,
+                message=f"Failed to add property: {e}",
+            )
+
+    @staticmethod
+    def get_all_properties() -> list[dict]:
+        df = container.property_repository().get_all()
+        return df.to_dicts() if df is not None else []
+
+    @staticmethod
+    def get_total_value() -> float:
+        return container.property_repository().get_total_value()
+
+    @staticmethod
+    def delete_property(id: int) -> OperationResult:
+        try:
+            container.property_repository().delete(id)
+            return OperationResult(
+                success=True,
+                message="Property deleted successfully",
+            )
+        except Exception as e:
+            return OperationResult(
+                success=False,
+                message=f"Failed to delete property: {e}",
+            )
+
+    @staticmethod
+    def update_property(
+        id: int,
+        name: str,
+        value: float,
+        purchase_date: Optional[datetime] = None,
+        description: str = "",
+        category: str = "Other",
+    ) -> OperationResult:
+        try:
+            if purchase_date is None:
+                purchase_date = datetime.now()
+            container.property_repository().update_property(
+                id=id,
+                name=name,
+                value=value,
+                purchase_date=purchase_date,
+                description=description,
+                category=category,
+            )
+            return OperationResult(
+                success=True,
+                message="Property updated successfully",
+            )
+        except Exception as e:
+            return OperationResult(
+                success=False,
+                message=f"Failed to update property: {e}",
             )
 
 

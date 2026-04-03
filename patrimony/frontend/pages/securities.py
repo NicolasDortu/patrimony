@@ -3,7 +3,9 @@
 import reflex as rx
 
 from ..components.chart_toggle import chart_table_toggle
+from ..components.empty_table import empty_table
 from ..components.loading import loading_spinner
+from ..dialogs import open_add_position_dialog
 from ..states.securities_total_state import TableStateTotal
 from ..templates import template, t
 from ..views.charts.securities_charts import securities_charts
@@ -32,7 +34,10 @@ def securities() -> rx.Component:
             rx.heading(t("page.securities.title"), size="5"),
             _asset_type_filter(),
             rx.spacer(),
-            chart_table_toggle(TableStateTotal),
+            rx.cond(
+                TableStateTotal.total_items > 0,
+                chart_table_toggle(TableStateTotal),
+            ),
             justify="between",
             align="center",
             width="100%",
@@ -41,9 +46,17 @@ def securities() -> rx.Component:
             TableStateTotal.is_loading,
             loading_spinner(),
             rx.cond(
-                TableStateTotal.chart_view,
-                securities_charts(),
-                spreadsheet_or_table(TableStateTotal, main_table()),
+                TableStateTotal.total_items > 0,
+                rx.cond(
+                    TableStateTotal.chart_view,
+                    securities_charts(),
+                    spreadsheet_or_table(TableStateTotal, main_table()),
+                ),
+                empty_table(
+                    "empty.securities",
+                    "briefcase",
+                    open_add_position_dialog(TableStateTotal.add_stock),
+                ),
             ),
         ),
         spacing="5",

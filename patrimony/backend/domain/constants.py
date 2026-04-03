@@ -16,4 +16,5 @@ ASSET_TYPE_LABELS = {
     "COMMODITY": "Commodity",
     "BOND": "Bonds",
     "CASH": "Cash",
+    "PROPERTY": "Properties",
 }

@@ -8,7 +8,7 @@ from ...templates import ThemeState, t
 
 
 def _dividend_item(item: dict) -> rx.Component:
-    """Single dividend entry row."""
+    """Single dividend entry as a compact card."""
     return rx.hstack(
         rx.text(item["ticker"], size="2", weight="bold"),
         rx.spacer(),
@@ -19,7 +19,8 @@ def _dividend_item(item: dict) -> rx.Component:
             color=rx.color("grass", 9),
         ),
         rx.text(item["date"], size="2", color=rx.color("gray", 10)),
-        width="100%",
+        min_width="180px",
+        flex="1",
         padding="0.5rem",
         border_radius="6px",
         background=rx.color("gray", 2),
@@ -27,7 +28,7 @@ def _dividend_item(item: dict) -> rx.Component:
 
 
 def dividend_summary_card() -> rx.Component:
-    """KPI card showing total dividends received and recent entries."""
+    """Full-width card showing total dividends received and recent entries."""
     return card(
         rx.vstack(
             rx.hstack(
@@ -47,13 +48,15 @@ def dividend_summary_card() -> rx.Component:
             ),
             rx.cond(
                 PortfolioState.recent_dividends.length() > 0,
-                rx.vstack(
+                rx.flex(
                     rx.foreach(
                         PortfolioState.recent_dividends,
                         _dividend_item,
                     ),
-                    spacing="2",
+                    spacing="3",
                     width="100%",
+                    wrap="wrap",
+                    direction="row",
                 ),
                 rx.text(
                     t("kpi.no_dividend_data"),

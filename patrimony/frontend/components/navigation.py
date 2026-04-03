@@ -9,6 +9,7 @@ _NAV_ITEMS = [
     ("/", "nav.overview", "home"),
     ("/securities", "nav.securities", "table-2"),
     ("/cash", "nav.cash", "wallet"),
+    ("/properties", "nav.properties", "house"),
     ("/connectors", "nav.connectors", "plug"),
     ("/settings", "nav.settings", "settings"),
 ]

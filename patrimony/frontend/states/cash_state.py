@@ -5,6 +5,7 @@ from typing import Union
 import reflex as rx
 
 from ..services import CashService, Currency
+from ..utils import export_csv
 from ..utils import get_pie_color
 from .aggregation_helpers import (
     aggregate_expenses_by_category,
@@ -104,6 +105,12 @@ class CashTableState(SpreadsheetMixin, SearchSortMixin, PaginationMixin, rx.Stat
             return rx.toast.success(result.message, position="top-center")
         else:
             return rx.toast.error(result.message, position="top-center")
+
+    @rx.event
+    def export_csv(self):
+        """Export cash entries to CSV."""
+        columns = ["bank", "account_number", "currency", "balance"]
+        return export_csv(self.items, columns, "cash.csv")
 
     @rx.event
     def open_operations_view(self, account_number: str, currency: str):
