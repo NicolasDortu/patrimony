@@ -88,20 +88,19 @@ def settings() -> rx.Component:
         rx.vstack(
             rx.hstack(
                 rx.icon("globe", color=rx.color("accent", 10)),
-                rx.heading("Connectors", size="6"),
+                rx.heading(t("settings.connectors"), size="6"),
                 align="center",
             ),
             rx.card(
                 rx.hstack(
                     rx.vstack(
                         rx.text(
-                            "Show browser window during web import",
+                            t("settings.show_browser"),
                             weight="medium",
                             size="2",
                         ),
                         rx.text(
-                            "When enabled, the browser window will be visible "
-                            "so you can monitor the automation and complete 2FA.",
+                            t("settings.show_browser_desc"),
                             size="2",
                             color=rx.color("gray", 10),
                         ),
@@ -123,14 +122,12 @@ def settings() -> rx.Component:
                     rx.hstack(
                         rx.vstack(
                             rx.text(
-                                "Reset master password",
+                                t("settings.reset_password"),
                                 weight="medium",
                                 size="2",
                             ),
                             rx.text(
-                                "This will delete your master password and all "
-                                "saved connector credentials. You will need to "
-                                "set up a new master password and re-enter credentials.",
+                                t("settings.reset_password_desc"),
                                 size="2",
                                 color=rx.color("gray", 10),
                             ),
@@ -141,13 +138,13 @@ def settings() -> rx.Component:
                             SettingsState.show_reset_confirm,
                             rx.hstack(
                                 rx.button(
-                                    "Cancel",
+                                    t("btn.cancel"),
                                     variant="outline",
                                     size="2",
                                     on_click=SettingsState.toggle_reset_confirm,
                                 ),
                                 rx.button(
-                                    "Confirm",
+                                    t("btn.confirm"),
                                     color_scheme="red",
                                     size="2",
                                     on_click=SettingsState.reset_master_password,
@@ -156,7 +153,7 @@ def settings() -> rx.Component:
                             ),
                             rx.button(
                                 rx.icon("trash-2", size=14),
-                                "Reset",
+                                t("btn.reset"),
                                 color_scheme="red",
                                 variant="outline",
                                 size="2",

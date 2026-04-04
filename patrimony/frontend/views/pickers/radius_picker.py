@@ -1,5 +1,6 @@
 import reflex as rx
 
+from ...templates import t
 from ...templates.template import ThemeState
 
 
@@ -8,7 +9,7 @@ def radius_picker() -> rx.Component:
         rx.vstack(
             rx.hstack(
                 rx.icon("radius"),
-                rx.heading("Borders radius", size="6"),
+                rx.heading(t("settings.borders_radius"), size="6"),
                 align="center",
             ),
             rx.select(

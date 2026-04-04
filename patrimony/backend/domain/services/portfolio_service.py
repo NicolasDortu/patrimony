@@ -4,6 +4,8 @@ Orchestrates securities, cash, prices, and currency conversion
 to provide portfolio views and chart data.
 """
 
+import logging
+from bisect import bisect_right
 from datetime import datetime, timedelta
 from typing import Optional
 
@@ -25,6 +27,8 @@ from .enrichment_utilities import (
     forward_fill_prices,
     normalize_date,
 )
+
+logger = logging.getLogger(__name__)
 
 
 class PortfolioService:
@@ -316,13 +320,9 @@ class PortfolioService:
         if not entries:
             return 0.0
         dt_date = normalize_date(dt)
-        result = 0.0
-        for entry_date, qty in entries:
-            if entry_date <= dt_date:
-                result = qty
-            else:
-                break
-        return result
+        # entries is sorted by date; bisect for O(log n) lookup
+        idx = bisect_right(entries, dt_date, key=lambda e: e[0])
+        return entries[idx - 1][1] if idx > 0 else 0.0
 
     def _fetch_ticker_prices(
         self, tickers: list[str], config: dict, is_intraday: bool
@@ -332,14 +332,17 @@ class PortfolioService:
 
         if is_intraday:
             for ticker in tickers:
-                df = self._market_data.get_price_history_period(
-                    ticker, period=config["period"], interval=config["interval"]
-                )
-                if df is not None and not df.is_empty():
-                    dates = df["date"].to_list()
-                    prices = df["close_price"].to_list()
-                    ticker_data[ticker] = dict(zip(dates, prices))
-                    all_dates_set.update(dates)
+                try:
+                    df = self._market_data.get_price_history_period(
+                        ticker, period=config["period"], interval=config["interval"]
+                    )
+                    if df is not None and not df.is_empty():
+                        dates = df["date"].to_list()
+                        prices = df["close_price"].to_list()
+                        ticker_data[ticker] = dict(zip(dates, prices))
+                        all_dates_set.update(dates)
+                except Exception as e:
+                    logger.warning("Skipping intraday data for %s: %s", ticker, e)
         else:
             start = datetime.now() - timedelta(days=config["days"])
             earliest = self._securities_repo.get_earliest_purchase_date()

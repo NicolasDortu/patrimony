@@ -38,8 +38,9 @@ class YahooFinanceProvider(MarketDataProvider):
         with self._lock:
             now = time.monotonic()
             wait = self._last_call + _MIN_REQUEST_INTERVAL_S - now
-            if wait > 0:
-                time.sleep(wait)
+        if wait > 0:
+            time.sleep(wait)
+        with self._lock:
             self._last_call = time.monotonic()
             self._api_was_called = True
 

@@ -151,11 +151,34 @@ class CashOperationRepositoryImpl(CashOperationRepository):
             )
 
 
-class CashRepositoryImpl(CashRepository, CashOperationRepositoryImpl):
-    """Concrete implementation of CashRepository using DuckDB."""
+class CashRepositoryImpl(CashRepository):
+    """Concrete implementation of CashRepository using DuckDB.
+
+    Delegates operation methods to an internal CashOperationRepositoryImpl.
+    """
 
     def __init__(self, connection: DatabaseConnection):
-        super().__init__(connection)
+        self._conn = connection
+        self._operations = CashOperationRepositoryImpl(connection)
+
+    # ── Delegate operation methods to _operations ──
+    def add_operation_balance(self, *args, **kwargs):
+        return self._operations.add_operation_balance(*args, **kwargs)
+
+    def get_operations_by_account(self, account_number):
+        return self._operations.get_operations_by_account(account_number)
+
+    def get_all_operations(self):
+        return self._operations.get_all_operations()
+
+    def get_cash_balance_history(self):
+        return self._operations.get_cash_balance_history()
+
+    def delete_operation_by_id(self, id):
+        return self._operations.delete_operation_by_id(id)
+
+    def update_operation_by_id(self, *args, **kwargs):
+        return self._operations.update_operation_by_id(*args, **kwargs)
 
     def add_cash(
         self,

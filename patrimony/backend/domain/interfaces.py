@@ -113,25 +113,40 @@ class FileConnector(ABC):
         pass
 
 
-class WebConnector(ABC):
-    """Interface for browser-based automated data download."""
+class SiteConnector(ABC):
+    """Interface for a site-specific browser automation plugin.
+
+    Each site (broker or bank) implements this interface with its own
+    login flow, navigation, data mapping, and file download logic.
+    """
+
+    @property
+    @abstractmethod
+    def site_id(self) -> str:
+        """Unique identifier for this connector."""
+        pass
+
+    @property
+    @abstractmethod
+    def profile(self) -> ConnectorProfile:
+        """Data mapping configuration for this connector."""
+        pass
 
     @abstractmethod
-    async def execute_profile(
+    async def execute(
         self,
-        profile: ConnectorProfile,
         credentials: dict[str, str],
         download_dir: Path,
         on_status: Callable[[str], None] | None = None,
         headless: bool = False,
     ) -> Path:
-        """Execute a connector profile to download a file.
+        """Run the full browser automation to download a data file.
 
         Args:
-            profile: The connector profile with steps and URL.
             credentials: Dict with "username" and "password" keys.
             download_dir: Directory where the downloaded file will be saved.
             on_status: Optional callback receiving status messages.
+            headless: Whether to run the browser headless.
 
         Returns:
             Path to the downloaded file.

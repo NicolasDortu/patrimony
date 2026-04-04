@@ -3,8 +3,8 @@ import atexit
 import logging
 from pathlib import Path
 from contextlib import contextmanager
-import polars as pl
 
+import polars as pl
 import duckdb
 
 from . import ddl
@@ -37,10 +37,10 @@ class DatabaseConnection:
 
     def _load_reference_data(self) -> None:
         """Load tickers reference table from CSV if empty."""
-        count = self.conn.execute("SELECT COUNT(*) FROM tickers_reference").fetchone()[
-            0
-        ]
-        if count > 0:
+        filled = self.conn.execute(
+            "SELECT EXISTS (SELECT 1 FROM tickers_reference)"
+        ).fetchone()[0]
+        if filled:
             return
 
         csv_path = Path(__file__).parent / "data" / "tickers.csv"

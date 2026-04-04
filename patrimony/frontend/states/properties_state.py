@@ -1,14 +1,17 @@
 """State management for physical properties (real estate, valuables, etc.)."""
 
+import logging
 from datetime import datetime
 from typing import Union
 
 import reflex as rx
 
 from ..services import PropertyService, Property
-from ..utils import export_csv
+from ..utils import export_csv, parse_form_date
 from .mixins import PaginationMixin, SearchSortMixin, apply_sort_and_search
 from .spreadsheet_mixin import SpreadsheetMixin
+
+logger = logging.getLogger(__name__)
 
 PROPERTY_CATEGORIES = [
     "Real Estate",
@@ -50,12 +53,17 @@ class PropertiesState(SpreadsheetMixin, SearchSortMixin, PaginationMixin, rx.Sta
 
     @rx.event
     def load_entries(self) -> None:
-        items = PropertyService.get_all_properties()
-        for p in items:
-            raw = p.get("purchase_date", "")
-            p["purchase_date"] = str(raw)[:10] if raw else ""
-        self.items = items
-        self.total_items = len(self.items)
+        try:
+            items = PropertyService.get_all_properties()
+            for p in items:
+                raw = p.get("purchase_date", "")
+                p["purchase_date"] = str(raw)[:10] if raw else ""
+            self.items = items
+            self.total_items = len(self.items)
+        except Exception as e:
+            logger.error("Failed to load properties: %s", e)
+            self.items = []
+            self.total_items = 0
 
     def toggle_sort(self) -> None:
         self.sort_reverse = not self.sort_reverse
@@ -64,9 +72,7 @@ class PropertiesState(SpreadsheetMixin, SearchSortMixin, PaginationMixin, rx.Sta
     @rx.event
     def add_property(self, form_data: dict) -> None:
         date_str = form_data.get("purchase_date", "")
-        purchase_date = (
-            datetime.strptime(date_str, "%Y-%m-%d") if date_str else datetime.now()
-        )
+        purchase_date = parse_form_date(date_str)
         result = PropertyService.add_property(
             name=form_data.get("name", ""),
             value=float(form_data.get("value", 0)),

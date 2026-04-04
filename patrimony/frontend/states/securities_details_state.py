@@ -1,4 +1,5 @@
 from typing import Union
+import logging
 
 import reflex as rx
 
@@ -16,6 +17,8 @@ from ..utils import export_csv
 from .dividends_state import DividendsState
 from .mixins import PaginationMixin, SearchSortMixin, apply_sort_and_search
 from .spreadsheet_mixin import SpreadsheetMixin
+
+logger = logging.getLogger(__name__)
 
 
 class TableStateDetails(SpreadsheetMixin, SearchSortMixin, PaginationMixin, rx.State):
@@ -37,23 +40,30 @@ class TableStateDetails(SpreadsheetMixin, SearchSortMixin, PaginationMixin, rx.S
         """Handle page load - get ticker from URL and load entries."""
         self.is_loading = True
         yield
-        ticker = self.router.url.query_parameters.get("ticker", "")
-        self.ticker = ticker
-        self.load_entries()
-        await self._load_chart_data()
-        # Load current price from aggregated positions
-        theme_state = await self.get_state(ThemeState)
-        agg = SecuritiesService.get_aggregated_positions(theme_state.default_currency)
-        for pos in agg:
-            if pos.get("ticker", "").upper() == ticker.upper():
-                self.current_price = pos.get("current_price", 0.0) or 0.0
-                break
-        dividends_state = await self.get_state(DividendsState)
-        dividends_state.ticker = ticker
-        dividends_state.load_entries()
-        self.is_loading = False
-        if was_market_data_fetched():
-            yield rx.toast.info("Market data refreshed", position="bottom-right")
+        try:
+            ticker = self.router.url.query_parameters.get("ticker", "")
+            self.ticker = ticker
+            self.load_entries()
+            await self._load_chart_data()
+            # Load current price from aggregated positions
+            theme_state = await self.get_state(ThemeState)
+            agg = SecuritiesService.get_aggregated_positions(
+                theme_state.default_currency
+            )
+            for pos in agg:
+                if pos.get("ticker", "").upper() == ticker.upper():
+                    self.current_price = pos.get("current_price", 0.0) or 0.0
+                    break
+            dividends_state = await self.get_state(DividendsState)
+            dividends_state.ticker = ticker
+            dividends_state.load_entries()
+            if was_market_data_fetched():
+                yield rx.toast.info("Market data refreshed", position="bottom-right")
+        except Exception as e:
+            logger.error("Failed to load security details for %s: %s", self.ticker, e)
+            yield rx.toast.error(str(e), position="bottom-right")
+        finally:
+            self.is_loading = False
 
     @rx.event
     def set_ticker(self, ticker: str) -> None:
@@ -78,9 +88,14 @@ class TableStateDetails(SpreadsheetMixin, SearchSortMixin, PaginationMixin, rx.S
 
     @rx.event
     def load_entries(self) -> None:
-        positions = SecuritiesService.get_positions_by_ticker(self.ticker)
-        self.items = [SecurityPosition(**pos) for pos in positions]
-        self.total_items = len(self.items)
+        try:
+            positions = SecuritiesService.get_positions_by_ticker(self.ticker)
+            self.items = [SecurityPosition(**pos) for pos in positions]
+            self.total_items = len(self.items)
+        except Exception as e:
+            logger.error("Failed to load positions for %s: %s", self.ticker, e)
+            self.items = []
+            self.total_items = 0
 
     def toggle_sort(self) -> None:
         self.sort_reverse = not self.sort_reverse

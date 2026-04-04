@@ -11,11 +11,11 @@ def _status_badge(status: str) -> rx.Component:
     """Color-coded status badge."""
     return rx.cond(
         status == "success",
-        rx.badge("Success", color_scheme="green", size="1"),
+        rx.badge(t("connector.status_success"), color_scheme="green", size="1"),
         rx.cond(
             status == "partial",
-            rx.badge("Partial", color_scheme="orange", size="1"),
-            rx.badge("Failed", color_scheme="red", size="1"),
+            rx.badge(t("connector.status_partial"), color_scheme="orange", size="1"),
+            rx.badge(t("connector.status_failed"), color_scheme="red", size="1"),
         ),
     )
 
@@ -53,13 +53,13 @@ def _history_row(entry: dict) -> rx.Component:
             rx.hstack(
                 rx.badge(
                     rx.text(
-                        entry["imported"].to(str) + " imported",
+                        entry["imported"].to(str) + " " + t("connector.imported"),
                     ),
                     color_scheme="green",
                     size="1",
                 ),
                 rx.badge(
-                    rx.text(entry["skipped"].to(str) + " skipped"),
+                    rx.text(entry["skipped"].to(str) + " " + t("connector.skipped")),
                     color_scheme="orange",
                     size="1",
                 ),
@@ -103,14 +103,14 @@ def _detail_dialog() -> rx.Component:
     """Dialog to view/edit the source file path for a file connector entry."""
     return rx.dialog.root(
         rx.dialog.content(
-            rx.dialog.title("Connector Details"),
+            rx.dialog.title(t("connector.connector_details")),
             rx.dialog.description(
                 ConnectorHistoryState.detail_source_name,
                 size="2",
                 color=rx.color("gray", 9),
             ),
             rx.vstack(
-                rx.text("Source file path", size="2", weight="bold"),
+                rx.text(t("connector.source_path"), size="2", weight="bold"),
                 rx.input(
                     value=ConnectorHistoryState.detail_path_input,
                     on_change=ConnectorHistoryState.set_detail_path_input,
@@ -125,13 +125,13 @@ def _detail_dialog() -> rx.Component:
                 rx.spacer(),
                 rx.dialog.close(
                     rx.button(
-                        "Cancel",
+                        t("btn.cancel"),
                         variant="outline",
                         on_click=ConnectorHistoryState.cancel_detail,
                     ),
                 ),
                 rx.button(
-                    "Save",
+                    t("btn.save_short"),
                     on_click=ConnectorHistoryState.save_detail_path,
                 ),
                 spacing="3",
@@ -147,9 +147,9 @@ def _unlock_dialog() -> rx.Component:
     """Dialog to unlock the credential vault before refreshing a web connector."""
     return rx.dialog.root(
         rx.dialog.content(
-            rx.dialog.title("Unlock Credentials"),
+            rx.dialog.title(t("connector.unlock_credentials")),
             rx.dialog.description(
-                "Enter your master password to unlock stored credentials.",
+                t("connector.unlock_credentials_desc"),
                 size="2",
             ),
             rx.vstack(
@@ -157,7 +157,7 @@ def _unlock_dialog() -> rx.Component:
                     value=ConnectorHistoryState.master_password_input,
                     on_change=ConnectorHistoryState.set_master_password_input,
                     type="password",
-                    placeholder="Master password",
+                    placeholder=t("connector.master_password"),
                     width="100%",
                 ),
                 spacing="2",
@@ -168,13 +168,13 @@ def _unlock_dialog() -> rx.Component:
                 rx.spacer(),
                 rx.dialog.close(
                     rx.button(
-                        "Cancel",
+                        t("btn.cancel"),
                         variant="outline",
                         on_click=ConnectorHistoryState.cancel_unlock,
                     ),
                 ),
                 rx.button(
-                    "Unlock & Refresh",
+                    t("connector.unlock_refresh"),
                     on_click=ConnectorHistoryState.submit_unlock_and_refresh,
                 ),
                 spacing="3",
@@ -191,11 +191,11 @@ def _history_section() -> rx.Component:
     return rx.vstack(
         rx.hstack(
             rx.icon("history", size=20, color=rx.color("accent", 9)),
-            rx.heading("Active Connectors", size="4"),
+            rx.heading(t("connector.active_connectors"), size="4"),
             rx.spacer(),
             rx.button(
                 rx.icon("refresh-cw", size=14),
-                "Refresh",
+                t("btn.refresh"),
                 variant="outline",
                 size="1",
                 on_click=ConnectorHistoryState.load_history,
@@ -212,8 +212,7 @@ def _history_section() -> rx.Component:
             ),
             rx.callout(
                 rx.text(
-                    "No active connectors yet. Use one of the connectors above "
-                    "to import your portfolio data.",
+                    t("connector.no_active"),
                     size="2",
                 ),
                 icon="info",

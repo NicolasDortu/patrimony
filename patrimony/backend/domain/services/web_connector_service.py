@@ -1,7 +1,7 @@
 """Domain service for web-based automated data import.
 
-Orchestrates browser automation, file download, and ingestion
-through the existing file import pipeline.
+Orchestrates site connector selection, browser automation,
+file download, and ingestion through the file import pipeline.
 """
 
 import asyncio
@@ -12,8 +12,7 @@ import tempfile
 from pathlib import Path
 
 from ..entities import ConnectorProfile, EntryType, WebConnectorResult
-from ..interfaces import FileConnector, WebConnector
-from ..repositories import ConnectorProfileRepository
+from ..interfaces import FileConnector, SiteConnector
 from .file_connector_service import FileConnectorService
 
 logger = logging.getLogger(__name__)
@@ -22,50 +21,40 @@ logger = logging.getLogger(__name__)
 class WebConnectorService:
     """Orchestrates the full web connector pipeline.
 
-    1. Load profile
+    1. Resolve the site connector by ID
     2. Execute browser automation to download a file
     3. Read the downloaded file
-    4. Apply the profile's column mapping
-    5. Import via existing ConnectorService
+    4. Apply the connector's column mapping
+    5. Import via existing FileConnectorService
     """
 
     def __init__(
         self,
-        web_connector: WebConnector,
+        site_connectors: list[SiteConnector],
         file_connector: FileConnector,
         connector_service: FileConnectorService,
-        profile_repo: ConnectorProfileRepository,
     ):
-        self._web_connector = web_connector
+        self._sites: dict[str, SiteConnector] = {s.site_id: s for s in site_connectors}
         self._file_connector = file_connector
         self._connector_service = connector_service
-        self._profile_repo = profile_repo
 
     def list_profiles(self) -> list[ConnectorProfile]:
         """Return all available connector profiles."""
-        return self._profile_repo.list_profiles()
+        return [s.profile for s in self._sites.values()]
 
-    def get_profile(self, profile_id: str) -> ConnectorProfile | None:
+    def get_profile(self, site_id: str) -> ConnectorProfile | None:
         """Load a specific connector profile."""
-        return self._profile_repo.get_profile(profile_id)
+        site = self._sites.get(site_id)
+        return site.profile if site else None
 
     def run_connector(
         self,
-        profile_id: str,
+        site_id: str,
         credentials: dict[str, str],
         on_status: Callable[[str], None] | None = None,
         headless: bool = False,
     ) -> WebConnectorResult:
-        """Execute the full web connector pipeline synchronously.
-
-        Args:
-            profile_id: ID of the connector profile to use.
-            credentials: Dict with "username" and "password".
-            on_status: Optional callback for status updates.
-
-        Returns:
-            WebConnectorResult with import counts and any errors.
-        """
+        """Execute the full web connector pipeline synchronously."""
         status_log: list[str] = []
 
         def _log(msg: str) -> None:
@@ -74,15 +63,16 @@ class WebConnectorService:
             if on_status:
                 on_status(msg)
 
-        # 1. Load profile
-        profile = self._profile_repo.get_profile(profile_id)
-        if not profile:
+        # 1. Resolve site connector
+        site = self._sites.get(site_id)
+        if not site:
             return WebConnectorResult(
                 success=False,
-                errors=[f"Profile '{profile_id}' not found."],
-                status_log=["Profile not found."],
+                errors=[f"No connector registered for '{site_id}'."],
+                status_log=[f"No connector for '{site_id}'."],
             )
 
+        profile = site.profile
         _log(f"Loaded profile: {profile.name}")
 
         # 2. Execute browser automation
@@ -96,8 +86,7 @@ class WebConnectorService:
                 with ThreadPoolExecutor(1) as pool:
                     downloaded_file = pool.submit(
                         asyncio.run,
-                        self._web_connector.execute_profile(
-                            profile=profile,
+                        site.execute(
                             credentials=credentials,
                             download_dir=download_dir,
                             on_status=_log,

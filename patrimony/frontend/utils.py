@@ -1,9 +1,24 @@
 """Shared utility functions for the frontend layer."""
 
 import os
+from datetime import datetime
 from pathlib import Path
 
 import reflex as rx
+
+
+def parse_form_date(value: str, default: datetime | None = None) -> datetime:
+    """Parse a date string from an HTML form input.
+
+    Accepts ISO-8601 / ``YYYY-MM-DD`` strings.  Returns *default* (or
+    ``datetime.now()``) when *value* is empty or cannot be parsed.
+    """
+    if not value:
+        return default or datetime.now()
+    try:
+        return datetime.fromisoformat(value)
+    except (ValueError, TypeError):
+        return default or datetime.now()
 
 
 def get_settings_path() -> Path:

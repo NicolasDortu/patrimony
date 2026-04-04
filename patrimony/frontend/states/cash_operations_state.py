@@ -5,7 +5,7 @@ from datetime import datetime
 import reflex as rx
 
 from ..services import CashService, EntryType
-from ..utils import export_csv
+from ..utils import export_csv, parse_form_date
 from .aggregation_helpers import (
     aggregate_expenses_by_category,
     aggregate_monthly_income_expense,
@@ -83,11 +83,7 @@ class CashOperationsState(SpreadsheetMixin, SearchSortMixin, PaginationMixin, rx
             title = form_data.get("title", "")
             category = form_data.get("category", "Uncategorized")
             operation_date_str = form_data.get("operation_date", "")
-
-            if operation_date_str:
-                operation_date = datetime.fromisoformat(operation_date_str)
-            else:
-                operation_date = datetime.now()
+            operation_date = parse_form_date(operation_date_str)
 
             result = CashService.add_operation_balance(
                 account_number=self.account_number,

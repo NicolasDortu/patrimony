@@ -5,6 +5,7 @@ from reflex.components.radix.themes.base import (
 
 from ..states.notification_state import NotificationState
 from ..styles import styles
+from ..templates import t
 
 
 def _level_color(level: str) -> str:
@@ -62,12 +63,12 @@ def notification(icon: str, color: LiteralAccentColor) -> rx.Component:
         rx.popover.content(
             rx.vstack(
                 rx.hstack(
-                    rx.text("Events", size="3", weight="bold"),
+                    rx.text(t("notification.title"), size="3", weight="bold"),
                     rx.spacer(),
                     rx.cond(
                         NotificationState.has_events,
                         rx.button(
-                            "Clear",
+                            t("btn.clear"),
                             size="1",
                             variant="ghost",
                             on_click=NotificationState.clear_events,
@@ -90,7 +91,7 @@ def notification(icon: str, color: LiteralAccentColor) -> rx.Component:
                     ),
                     rx.center(
                         rx.text(
-                            "No events yet",
+                            t("notification.empty"),
                             size="2",
                             color=rx.color("gray", 9),
                         ),

@@ -4,8 +4,8 @@ from ..infrastructure.database.connection import DatabaseConnection
 from ..infrastructure.integrations import (
     YahooFinanceProvider,
     ExcelCsvConnector,
-    PlaywrightConnector,
 )
+from ..infrastructure.integrations.web_connector import SITE_CONNECTORS
 from ..domain.services.file_connector_service import FileConnectorService
 from ..domain.services.currency_service import CurrencyService
 from ..domain.services.portfolio_service import PortfolioService
@@ -18,11 +18,11 @@ from ..infrastructure.repositories import (
     ReferenceRepositoryImpl,
     CurrencyRepositoryImpl,
     DividendRepositoryImpl,
-    ConnectorProfileRepositoryImpl,
     CredentialRepositoryImpl,
     ImportHashRepositoryImpl,
     ConnectorHistoryRepositoryImpl,
     PropertyRepositoryImpl,
+    EventLogRepositoryImpl,
 )
 
 
@@ -43,7 +43,9 @@ class Container(containers.DeclarativeContainer):
     # External Services - Singletons
     market_data_provider = providers.Singleton(YahooFinanceProvider)
     file_connector = providers.Singleton(ExcelCsvConnector)
-    web_connector = providers.Singleton(PlaywrightConnector)
+
+    # Site Connectors
+    site_connectors = providers.Object(SITE_CONNECTORS)
 
     # Repository Layer - Singletons (stateless, share singleton DB connection)
     cash_repository = providers.Singleton(
@@ -77,10 +79,6 @@ class Container(containers.DeclarativeContainer):
         connection=database,
     )
 
-    connector_profile_repository = providers.Singleton(
-        ConnectorProfileRepositoryImpl,
-    )
-
     import_hash_repository = providers.Singleton(
         ImportHashRepositoryImpl,
         connection=database,
@@ -98,6 +96,11 @@ class Container(containers.DeclarativeContainer):
 
     property_repository = providers.Singleton(
         PropertyRepositoryImpl,
+        connection=database,
+    )
+
+    event_log_repository = providers.Singleton(
+        EventLogRepositoryImpl,
         connection=database,
     )
 
@@ -137,10 +140,9 @@ class Container(containers.DeclarativeContainer):
 
     web_connector_service = providers.Factory(
         WebConnectorService,
-        web_connector=web_connector,
+        site_connectors=site_connectors,
         file_connector=file_connector,
         connector_service=connector_service,
-        profile_repo=connector_profile_repository,
     )
 
 

@@ -1,12 +1,16 @@
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Union
+import logging
 
 import reflex as rx
 
 from ..services import DividendService
+from ..utils import parse_form_date
 from .mixins import PaginationMixin
 from .spreadsheet_mixin import SpreadsheetMixin
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(slots=True)
@@ -43,15 +47,20 @@ class DividendsState(SpreadsheetMixin, PaginationMixin, rx.State):
             self.items = []
             self.total_items = 0
             return
-        dividends = DividendService.get_dividends_by_ticker(self.ticker)
-        self.items = [Dividend(**d) for d in dividends]
-        self.total_items = len(self.items)
+        try:
+            dividends = DividendService.get_dividends_by_ticker(self.ticker)
+            self.items = [Dividend(**d) for d in dividends]
+            self.total_items = len(self.items)
+        except Exception as e:
+            logger.error("Failed to load dividends for %s: %s", self.ticker, e)
+            self.items = []
+            self.total_items = 0
 
     @rx.event
     def add_dividend(self, form_data: dict) -> None:
         """Add a new dividend from form data."""
         date_str = form_data.get("date", "")
-        date = datetime.strptime(date_str, "%Y-%m-%d") if date_str else datetime.now()
+        date = parse_form_date(date_str)
 
         result = DividendService.add_dividend(
             ticker=self.ticker,

@@ -50,20 +50,10 @@ class CashTableState(SpreadsheetMixin, SearchSortMixin, PaginationMixin, rx.Stat
     def load_entries(self) -> None:
         """Load all cash entries from the database."""
         cash_entries = CashService.get_all_cash()
-        # Enrich each entry with its current balance
-        for entry in cash_entries:
-            try:
-                balance = CashService.get_balance(entry.get("account_number", ""))
-                entry["balance"] = balance if balance is not None else 0.0
-            except Exception as e:
-                logger.warning(
-                    "Failed to get balance for account %s: %s",
-                    entry.get("account_number", ""),
-                    e,
-                )
-                entry["balance"] = 0.0
         self.items = cash_entries
         self.total_items = len(self.items)
+        # Cache operations for computed vars
+        self._cached_operations = CashService.get_all_operations()
 
     def toggle_sort(self) -> None:
         self.sort_reverse = not self.sort_reverse
@@ -119,15 +109,18 @@ class CashTableState(SpreadsheetMixin, SearchSortMixin, PaginationMixin, rx.Stat
             f"/cash_operations?account_number={account_number}&currency={currency}"
         )
 
+    # Cached operations to avoid double query in computed vars
+    _cached_operations: list[dict] = []
+
     @rx.var
     def all_operations_expense_data(self) -> list[dict]:
         """Aggregate all operations across all accounts into monthly income vs expense."""
-        return aggregate_monthly_income_expense(CashService.get_all_operations())
+        return aggregate_monthly_income_expense(self._cached_operations)
 
     @rx.var
     def all_operations_category_data(self) -> list[dict]:
         """Aggregate expenses by category across all accounts."""
-        return aggregate_expenses_by_category(CashService.get_all_operations())
+        return aggregate_expenses_by_category(self._cached_operations)
 
     @rx.var
     def balance_by_account_data(self) -> list[dict]:
@@ -155,12 +148,6 @@ class CashTableState(SpreadsheetMixin, SearchSortMixin, PaginationMixin, rx.Stat
 
     def _load_spreadsheet_rows(self) -> tuple[list[list], list]:
         cash_entries = CashService.get_all_cash()
-        for entry in cash_entries:
-            try:
-                balance = CashService.get_balance(entry.get("account_number", ""))
-                entry["balance"] = balance if balance is not None else 0.0
-            except Exception:
-                entry["balance"] = 0.0
         data = [
             [
                 e.get("bank", ""),

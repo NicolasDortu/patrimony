@@ -1,4 +1,5 @@
 from typing import Union
+import logging
 
 import reflex as rx
 
@@ -13,9 +14,11 @@ from ..services import (
     was_market_data_fetched,
 )
 from ..templates import ThemeState
-from ..utils import export_csv
+from ..utils import export_csv, parse_form_date
 from .mixins import PaginationMixin, SearchSortMixin, apply_sort_and_search
 from .spreadsheet_mixin import SpreadsheetMixin
+
+logger = logging.getLogger(__name__)
 
 
 class TableStateTotal(SpreadsheetMixin, SearchSortMixin, PaginationMixin, rx.State):
@@ -117,18 +120,23 @@ class TableStateTotal(SpreadsheetMixin, SearchSortMixin, PaginationMixin, rx.Sta
 
     @rx.event
     async def load_entries(self) -> None:
-        theme_state = await self.get_state(ThemeState)
-        self._asset_colors = {
-            "STOCK": f"var(--{theme_state.stock_color}-9)",
-            "ETF": f"var(--{theme_state.etf_color}-9)",
-            "CRYPTO": f"var(--{theme_state.crypto_color}-9)",
-            "COMMODITY": f"var(--{theme_state.commodity_color}-9)",
-        }
-        positions = SecuritiesService.get_aggregated_positions(
-            theme_state.default_currency
-        )
-        self.items = [SecurityTotal(**pos) for pos in positions]
-        self.total_items = len(self.items)
+        try:
+            theme_state = await self.get_state(ThemeState)
+            self._asset_colors = {
+                "STOCK": f"var(--{theme_state.stock_color}-9)",
+                "ETF": f"var(--{theme_state.etf_color}-9)",
+                "CRYPTO": f"var(--{theme_state.crypto_color}-9)",
+                "COMMODITY": f"var(--{theme_state.commodity_color}-9)",
+            }
+            positions = SecuritiesService.get_aggregated_positions(
+                theme_state.default_currency
+            )
+            self.items = [SecurityTotal(**pos) for pos in positions]
+            self.total_items = len(self.items)
+        except Exception as e:
+            logger.error("Failed to load securities: %s", e)
+            self.items = []
+            self.total_items = 0
 
     @rx.event
     async def on_page_load(self):
@@ -187,9 +195,7 @@ class TableStateTotal(SpreadsheetMixin, SearchSortMixin, PaginationMixin, rx.Sta
         ticker = form_data.get("ticker", self.ticker_search).upper()
         asset_type_str = form_data.get("asset_type", self.selected_asset_type)
         date_str = form_data.get("date", "")
-        purchase_date = (
-            datetime.strptime(date_str, "%Y-%m-%d") if date_str else datetime.now()
-        )
+        purchase_date = parse_form_date(date_str)
         result = SecuritiesService.add_position(
             ticker=ticker,
             price=float(form_data.get("price", 0)),

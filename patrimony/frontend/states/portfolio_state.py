@@ -1,11 +1,14 @@
 """State management for portfolio data and wealth visualization."""
 
+import logging
 from typing import Literal
 
 import reflex as rx
 
 from ..services import DividendService, PortfolioService, was_market_data_fetched
 from ..templates import ThemeState
+
+logger = logging.getLogger(__name__)
 
 
 AssetFilter = Literal[
@@ -313,28 +316,35 @@ class PortfolioState(rx.State):
     async def load_portfolio_data(self):
         """Load all portfolio data from models service."""
         self.is_loaded = False
-        theme_state = await self.get_state(ThemeState)
-        self._asset_colors = {
-            at: getattr(theme_state, f"{at.lower()}_color", default)
-            for at, default in self._ASSET_COLOR_DEFAULTS.items()
-        }
-        portfolio_data = PortfolioService.get_portfolio_overview(
-            theme_state.default_currency
-        )
+        try:
+            theme_state = await self.get_state(ThemeState)
+            self._asset_colors = {
+                at: getattr(theme_state, f"{at.lower()}_color", default)
+                for at, default in self._ASSET_COLOR_DEFAULTS.items()
+            }
+            portfolio_data = PortfolioService.get_portfolio_overview(
+                theme_state.default_currency
+            )
 
-        self._stocks_total_data = portfolio_data.securities_total
-        self._cash_data = portfolio_data.cash_entries
+            self._stocks_total_data = portfolio_data.securities_total
+            self._cash_data = portfolio_data.cash_entries
 
-        self.total_value = portfolio_data.total_value
-        self.total_invested = portfolio_data.total_invested
-        self.total_return = portfolio_data.total_return
-        self.stocks_value = portfolio_data.securities_value
-        self.cash_value = portfolio_data.cash_value
-        self.properties_value = portfolio_data.properties_value
+            self.total_value = portfolio_data.total_value
+            self.total_invested = portfolio_data.total_invested
+            self.total_return = portfolio_data.total_return
+            self.stocks_value = portfolio_data.securities_value
+            self.cash_value = portfolio_data.cash_value
+            self.properties_value = portfolio_data.properties_value
 
-        await self._load_chart_data()
-        self._dividends_data = DividendService.get_all_dividends()
-        self._total_dividends = DividendService.get_total_amount()
-        self.is_loaded = True
+            await self._load_chart_data()
+            self._dividends_data = DividendService.get_all_dividends()
+            self._total_dividends = DividendService.get_total_amount()
+        except Exception as e:
+            logger.error("Failed to load portfolio data: %s", e)
+            yield rx.toast.error(
+                f"Failed to load portfolio: {e}", position="top-center"
+            )
+        finally:
+            self.is_loaded = True
         if was_market_data_fetched():
             yield rx.toast.info("Market data refreshed", position="bottom-right")

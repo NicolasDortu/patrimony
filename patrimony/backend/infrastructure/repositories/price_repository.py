@@ -45,6 +45,8 @@ class PriceRepositoryImpl(PriceRepository):
         price = self._market_data.get_current_price(ticker)
         if price:
             self.cache_price(ticker, price, datetime.now())
+        else:
+            logger.debug("No price returned for %s", ticker)
 
         return price
 
@@ -167,7 +169,10 @@ class PriceRepositoryImpl(PriceRepository):
                 logger.debug("Rate-limit pause after %d/%d tickers", idx, len(ordered))
                 time.sleep(_SYNC_BATCH_DELAY_S)
 
-            self._sync_single_ticker(ticker, start_date, today, period)
+            try:
+                self._sync_single_ticker(ticker, start_date, today, period)
+            except Exception as e:
+                logger.warning("Skipping price sync for %s: %s", ticker, e)
 
     def _sync_single_ticker(
         self,

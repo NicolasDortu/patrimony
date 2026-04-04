@@ -1,5 +1,6 @@
 import reflex as rx
 
+from ...templates import t
 from ...templates.template import ThemeState
 
 
@@ -8,7 +9,7 @@ def scaling_picker() -> rx.Component:
         rx.vstack(
             rx.hstack(
                 rx.icon("ruler"),
-                rx.heading("Scaling", size="6"),
+                rx.heading(t("settings.scaling"), size="6"),
                 align="center",
             ),
             rx.select(

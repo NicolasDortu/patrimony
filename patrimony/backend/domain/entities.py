@@ -5,6 +5,7 @@ from typing import Optional
 import polars as pl
 
 
+### Domain entities representing core data structures in the application. ###
 class AssetType(StrEnum):
     """Asset classification."""
 
@@ -25,6 +26,39 @@ class EntryType(StrEnum):
     CSV = "CSV"
     EXCEL = "EXCEL"
     API = "API"
+
+
+# Centralised currency metadata — (label, symbol) per code.
+_CURRENCY_INFO: dict[str, tuple[str, str]] = {
+    "USD": ("USD - US Dollar", "$"),
+    "EUR": ("EUR - Euro", "€"),
+    "GBP": ("GBP - British Pound", "£"),
+    "JPY": ("JPY - Japanese Yen", "¥"),
+    "CHF": ("CHF - Swiss Franc", "CHF"),
+    "CAD": ("CAD - Canadian Dollar", "CA$"),
+    "AUD": ("AUD - Australian Dollar", "A$"),
+    "NZD": ("NZD - New Zealand Dollar", "NZ$"),
+    "CNY": ("CNY - Chinese Renminbi", "CN¥"),
+    "HKD": ("HKD - Hong Kong Dollar", "HK$"),
+    "SGD": ("SGD - Singapore Dollar", "S$"),
+    "SEK": ("SEK - Swedish Krona", "kr"),
+    "NOK": ("NOK - Norwegian Krone", "kr"),
+    "DKK": ("DKK - Danish Krone", "kr"),
+    "KRW": ("KRW - South Korean Won", "₩"),
+    "INR": ("INR - Indian Rupee", "₹"),
+    "BRL": ("BRL - Brazilian Real", "R$"),
+    "MXN": ("MXN - Mexican Peso", "MX$"),
+    "ZAR": ("ZAR - South African Rand", "R"),
+    "TRY": ("TRY - Turkish Lira", "₺"),
+    "PLN": ("PLN - Polish Zloty", "zł"),
+    "THB": ("THB - Thai Baht", "฿"),
+    "TWD": ("TWD - Taiwan Dollar", "NT$"),
+    "CZK": ("CZK - Czech Koruna", "Kč"),
+    "HUF": ("HUF - Hungarian Forint", "Ft"),
+    "ILS": ("ILS - Israeli Shekel", "₪"),
+    "AED": ("AED - UAE Dirham", "AED"),
+    "SAR": ("SAR - Saudi Riyal", "﷼"),
+}
 
 
 class Currency(StrEnum):
@@ -62,72 +96,14 @@ class Currency(StrEnum):
     @property
     def label(self) -> str:
         """Human-readable label for the currency."""
-        labels = {
-            "USD": "USD - US Dollar",
-            "EUR": "EUR - Euro",
-            "GBP": "GBP - British Pound",
-            "JPY": "JPY - Japanese Yen",
-            "CHF": "CHF - Swiss Franc",
-            "CAD": "CAD - Canadian Dollar",
-            "AUD": "AUD - Australian Dollar",
-            "NZD": "NZD - New Zealand Dollar",
-            "CNY": "CNY - Chinese Renminbi",
-            "HKD": "HKD - Hong Kong Dollar",
-            "SGD": "SGD - Singapore Dollar",
-            "SEK": "SEK - Swedish Krona",
-            "NOK": "NOK - Norwegian Krone",
-            "DKK": "DKK - Danish Krone",
-            "KRW": "KRW - South Korean Won",
-            "INR": "INR - Indian Rupee",
-            "BRL": "BRL - Brazilian Real",
-            "MXN": "MXN - Mexican Peso",
-            "ZAR": "ZAR - South African Rand",
-            "TRY": "TRY - Turkish Lira",
-            "PLN": "PLN - Polish Zloty",
-            "THB": "THB - Thai Baht",
-            "TWD": "TWD - Taiwan Dollar",
-            "CZK": "CZK - Czech Koruna",
-            "HUF": "HUF - Hungarian Forint",
-            "ILS": "ILS - Israeli Shekel",
-            "AED": "AED - UAE Dirham",
-            "SAR": "SAR - Saudi Riyal",
-        }
-        return labels.get(self.value, self.value)
+        info = _CURRENCY_INFO.get(self.value)
+        return info[0] if info else self.value
 
     @property
     def symbols(self) -> str:
-        """Symbols for the currency."""
-        symbols = {
-            "USD": "$",
-            "EUR": "€",
-            "GBP": "£",
-            "JPY": "¥",
-            "CHF": "CHF",
-            "CAD": "CA$",
-            "AUD": "A$",
-            "NZD": "NZ$",
-            "HKD": "HK$",
-            "SGD": "S$",
-            "MXN": "MX$",
-            "CNY": "CN¥",
-            "SEK": "kr",
-            "NOK": "kr",
-            "DKK": "kr",
-            "KRW": "₩",
-            "INR": "₹",
-            "BRL": "R$",
-            "ZAR": "R",
-            "TRY": "₺",
-            "PLN": "zł",
-            "THB": "฿",
-            "TWD": "NT$",
-            "CZK": "Kč",
-            "HUF": "Ft",
-            "ILS": "₪",
-            "AED": "AED",
-            "SAR": "﷼",
-        }
-        return symbols.get(self.value, self.value)
+        """Symbol for the currency."""
+        info = _CURRENCY_INFO.get(self.value)
+        return info[1] if info else self.value
 
 
 @dataclass(slots=True)
@@ -144,24 +120,17 @@ class PortfolioOverview:
     properties_value: float = 0.0
 
 
-@dataclass(slots=True)
-class ConnectorStep:
-    """A single automation step in a web connector profile."""
-
-    action: str  # "fill", "click", "wait", "download"
-    selector: str = ""
-    value: str = ""
-    timeout: int = 30
-
-
+### Entities related to web connector configuration and results. ###
 @dataclass(slots=True)
 class ConnectorProfile:
-    """Definition of a web connector for a specific broker/bank."""
+    """Data mapping configuration for a web connector.
+
+    Each broker plugin owns its own URL and navigation logic.
+    The profile holds only the data-mapping and import settings.
+    """
 
     id: str
     name: str
-    url: str
-    steps: list[ConnectorStep]
     column_mapping: dict[str, str]
     import_mode: str = "positions"  # "positions" or "cash"
     delimiter: str = ","

@@ -3,6 +3,7 @@
 import reflex as rx
 
 from ...states.web_connector_state import WebConnectorState
+from ...templates import t
 
 
 # ============================================================================
@@ -42,9 +43,9 @@ def _profile_card(profile: dict) -> rx.Component:
 def step_select_profile() -> rx.Component:
     """Profile selection step."""
     return rx.vstack(
-        rx.text("Select a connector profile:", weight="bold", size="3"),
+        rx.text(t("web_connector.select_profile"), weight="bold", size="3"),
         rx.text(
-            "Choose the broker or bank you want to import data from.",
+            t("web_connector.select_profile_desc"),
             size="2",
             color=rx.color("gray", 10),
         ),
@@ -58,8 +59,7 @@ def step_select_profile() -> rx.Component:
             ),
             rx.callout(
                 rx.text(
-                    "No connector profiles available. "
-                    "Add profile JSON files to the connector_profiles directory.",
+                    t("web_connector.no_profiles"),
                     size="2",
                 ),
                 icon="info",
@@ -90,20 +90,18 @@ def _master_password_overlay() -> rx.Component:
                         rx.hstack(
                             rx.icon("key-round", size=20, color=rx.color("accent", 9)),
                             rx.text(
-                                "Set up a master password", weight="bold", size="3"
+                                t("web_connector.setup_master"), weight="bold", size="3"
                             ),
                             align="center",
                             spacing="2",
                         ),
                         rx.text(
-                            "Create a master password to securely store your broker "
-                            "credentials. You can skip this if you prefer to enter "
-                            "credentials each time.",
+                            t("web_connector.setup_master_desc"),
                             size="2",
                             color=rx.color("gray", 10),
                         ),
                         rx.input(
-                            placeholder="Choose a master password (min 4 chars)",
+                            placeholder=t("web_connector.master_placeholder"),
                             type="password",
                             value=WebConnectorState.master_password_input,
                             on_change=WebConnectorState.set_master_password_input,
@@ -112,7 +110,7 @@ def _master_password_overlay() -> rx.Component:
                         ),
                         rx.button(
                             rx.icon("lock", size=16),
-                            "Set Master Password",
+                            t("web_connector.set_master"),
                             on_click=WebConnectorState.setup_master_password,
                             width="100%",
                             size="3",
@@ -124,17 +122,19 @@ def _master_password_overlay() -> rx.Component:
                     rx.vstack(
                         rx.hstack(
                             rx.icon("lock", size=20, color=rx.color("accent", 9)),
-                            rx.text("Unlock credential vault", weight="bold", size="3"),
+                            rx.text(
+                                t("web_connector.unlock_vault"), weight="bold", size="3"
+                            ),
                             align="center",
                             spacing="2",
                         ),
                         rx.text(
-                            "Enter your master password to access saved credentials.",
+                            t("web_connector.unlock_vault_desc"),
                             size="2",
                             color=rx.color("gray", 10),
                         ),
                         rx.input(
-                            placeholder="Master password",
+                            placeholder=t("connector.master_password"),
                             type="password",
                             value=WebConnectorState.master_password_input,
                             on_change=WebConnectorState.set_master_password_input,
@@ -143,7 +143,7 @@ def _master_password_overlay() -> rx.Component:
                         ),
                         rx.button(
                             rx.icon("lock-open", size=16),
-                            "Unlock",
+                            t("btn.unlock"),
                             on_click=WebConnectorState.unlock_master_password,
                             width="100%",
                             size="3",
@@ -165,19 +165,19 @@ def step_credentials() -> rx.Component:
     return rx.vstack(
         rx.hstack(
             rx.icon("shield", size=20, color=rx.color("accent", 9)),
-            rx.text("Enter your credentials", weight="bold", size="3"),
+            rx.text(t("web_connector.enter_credentials"), weight="bold", size="3"),
             align="center",
             spacing="2",
         ),
         rx.card(
             rx.vstack(
                 rx.hstack(
-                    rx.text("Profile:", weight="bold", size="2"),
+                    rx.text(t("web_connector.profile_label"), weight="bold", size="2"),
                     rx.text(WebConnectorState.selected_profile_name, size="2"),
                     spacing="2",
                 ),
                 rx.hstack(
-                    rx.text("Mode:", weight="bold", size="2"),
+                    rx.text(t("web_connector.mode_label"), weight="bold", size="2"),
                     rx.badge(WebConnectorState.selected_profile_import_mode),
                     spacing="2",
                 ),
@@ -193,13 +193,13 @@ def step_credentials() -> rx.Component:
             rx.callout(
                 rx.hstack(
                     rx.text(
-                        "Credentials loaded from vault.",
+                        t("web_connector.credentials_loaded"),
                         size="2",
                     ),
                     rx.spacer(),
                     rx.button(
                         rx.icon("trash-2", size=14),
-                        "Delete",
+                        t("btn.delete"),
                         variant="ghost",
                         color_scheme="red",
                         size="1",
@@ -214,8 +214,7 @@ def step_credentials() -> rx.Component:
             ),
             rx.callout(
                 rx.text(
-                    "A browser window will open so you can monitor the process "
-                    "and complete any 2FA verification if needed.",
+                    t("web_connector.browser_notice"),
                     size="2",
                 ),
                 icon="info",
@@ -225,9 +224,9 @@ def step_credentials() -> rx.Component:
         ),
         rx.separator(),
         rx.vstack(
-            rx.text("Username", weight="medium", size="2"),
+            rx.text(t("web_connector.username"), weight="medium", size="2"),
             rx.input(
-                placeholder="Enter your username",
+                placeholder=t("web_connector.enter_username"),
                 value=WebConnectorState.username,
                 on_change=WebConnectorState.set_username,
                 width="100%",
@@ -237,9 +236,9 @@ def step_credentials() -> rx.Component:
             width="100%",
         ),
         rx.vstack(
-            rx.text("Password", weight="medium", size="2"),
+            rx.text(t("web_connector.password"), weight="medium", size="2"),
             rx.input(
-                placeholder="Enter your password",
+                placeholder=t("web_connector.enter_password"),
                 type="password",
                 value=WebConnectorState.password,
                 on_change=WebConnectorState.set_password,
@@ -258,7 +257,7 @@ def step_credentials() -> rx.Component:
                     checked=WebConnectorState.save_credentials_checked,
                     on_change=WebConnectorState.toggle_save_credentials,
                 ),
-                rx.text("Save credentials to vault", size="2"),
+                rx.text(t("web_connector.save_credentials"), size="2"),
                 align="center",
                 spacing="2",
             ),
@@ -267,7 +266,7 @@ def step_credentials() -> rx.Component:
         rx.hstack(
             rx.button(
                 rx.icon("arrow-left", size=16),
-                "Back",
+                t("btn.back"),
                 variant="outline",
                 on_click=WebConnectorState.go_back,
                 size="3",
@@ -275,7 +274,7 @@ def step_credentials() -> rx.Component:
             rx.spacer(),
             rx.button(
                 rx.icon("play", size=16),
-                "Start Import",
+                t("web_connector.start_import"),
                 on_click=WebConnectorState.start_connector,
                 disabled=~WebConnectorState.credentials_valid,
                 size="3",
@@ -297,10 +296,9 @@ def step_running() -> rx.Component:
     return rx.vstack(
         rx.vstack(
             rx.spinner(size="3"),
-            rx.text("Browser automation in progress...", weight="bold", size="3"),
+            rx.text(t("web_connector.running"), weight="bold", size="3"),
             rx.text(
-                "A browser window should be open. "
-                "Please complete any 2FA verification if prompted.",
+                t("web_connector.running_desc"),
                 size="2",
                 color=rx.color("gray", 10),
                 text_align="center",
@@ -309,7 +307,7 @@ def step_running() -> rx.Component:
             spacing="3",
         ),
         rx.separator(),
-        rx.text("Status Log:", weight="bold", size="2"),
+        rx.text(t("web_connector.status_log"), weight="bold", size="2"),
         rx.box(
             rx.foreach(
                 WebConnectorState.status_messages,
@@ -345,17 +343,23 @@ def step_result() -> rx.Component:
             WebConnectorState.result_success,
             rx.vstack(
                 rx.icon("circle-check", size=48, color=rx.color("green", 9)),
-                rx.text("Import Successful!", weight="bold", size="4"),
+                rx.text(t("web_connector.import_successful"), weight="bold", size="4"),
                 rx.text(WebConnectorState.result_message, size="2"),
                 rx.hstack(
                     rx.badge(
-                        rx.text(f"{WebConnectorState.result_imported} imported"),
+                        rx.text(
+                            f"{WebConnectorState.result_imported} "
+                            + t("connector.imported")
+                        ),
                         color_scheme="green",
                     ),
                     rx.cond(
                         WebConnectorState.result_skipped > 0,
                         rx.badge(
-                            rx.text(f"{WebConnectorState.result_skipped} skipped"),
+                            rx.text(
+                                f"{WebConnectorState.result_skipped} "
+                                + t("connector.skipped")
+                            ),
                             color_scheme="orange",
                         ),
                     ),
@@ -366,7 +370,7 @@ def step_result() -> rx.Component:
             ),
             rx.vstack(
                 rx.icon("circle-x", size=48, color=rx.color("red", 9)),
-                rx.text("Import Failed", weight="bold", size="4"),
+                rx.text(t("web_connector.import_failed"), weight="bold", size="4"),
                 rx.text(WebConnectorState.result_message, size="2"),
                 align="center",
                 spacing="3",
@@ -377,7 +381,7 @@ def step_result() -> rx.Component:
             WebConnectorState.result_status_log.length() > 0,
             rx.vstack(
                 rx.separator(),
-                rx.text("Status Log:", weight="bold", size="3"),
+                rx.text(t("web_connector.status_log"), weight="bold", size="3"),
                 rx.box(
                     rx.foreach(
                         WebConnectorState.result_status_log,
@@ -405,7 +409,7 @@ def step_result() -> rx.Component:
             WebConnectorState.result_errors.length() > 0,
             rx.vstack(
                 rx.separator(),
-                rx.text("Errors:", weight="bold", size="3"),
+                rx.text(t("web_connector.errors"), weight="bold", size="3"),
                 rx.box(
                     rx.foreach(
                         WebConnectorState.result_errors,
@@ -425,7 +429,7 @@ def step_result() -> rx.Component:
         rx.separator(),
         rx.button(
             rx.icon("rotate-ccw", size=16),
-            "Run Another Import",
+            t("web_connector.run_another"),
             on_click=WebConnectorState.reset_wizard,
             size="3",
             width="100%",
@@ -475,13 +479,13 @@ def step_indicator() -> rx.Component:
         )
 
     return rx.hstack(
-        _dot("1", "Profile"),
+        _dot("1", t("web_connector.step_profile")),
         rx.box(width="40px", height="2px", background=rx.color("gray", 6)),
-        _dot("2", "Credentials"),
+        _dot("2", t("web_connector.step_credentials")),
         rx.box(width="40px", height="2px", background=rx.color("gray", 6)),
-        _dot("3", "Running"),
+        _dot("3", t("web_connector.step_running")),
         rx.box(width="40px", height="2px", background=rx.color("gray", 6)),
-        _dot("4", "Result"),
+        _dot("4", t("web_connector.step_result")),
         justify="center",
         align="center",
         spacing="3",

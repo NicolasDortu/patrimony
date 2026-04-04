@@ -22,7 +22,7 @@ def dividends_table() -> rx.Component:
     return rx.box(
         rx.flex(
             rx.flex(
-                open_add_dividend_dialog(),
+                open_add_dividend_dialog(DividendsState.add_dividend),
                 spreadsheet_toggle_button(DividendsState),
                 align="center",
                 spacing="3",

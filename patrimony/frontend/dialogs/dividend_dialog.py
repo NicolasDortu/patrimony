@@ -1,10 +1,9 @@
 import reflex as rx
 
-from ..states.dividends_state import DividendsState
 from ..templates import t
 
 
-def open_add_dividend_dialog() -> rx.Component:
+def open_add_dividend_dialog(on_submit: callable) -> rx.Component:
     """Button to open a dialog to add a new dividend."""
     return rx.dialog.root(
         rx.dialog.trigger(
@@ -55,7 +54,7 @@ def open_add_dividend_dialog() -> rx.Component:
                     direction="column",
                     spacing="4",
                 ),
-                on_submit=DividendsState.add_dividend,
+                on_submit=on_submit,
                 reset_on_submit=True,
             ),
             max_width="450px",
