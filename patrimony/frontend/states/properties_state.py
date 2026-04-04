@@ -7,7 +7,7 @@ from typing import Union
 import reflex as rx
 
 from ..services import PropertyService, Property
-from ..utils import export_csv, parse_form_date
+from ..utils import export_csv, get_pie_color, parse_form_date
 from .mixins import PaginationMixin, SearchSortMixin, apply_sort_and_search
 from .spreadsheet_mixin import SpreadsheetMixin
 
@@ -39,6 +39,20 @@ class PropertiesState(SpreadsheetMixin, SearchSortMixin, PaginationMixin, rx.Sta
             numeric_sort_fields=["value"],
             search_fields=["name", "description", "category"],
         )
+
+    @rx.var(initial_value=[])
+    def category_allocation_data(self) -> list[dict]:
+        """Group property values by category for pie chart."""
+        categories: dict[str, float] = {}
+        for prop in self.items:
+            cat = prop.get("category", "Other") or "Other"
+            categories[cat] = categories.get(cat, 0.0) + float(prop.get("value", 0))
+        return [
+            {"name": k, "value": round(v, 2), "fill": get_pie_color(i)}
+            for i, (k, v) in enumerate(
+                sorted(categories.items(), key=lambda x: x[1], reverse=True)
+            )
+        ]
 
     @rx.var(initial_value=[])
     def get_current_page(self) -> list[dict]:

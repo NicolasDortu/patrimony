@@ -150,6 +150,7 @@
   "chart.expense_by_category": "Gastos por categoría",
   "chart.balance_by_account": "Saldo por cuenta",
   "chart.securities_type_allocation": "Asignación por tipo de valor",
+  "chart.properties_by_category": "Propiedades por categoría",
 
   "tab.positions": "Posiciones",
   "tab.dividends": "Dividendos",

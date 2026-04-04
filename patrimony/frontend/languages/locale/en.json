@@ -150,6 +150,7 @@
   "chart.expense_by_category": "Expenses by Category",
   "chart.balance_by_account": "Balance by Account",
   "chart.securities_type_allocation": "Securities Type Allocation",
+  "chart.properties_by_category": "Properties by Category",
 
   "tab.positions": "Positions",
   "tab.dividends": "Dividends",

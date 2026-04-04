@@ -146,6 +146,7 @@
   "chart.expense_by_category": "Dépenses par catégorie",
   "chart.balance_by_account": "Solde par compte",
   "chart.securities_type_allocation": "Répartition par type de titre",
+  "chart.properties_by_category": "Propriétés par catégorie",
 
   "tab.positions": "Positions",
   "tab.dividends": "Dividendes",
