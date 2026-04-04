@@ -5,8 +5,7 @@ caching price data in the database.
 """
 
 import logging
-import time
-from datetime import datetime, timedelta
+from datetime import datetime
 
 import polars as pl
 
@@ -15,11 +14,6 @@ from ...domain.repositories import PriceRepository
 from ..database.connection import DatabaseConnection
 
 logger = logging.getLogger(__name__)
-
-# How many tickers to process before pausing during bulk sync.
-_SYNC_BATCH_SIZE: int = 5
-# Seconds to sleep between batches during sync_price_history.
-_SYNC_BATCH_DELAY_S: float = 2.0
 
 
 class PriceRepositoryImpl(PriceRepository):
@@ -107,7 +101,7 @@ class PriceRepositoryImpl(PriceRepository):
             [t.upper() for t in tickers] + [start_date, end_date, period],
         ).pl()
 
-    def _store_price_history(
+    def store_price_history(
         self, ticker: str, df: pl.DataFrame, period: str = "1d"
     ) -> None:
         """Insert new price history rows in bulk, ignoring duplicates."""
@@ -134,23 +128,26 @@ class PriceRepositoryImpl(PriceRepository):
         except Exception as e:
             logger.warning("Error bulk-storing price history for %s: %s", ticker, e)
 
-    def sync_price_history(
-        self, tickers: list[str], start_date: datetime, period: str = "1d"
-    ) -> None:
-        """Fetch and store only missing price history data.
+    def get_stored_date_range(
+        self, ticker: str, period: str = "1d"
+    ) -> tuple[datetime | None, datetime | None]:
+        """Return (min_date, max_date) of stored price history for a ticker."""
+        result = self._conn.execute(
+            """
+            SELECT MIN(date), MAX(date) FROM price_history
+            WHERE ticker = ? AND period = ?
+            """,
+            [ticker.upper(), period],
+        ).fetchone()
+        min_date = result[0] if result and result[0] else None
+        max_date = result[1] if result and result[1] else None
+        return min_date, max_date
 
-        Tickers are sorted by staleness (oldest-updated first) and
-        processed in batches with a short delay between batches to
-        avoid hitting Yahoo Finance rate limits.
-        """
+    def get_cache_timestamps(self, tickers: list[str]) -> dict[str, datetime]:
+        """Return {ticker: last_updated} for tickers present in price cache."""
         if not tickers:
-            return
-
-        today = datetime.now()
+            return {}
         upper_tickers = [t.upper() for t in tickers]
-
-        # Order tickers by staleness (oldest last_updated first).
-        # Tickers absent from cache sort to the front so they get fetched first.
         placeholders = ", ".join(["?"] * len(upper_tickers))
         rows = self._conn.execute(
             f"""
@@ -160,65 +157,4 @@ class PriceRepositoryImpl(PriceRepository):
             """,
             upper_tickers,
         ).fetchall()
-        staleness = {r[0]: r[1] for r in rows}
-        epoch = datetime(1970, 1, 1)
-        ordered = sorted(upper_tickers, key=lambda t: staleness.get(t, epoch))
-
-        for idx, ticker in enumerate(ordered):
-            if idx > 0 and idx % _SYNC_BATCH_SIZE == 0:
-                logger.debug("Rate-limit pause after %d/%d tickers", idx, len(ordered))
-                time.sleep(_SYNC_BATCH_DELAY_S)
-
-            try:
-                self._sync_single_ticker(ticker, start_date, today, period)
-            except Exception as e:
-                logger.warning("Skipping price sync for %s: %s", ticker, e)
-
-    def _sync_single_ticker(
-        self,
-        ticker: str,
-        start_date: datetime,
-        today: datetime,
-        period: str,
-    ) -> None:
-        """Fetch and store missing price history for a single ticker."""
-        # Check what date range we already have stored
-        result = self._conn.execute(
-            """
-            SELECT MIN(date), MAX(date) FROM price_history
-            WHERE ticker = ? AND period = ?
-            """,
-            [ticker, period],
-        ).fetchone()
-
-        min_date = result[0] if result and result[0] else None
-        max_date = result[1] if result and result[1] else None
-
-        # No data at all — fetch full range
-        if min_date is None:
-            df = self._market_data.get_price_history(
-                ticker, start_date=start_date, end_date=today
-            )
-            if df is not None and not df.is_empty():
-                self._store_price_history(ticker, df, period)
-            return
-
-        # Fill missing early data if start_date is before our earliest
-        if start_date.date() < (min_date - timedelta(days=1)).date():
-            df = self._market_data.get_price_history(
-                ticker,
-                start_date=start_date,
-                end_date=min_date - timedelta(days=1),
-            )
-            if df is not None and not df.is_empty():
-                self._store_price_history(ticker, df, period)
-
-        # Fill missing recent data if latest date is before yesterday
-        if max_date.date() < (today - timedelta(days=1)).date():
-            df = self._market_data.get_price_history(
-                ticker,
-                start_date=max_date + timedelta(days=1),
-                end_date=today,
-            )
-            if df is not None and not df.is_empty():
-                self._store_price_history(ticker, df, period)
+        return {r[0]: r[1] for r in rows}

@@ -9,6 +9,7 @@ from ..infrastructure.integrations.web_connector import SITE_CONNECTORS
 from ..domain.services.file_connector_service import FileConnectorService
 from ..domain.services.currency_service import CurrencyService
 from ..domain.services.portfolio_service import PortfolioService
+from ..domain.services.price_sync_service import PriceSyncService
 from ..domain.services.securities_service import SecuritiesService
 from ..domain.services.web_connector_service import WebConnectorService
 from ..infrastructure.repositories import (
@@ -111,6 +112,12 @@ class Container(containers.DeclarativeContainer):
         market_data_provider=market_data_provider,
     )
 
+    price_sync_service = providers.Factory(
+        PriceSyncService,
+        price_repo=price_repository,
+        market_data=market_data_provider,
+    )
+
     portfolio_service = providers.Factory(
         PortfolioService,
         securities_repo=securities_repository,
@@ -118,6 +125,7 @@ class Container(containers.DeclarativeContainer):
         price_repo=price_repository,
         currency_service=currency_service,
         market_data=market_data_provider,
+        price_sync=price_sync_service,
         property_repo=property_repository,
     )
 
@@ -127,6 +135,7 @@ class Container(containers.DeclarativeContainer):
         price_repo=price_repository,
         currency_service=currency_service,
         market_data=market_data_provider,
+        price_sync=price_sync_service,
     )
 
     connector_service = providers.Factory(

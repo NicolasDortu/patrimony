@@ -21,6 +21,7 @@ from .enrichment_utilities import (
     enrich_with_prices,
     forward_fill_prices,
 )
+from .price_sync_service import PriceSyncService
 
 
 class SecuritiesService:
@@ -32,11 +33,13 @@ class SecuritiesService:
         price_repo: PriceRepository,
         currency_service: CurrencyService,
         market_data: MarketDataProvider,
+        price_sync: PriceSyncService,
     ):
         self._securities_repo = securities_repo
         self._price_repo = price_repo
         self._currency_service = currency_service
         self._market_data = market_data
+        self._price_sync = price_sync
 
     def get_aggregated_positions(
         self, user_currency: str = "EUR"
@@ -132,5 +135,5 @@ class SecuritiesService:
         # Ensure at least a 2-day range so charts always have data
         if (end - start).days < 2:
             start = end - timedelta(days=2)
-        self._price_repo.sync_price_history([ticker], start)
+        self._price_sync.sync_price_history([ticker], start)
         return self._price_repo.get_price_history([ticker], start, end)

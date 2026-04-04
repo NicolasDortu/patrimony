@@ -27,6 +27,7 @@ from .enrichment_utilities import (
     forward_fill_prices,
     normalize_date,
 )
+from .price_sync_service import PriceSyncService
 
 logger = logging.getLogger(__name__)
 
@@ -41,6 +42,7 @@ class PortfolioService:
         price_repo: PriceRepository,
         currency_service: CurrencyService,
         market_data: MarketDataProvider,
+        price_sync: PriceSyncService,
         property_repo: PropertyRepository | None = None,
     ):
         self._securities_repo = securities_repo
@@ -48,6 +50,7 @@ class PortfolioService:
         self._price_repo = price_repo
         self._currency_service = currency_service
         self._market_data = market_data
+        self._price_sync = price_sync
         self._property_repo = property_repo
 
     # -- Portfolio Overview --------------------------------------------------
@@ -358,7 +361,7 @@ class PortfolioService:
             # Ensure at least a 2-day range so charts always have data
             if (end - start).days < 2:
                 start = end - timedelta(days=2)
-            self._price_repo.sync_price_history(tickers, start)
+            self._price_sync.sync_price_history(tickers, start)
             df = self._price_repo.get_price_history(tickers, start, end)
             if df is not None and not df.is_empty():
                 # Build ticker -> {date: price} dicts using column access

@@ -49,7 +49,7 @@ class CashOperationRepositoryImpl(CashOperationRepository):
                 ],
             )
             op_id = result.fetchone()[0]
-            self._recalculate_ranks_and_balances(account_number)
+            self.recalculate_balances(account_number)
         return op_id
 
     def get_operations_by_account(self, account_number: str) -> pl.DataFrame:
@@ -94,7 +94,7 @@ class CashOperationRepositoryImpl(CashOperationRepository):
             )
             account_number = result.fetchone()[0]
             self._conn.execute("DELETE FROM balance_operations WHERE id = ?", [id])
-            self._recalculate_ranks_and_balances(account_number)
+            self.recalculate_balances(account_number)
 
     def update_operation_by_id(
         self,
@@ -120,9 +120,9 @@ class CashOperationRepositoryImpl(CashOperationRepository):
                 """,
                 [amount, title, category, operation_date, entry_type.value, id],
             )
-            self._recalculate_ranks_and_balances(account_number)
+            self.recalculate_balances(account_number)
 
-    def _recalculate_ranks_and_balances(self, account_number: str) -> None:
+    def recalculate_balances(self, account_number: str) -> None:
         """Recalculate ranks and running balances for all operations of an account.
 
         Orders operations by operation_date ASC, id ASC, then assigns
@@ -179,6 +179,9 @@ class CashRepositoryImpl(CashRepository):
 
     def update_operation_by_id(self, *args, **kwargs):
         return self._operations.update_operation_by_id(*args, **kwargs)
+
+    def recalculate_balances(self, account_number):
+        return self._operations.recalculate_balances(account_number)
 
     def add_cash(
         self,

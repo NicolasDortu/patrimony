@@ -138,6 +138,15 @@ class CashOperationRepository(ABC):
         """Get cash balance history over time for all accounts by summing the operations."""
         pass
 
+    @abstractmethod
+    def recalculate_balances(self, account_number: str) -> None:
+        """Recalculate ranks and running balances for all operations of an account.
+
+        Orders operations by operation_date ASC, id ASC, then assigns
+        sequential ranks and recomputes the cumulative balance.
+        """
+        pass
+
 
 class CashRepository(BaseRepository, CashOperationRepository, ABC):
     """Repository for cash accounts."""
@@ -190,10 +199,22 @@ class PriceRepository(PriceProvider, ABC):
         pass
 
     @abstractmethod
-    def sync_price_history(
-        self, tickers: list[str], start_date: datetime, period: str = "1d"
+    def store_price_history(
+        self, ticker: str, df: pl.DataFrame, period: str = "1d"
     ) -> None:
-        """Fetch and store missing price history data for tickers."""
+        """Insert new price history rows in bulk, ignoring duplicates."""
+        pass
+
+    @abstractmethod
+    def get_stored_date_range(
+        self, ticker: str, period: str = "1d"
+    ) -> tuple[Optional[datetime], Optional[datetime]]:
+        """Return (min_date, max_date) of stored price history for a ticker."""
+        pass
+
+    @abstractmethod
+    def get_cache_timestamps(self, tickers: list[str]) -> dict[str, datetime]:
+        """Return {ticker: last_updated} for tickers present in price cache."""
         pass
 
 
