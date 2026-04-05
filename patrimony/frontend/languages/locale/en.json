@@ -139,7 +139,7 @@
   "kpi.total_portfolio": "Total Portfolio",
   "kpi.stocks_value": "Stocks Value",
   "kpi.cash_holdings": "Cash Holdings",
-  "kpi.dividends": "Dividends Received & Upcoming",
+  "kpi.dividends": "Dividends Received",
   "kpi.no_dividend_data": "No dividends recorded yet",
 
   "chart.wealth_overview": "Wealth Overview",

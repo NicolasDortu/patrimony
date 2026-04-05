@@ -135,7 +135,7 @@
   "kpi.total_portfolio": "Portefeuille total",
   "kpi.stocks_value": "Valeur des titres",
   "kpi.cash_holdings": "Liquidités",
-  "kpi.dividends": "Dividendes reçus & à venir",
+  "kpi.dividends": "Dividendes reçus",
   "kpi.no_dividend_data": "Aucun dividende enregistré",
 
   "chart.wealth_overview": "Aperçu du patrimoine",

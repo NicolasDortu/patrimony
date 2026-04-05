@@ -139,7 +139,7 @@
   "kpi.total_portfolio": "Portafolio total",
   "kpi.stocks_value": "Valor de valores",
   "kpi.cash_holdings": "Efectivo",
-  "kpi.dividends": "Dividendos recibidos y próximos",
+  "kpi.dividends": "Dividendos recibidos",
   "kpi.no_dividend_data": "Ningún dividendo registrado",
 
   "chart.wealth_overview": "Resumen patrimonial",
