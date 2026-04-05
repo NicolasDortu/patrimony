@@ -22,15 +22,24 @@ class PropertyRepositoryImpl(PropertyRepository):
         purchase_date: datetime,
         description: str = "",
         category: str = "Other",
+        currency: str = "EUR",
         entry_type: EntryType = EntryType.MANUAL,
     ) -> int:
         result = self._conn.execute(
             """
-            INSERT INTO properties (name, description, value, purchase_date, category, entry_type)
-            VALUES (?, ?, ?, ?, ?, ?)
+            INSERT INTO properties (name, description, value, purchase_date, category, currency, entry_type)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
             RETURNING id
             """,
-            [name, description, value, purchase_date, category, entry_type.value],
+            [
+                name,
+                description,
+                value,
+                purchase_date,
+                category,
+                currency,
+                entry_type.value,
+            ],
         )
         return result.fetchone()[0]
 
@@ -42,14 +51,15 @@ class PropertyRepositoryImpl(PropertyRepository):
         purchase_date: datetime,
         description: str = "",
         category: str = "Other",
+        currency: str = "EUR",
     ) -> None:
         self._conn.execute(
             """
             UPDATE properties
-            SET name = ?, description = ?, value = ?, purchase_date = ?, category = ?
+            SET name = ?, description = ?, value = ?, purchase_date = ?, category = ?, currency = ?
             WHERE id = ?
             """,
-            [name, description, value, purchase_date, category, id],
+            [name, description, value, purchase_date, category, currency, id],
         )
 
     def get_total_value(self) -> float:

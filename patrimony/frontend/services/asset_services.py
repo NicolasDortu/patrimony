@@ -277,6 +277,31 @@ class DividendService:
                 message=f"Failed to update dividend: {e}",
             )
 
+    @staticmethod
+    def sync_dividends(tickers: list[str] | None = None) -> OperationResult:
+        """Fetch and store dividends from market data for the given tickers (or all held)."""
+        try:
+            result = container.dividend_sync_service().sync_dividends(tickers)
+            imported = result["imported"]
+            skipped = result["skipped"]
+            errors = result.get("errors", [])
+            if errors:
+                return OperationResult(
+                    success=imported > 0,
+                    message=f"Synced {imported} dividends, {skipped} skipped, {len(errors)} errors",
+                    data=result,
+                )
+            return OperationResult(
+                success=True,
+                message=f"Synced {imported} new dividends ({skipped} already existed)",
+                data=result,
+            )
+        except Exception as e:
+            return OperationResult(
+                success=False,
+                message=f"Failed to sync dividends: {e}",
+            )
+
 
 class PropertyService:
     """Frontend service for physical property operations."""
@@ -288,6 +313,7 @@ class PropertyService:
         purchase_date: Optional[datetime] = None,
         description: str = "",
         category: str = "Other",
+        currency: str = "EUR",
     ) -> OperationResult:
         try:
             if purchase_date is None:
@@ -298,6 +324,7 @@ class PropertyService:
                 purchase_date=purchase_date,
                 description=description,
                 category=category,
+                currency=currency,
             )
             return OperationResult(
                 success=True,
@@ -341,6 +368,7 @@ class PropertyService:
         purchase_date: Optional[datetime] = None,
         description: str = "",
         category: str = "Other",
+        currency: str = "EUR",
     ) -> OperationResult:
         try:
             if purchase_date is None:
@@ -352,6 +380,7 @@ class PropertyService:
                 purchase_date=purchase_date,
                 description=description,
                 category=category,
+                currency=currency,
             )
             return OperationResult(
                 success=True,

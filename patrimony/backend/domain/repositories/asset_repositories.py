@@ -296,6 +296,7 @@ class PropertyRepository(BaseRepository, ABC):
         purchase_date: datetime,
         description: str = "",
         category: str = "Other",
+        currency: str = "EUR",
         entry_type: EntryType = EntryType.MANUAL,
     ) -> int:
         """Add a new property and return its id."""
@@ -310,6 +311,7 @@ class PropertyRepository(BaseRepository, ABC):
         purchase_date: datetime,
         description: str = "",
         category: str = "Other",
+        currency: str = "EUR",
     ) -> None:
         """Update an existing property by ID."""
         pass

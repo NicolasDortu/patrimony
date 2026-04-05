@@ -52,4 +52,5 @@ class Property:
     value: float = 0.0
     purchase_date: datetime = field(default_factory=datetime.now)
     category: str = "Other"
+    currency: str = "EUR"
     entry_type: str = "MANUAL"

@@ -227,6 +227,7 @@ CREATE_PROPERTIES_TABLE = """
         value DOUBLE NOT NULL,
         purchase_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         category VARCHAR DEFAULT 'Other',
+        currency VARCHAR DEFAULT 'EUR',
         entry_type VARCHAR NOT NULL DEFAULT 'MANUAL'
 );
 """

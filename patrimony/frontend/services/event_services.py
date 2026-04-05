@@ -21,7 +21,7 @@ class EventLogService:
     def get_recent(limit: int = 100) -> list[dict]:
         try:
             df = container.event_log_repository().get_recent(limit)
-            return df.to_dicts() if len(df) > 0 else []
+            return df.to_dicts() if not df.is_empty() else []
         except Exception as e:
             logger.error("Failed to load events: %s", e)
             return []

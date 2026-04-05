@@ -108,10 +108,8 @@ class PriceRepositoryImpl(PriceRepository):
         if df.is_empty():
             return
         try:
-            insert_df = df.select(
+            insert_df = df.select(["date", "close_price"]).with_columns(
                 pl.lit(ticker).alias("ticker"),
-                pl.col("date"),
-                pl.col("close_price"),
                 pl.lit(period).alias("period"),
             )
             self._conn.connection.register("insert_df", insert_df)

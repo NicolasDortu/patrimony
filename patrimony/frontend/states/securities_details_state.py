@@ -6,6 +6,7 @@ import reflex as rx
 from datetime import datetime
 
 from ..services import (
+    DividendService,
     SecuritiesService,
     SecurityPosition,
     EntryType,
@@ -56,6 +57,10 @@ class TableStateDetails(SpreadsheetMixin, SearchSortMixin, PaginationMixin, rx.S
                     break
             dividends_state = await self.get_state(DividendsState)
             dividends_state.ticker = ticker
+            try:
+                DividendService.sync_dividends([ticker])
+            except Exception as sync_err:
+                logger.warning("Dividend sync failed for %s: %s", ticker, sync_err)
             dividends_state.load_entries()
             if was_market_data_fetched():
                 yield rx.toast.info("Market data refreshed", position="bottom-right")

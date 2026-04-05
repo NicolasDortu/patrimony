@@ -9,9 +9,9 @@ import threading
 import time
 from datetime import datetime
 
+import polars as pl
 import yfinance as yf
 from typing import Optional
-import polars as pl
 
 from ...domain.interfaces import MarketDataProvider
 
@@ -20,6 +20,9 @@ logger = logging.getLogger(__name__)
 
 # Minimum seconds between consecutive yfinance API calls.
 _MIN_REQUEST_INTERVAL_S: float = 0.55
+
+_EMPTY_HISTORY = pl.DataFrame({"date": [], "close_price": []})
+_EMPTY_DIVIDENDS = pl.DataFrame({"date": [], "amount_per_share": []})
 
 
 class YahooFinanceProvider(MarketDataProvider):
@@ -44,8 +47,12 @@ class YahooFinanceProvider(MarketDataProvider):
             self._last_call = time.monotonic()
             self._api_was_called = True
 
-    def _parse_history_df(self, data) -> pl.DataFrame:
-        """Convert a pandas DataFrame from yfinance into a Polars DataFrame."""
+    @staticmethod
+    def _parse_history_df(data) -> pl.DataFrame:
+        """Convert a yfinance pandas history DataFrame into a polars DataFrame.
+
+        Returns a DataFrame with columns: date, close_price.
+        """
         data = data.reset_index()
         if "Datetime" in data.columns:
             date_col = "Datetime"
@@ -53,12 +60,9 @@ class YahooFinanceProvider(MarketDataProvider):
             date_col = "Date"
         else:
             date_col = data.columns[0]
-        return pl.DataFrame(
-            {
-                "date": data[date_col].tolist(),
-                "close_price": data["Close"].tolist(),
-            }
-        )
+
+        data = data.rename(columns={date_col: "date", "Close": "close_price"})
+        return pl.from_pandas(data[["date", "close_price"]])
 
     def get_current_price(self, ticker: str) -> Optional[float]:
         """Fetch current price from Yahoo Finance."""
@@ -95,7 +99,7 @@ class YahooFinanceProvider(MarketDataProvider):
                 return self._parse_history_df(data)
         except Exception as e:
             logger.warning("Error fetching price history for %s: %s", ticker, e)
-        return pl.DataFrame(schema={"date": pl.Datetime, "close_price": pl.Float64})
+        return _EMPTY_HISTORY.clone()
 
     def get_price_history_period(
         self,
@@ -112,7 +116,39 @@ class YahooFinanceProvider(MarketDataProvider):
                 return self._parse_history_df(data)
         except Exception as e:
             logger.warning("Error fetching price history for %s: %s", ticker, e)
-        return pl.DataFrame(schema={"date": pl.Datetime, "close_price": pl.Float64})
+        return _EMPTY_HISTORY.clone()
+
+    def get_dividend_history(
+        self,
+        ticker: str,
+        start_date: datetime | None = None,
+        end_date: datetime | None = None,
+    ) -> pl.DataFrame:
+        """Fetch dividend history from Yahoo Finance.
+
+        Returns a polars DataFrame with columns: date, amount_per_share.
+        """
+        try:
+            self._throttle()
+            stock = yf.Ticker(ticker)
+            dividends = stock.dividends  # pandas Series indexed by date
+            if dividends.empty:
+                return _EMPTY_DIVIDENDS.clone()
+
+            pdf = dividends.reset_index()
+            pdf.columns = ["date", "amount_per_share"]
+            # Strip timezone info to avoid tz-aware vs tz-naive comparison issues
+            pdf["date"] = pdf["date"].dt.tz_localize(None)
+            df = pl.from_pandas(pdf)
+
+            if start_date is not None:
+                df = df.filter(pl.col("date") >= start_date)
+            if end_date is not None:
+                df = df.filter(pl.col("date") <= end_date)
+            return df
+        except Exception as e:
+            logger.warning("Error fetching dividends for %s: %s", ticker, e)
+        return _EMPTY_DIVIDENDS.clone()
 
     def get_ticker_currency(self, ticker: str) -> Optional[str]:
         """Fetch the native trading currency of a ticker from Yahoo Finance."""

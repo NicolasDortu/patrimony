@@ -337,6 +337,10 @@ class PortfolioState(rx.State):
             self.properties_value = portfolio_data.properties_value
 
             await self._load_chart_data()
+            try:
+                DividendService.sync_dividends()
+            except Exception as sync_err:
+                logger.warning("Dividend sync failed: %s", sync_err)
             self._dividends_data = DividendService.get_all_dividends()
             self._total_dividends = DividendService.get_total_amount()
         except Exception as e:

@@ -92,6 +92,25 @@ class MarketDataProvider(PriceProvider, CurrencyProvider, ABC):
         """Fetch the exchange rate from from_currency to to_currency."""
         pass
 
+    @abstractmethod
+    def get_dividend_history(
+        self,
+        ticker: str,
+        start_date: datetime | None = None,
+        end_date: datetime | None = None,
+    ) -> pl.DataFrame | None:
+        """Fetch dividend history for a ticker.
+
+        Args:
+            ticker: Stock ticker symbol
+            start_date: Optional start of date range (inclusive)
+            end_date: Optional end of date range (inclusive)
+
+        Returns:
+            DataFrame with columns: date, amount_per_share
+        """
+        pass
+
 
 class FileConnector(ABC):
     """Interface for reading uploaded files into a raw DataFrame."""
@@ -108,7 +127,7 @@ class FileConnector(ABC):
             delimiter: CSV delimiter character (ignored for Excel).
 
         Returns:
-            A Polars DataFrame with the raw file contents.
+            A polars DataFrame with the raw file contents.
         """
         pass
 

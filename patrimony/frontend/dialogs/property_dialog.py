@@ -1,5 +1,6 @@
 import reflex as rx
 
+from ..services import Currency
 from ..states.properties_state import PROPERTY_CATEGORIES
 from ..templates import t
 
@@ -44,6 +45,12 @@ def open_add_property_dialog(on_submit: callable) -> rx.Component:
                         placeholder=t("label.category"),
                         name="category",
                         default_value="Other",
+                    ),
+                    rx.select(
+                        [currency.value for currency in Currency],
+                        placeholder=t("label.currency"),
+                        name="currency",
+                        default_value="EUR",
                     ),
                     rx.input(
                         placeholder=t("label.purchase_date"),

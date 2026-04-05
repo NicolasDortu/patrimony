@@ -12,6 +12,7 @@ from ..domain.services.portfolio_service import PortfolioService
 from ..domain.services.price_sync_service import PriceSyncService
 from ..domain.services.securities_service import SecuritiesService
 from ..domain.services.web_connector_service import WebConnectorService
+from ..domain.services.dividend_sync_service import DividendSyncService
 from ..infrastructure.repositories import (
     CashRepositoryImpl,
     SecuritiesRepositoryImpl,
@@ -115,6 +116,13 @@ class Container(containers.DeclarativeContainer):
     price_sync_service = providers.Factory(
         PriceSyncService,
         price_repo=price_repository,
+        market_data=market_data_provider,
+    )
+
+    dividend_sync_service = providers.Factory(
+        DividendSyncService,
+        dividend_repo=dividend_repository,
+        securities_repo=securities_repository,
         market_data=market_data_provider,
     )
 

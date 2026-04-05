@@ -74,9 +74,7 @@ class PortfolioService:
         cash_value = self._calculate_cash_value(cash_df, user_currency)
 
         # Properties
-        properties_value = (
-            self._property_repo.get_total_value() if self._property_repo else 0.0
-        )
+        properties_value = self._calculate_properties_value(user_currency)
 
         return PortfolioOverview(
             securities_total=securities_df,
@@ -129,6 +127,7 @@ class PortfolioService:
             date_fmt,
             rates,
             quantity_timeline,
+            user_currency,
         )
 
     def _resolve_price_timeline(
@@ -224,23 +223,40 @@ class PortfolioService:
         )
         return total_invested, total_value, return_percentage
 
+    def _sum_with_currency(
+        self,
+        df: Optional[pl.DataFrame],
+        value_col: str,
+        user_currency: str,
+    ) -> float:
+        """Sum a value column, converting each row's currency to user_currency."""
+        if df is None or df.is_empty():
+            return 0.0
+        if "currency" not in df.columns:
+            return float(df[value_col].sum())
+        total = 0.0
+        rate_cache: dict[str, float] = {}
+        for row in df.iter_rows(named=True):
+            curr = row.get("currency", "EUR") or "EUR"
+            if curr not in rate_cache:
+                rate_cache[curr] = self._currency_service.get_exchange_rate(
+                    curr, user_currency
+                )
+            total += row[value_col] * rate_cache[curr]
+        return total
+
     def _calculate_cash_value(
         self, df: Optional[pl.DataFrame], user_currency: str
     ) -> float:
-        if df is None or df.is_empty():
+        return self._sum_with_currency(df, "balance", user_currency)
+
+    def _calculate_properties_value(self, user_currency: str) -> float:
+        """Sum property values converted to user currency."""
+        if not self._property_repo:
             return 0.0
-        if "currency" in df.columns:
-            total = 0.0
-            rate_cache: dict[str, float] = {}
-            for row in df.iter_rows(named=True):
-                cash_curr = row.get("currency", "EUR")
-                if cash_curr not in rate_cache:
-                    rate_cache[cash_curr] = self._currency_service.get_exchange_rate(
-                        cash_curr, user_currency
-                    )
-                total += row["balance"] * rate_cache[cash_curr]
-            return total
-        return float(df["balance"].sum())
+        return self._sum_with_currency(
+            self._property_repo.get_all(), "value", user_currency
+        )
 
     def _build_cash_timeline(self, user_currency: str) -> dict:
         """Build a timeline of total cash balance keyed by date."""
@@ -299,7 +315,7 @@ class PortfolioService:
         if df is None or df.is_empty():
             return {}
 
-        result = df.sort("date").with_columns(
+        df = df.sort("date").with_columns(
             pl.col("quantity").cum_sum().over("ticker").alias("cum_qty"),
             pl.col("date")
             .map_elements(normalize_date, return_dtype=pl.Date)
@@ -307,8 +323,8 @@ class PortfolioService:
         )
 
         timeline: dict[str, list[tuple]] = {}
-        for ticker in result["ticker"].unique().to_list():
-            ticker_df = result.filter(pl.col("ticker") == ticker)
+        for ticker in df["ticker"].unique().to_list():
+            ticker_df = df.filter(pl.col("ticker") == ticker)
             timeline[ticker] = list(
                 zip(ticker_df["norm_date"].to_list(), ticker_df["cum_qty"].to_list())
             )
@@ -366,8 +382,7 @@ class PortfolioService:
             if df is not None and not df.is_empty():
                 # Build ticker -> {date: price} dicts using column access
                 for ticker in df["ticker"].unique().to_list():
-                    mask = df["ticker"] == ticker
-                    t_df = df.filter(mask)
+                    t_df = df.filter(pl.col("ticker") == ticker)
                     dates = t_df["date"].to_list()
                     prices = t_df["close_price"].to_list()
                     td = {}
@@ -411,11 +426,10 @@ class PortfolioService:
         date_fmt: str,
         rates: dict[str, float] | None = None,
         quantity_timeline: dict[str, list[tuple]] | None = None,
+        user_currency: str = "EUR",
     ) -> list[dict]:
         rows = []
-        properties = (
-            self._property_repo.get_total_value() if self._property_repo else 0.0
-        )
+        properties = self._calculate_properties_value(user_currency)
         for dt in all_dates:
             asset_values = {v: 0.0 for v in ASSET_TYPE_LABELS.values()}
             for ticker, info in securities.items():

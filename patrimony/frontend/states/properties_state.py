@@ -93,6 +93,7 @@ class PropertiesState(SpreadsheetMixin, SearchSortMixin, PaginationMixin, rx.Sta
             purchase_date=purchase_date,
             description=form_data.get("description", ""),
             category=form_data.get("category", "Other"),
+            currency=form_data.get("currency", "EUR"),
         )
         if result.success:
             self.load_entries()
@@ -126,6 +127,7 @@ class PropertiesState(SpreadsheetMixin, SearchSortMixin, PaginationMixin, rx.Sta
             {"title": "Description", "type": "str"},
             {"title": "Value", "type": "float"},
             {"title": "Category", "type": "str"},
+            {"title": "Currency", "type": "str"},
             {"title": "Purchase Date", "type": "str"},
         ]
 
@@ -137,6 +139,7 @@ class PropertiesState(SpreadsheetMixin, SearchSortMixin, PaginationMixin, rx.Sta
                 p.get("description", ""),
                 p.get("value", 0.0),
                 p.get("category", "Other"),
+                p.get("currency", "EUR"),
                 str(p.get("purchase_date", ""))[:10],
             ]
             for p in props
@@ -151,7 +154,8 @@ class PropertiesState(SpreadsheetMixin, SearchSortMixin, PaginationMixin, rx.Sta
         description = str(row[1]).strip()
         value = float(row[2]) if row[2] != "" else 0.0
         category = str(row[3]).strip() or "Other"
-        date_str = str(row[4]).strip()
+        currency = str(row[4]).strip() or "EUR"
+        date_str = str(row[5]).strip()
         purchase_date = (
             datetime.strptime(date_str, "%Y-%m-%d") if date_str else datetime.now()
         )
@@ -162,6 +166,7 @@ class PropertiesState(SpreadsheetMixin, SearchSortMixin, PaginationMixin, rx.Sta
                 purchase_date=purchase_date,
                 description=description,
                 category=category,
+                currency=currency,
             )
         else:
             PropertyService.update_property(
@@ -171,6 +176,7 @@ class PropertiesState(SpreadsheetMixin, SearchSortMixin, PaginationMixin, rx.Sta
                 purchase_date=purchase_date,
                 description=description,
                 category=category,
+                currency=currency,
             )
         return None
 
