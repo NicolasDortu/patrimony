@@ -62,13 +62,14 @@ class PropertyRepositoryImpl(PropertyRepository):
             [name, description, value, purchase_date, category, currency, id],
         )
 
-    def get_total_value(self) -> float:
-        result = self._conn.execute("SELECT COALESCE(SUM(value), 0) FROM properties")
-        return result.fetchone()[0]
-
     def get_all(self) -> pl.DataFrame:
         return self._conn.execute(
             "SELECT * FROM properties ORDER BY purchase_date DESC"
+        ).pl()
+
+    def get_total_by_currency(self) -> pl.DataFrame:
+        return self._conn.execute(
+            "SELECT currency, SUM(value) AS total_value FROM properties GROUP BY currency"
         ).pl()
 
     def get_by_id(self, id: int) -> pl.DataFrame:

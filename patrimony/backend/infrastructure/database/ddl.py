@@ -12,7 +12,6 @@ CREATE_POSITIONS_TABLE = """
         asset_type VARCHAR NOT NULL,
         date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
-    CREATE INDEX IF NOT EXISTS idx_positions_ticker ON positions (ticker);
 """
 
 CREATE_POSITIONS_CLOSED_TABLE = """
@@ -27,7 +26,6 @@ CREATE_POSITIONS_CLOSED_TABLE = """
         asset_type VARCHAR NOT NULL,
         date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
-    CREATE INDEX IF NOT EXISTS idx_positions_closed_ticker ON positions_closed (ticker);
 """
 
 CREATE_DIVIDENDS_TABLE = """
@@ -36,9 +34,9 @@ CREATE_DIVIDENDS_TABLE = """
         id INTEGER PRIMARY KEY DEFAULT nextval('dividends_id_seq'),
         ticker VARCHAR NOT NULL,
         amount DOUBLE NOT NULL,
-        date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE (ticker, date)
 );
-    CREATE INDEX IF NOT EXISTS idx_dividends_ticker ON dividends (ticker);
 """
 
 
@@ -118,8 +116,6 @@ CREATE_BALANCE_OPERATIONS_TABLE = """
         entry_type VARCHAR NOT NULL DEFAULT 'MANUAL',
         FOREIGN KEY (account_number) REFERENCES cash(account_number)
 );
-    CREATE INDEX IF NOT EXISTS idx_balance_ops_accountnumber
-        ON balance_operations (account_number);
 """
 
 CREATE_CASH_BALANCE_VIEW = """
@@ -143,8 +139,6 @@ CREATE TABLE IF NOT EXISTS tickers_reference (
     country VARCHAR
 );
 
-CREATE INDEX IF NOT EXISTS idx_ref_name ON tickers_reference(name);
-CREATE INDEX IF NOT EXISTS idx_ref_asset_type ON tickers_reference(asset_type);
 """
 
 CREATE_TICKER_CURRENCY_TABLE = """
@@ -243,6 +237,23 @@ CREATE_EVENT_LOG_TABLE = """
 );
 """
 
+BUILD_INDEXES = """
+    CREATE INDEX IF NOT EXISTS idx_ref_name ON tickers_reference(name);
+    CREATE INDEX IF NOT EXISTS idx_ref_asset_type ON tickers_reference(asset_type);
+"""
+
+# Indexes on user-modified tables are rebuilt on every startup to prevent DuckDB ART index corruption.
+REBUILD_INDEXES = """
+    DROP INDEX IF EXISTS idx_positions_ticker;
+    CREATE INDEX idx_positions_ticker ON positions (ticker);
+    DROP INDEX IF EXISTS idx_positions_closed_ticker;
+    CREATE INDEX idx_positions_closed_ticker ON positions_closed (ticker);
+    DROP INDEX IF EXISTS idx_dividends_ticker;
+    CREATE INDEX idx_dividends_ticker ON dividends (ticker);
+    DROP INDEX IF EXISTS idx_balance_ops_accountnumber;
+    CREATE INDEX idx_balance_ops_accountnumber ON balance_operations (account_number);
+"""
+
 DDL_COMMANDS = [
     CREATE_POSITIONS_TABLE,
     CREATE_POSITIONS_CLOSED_TABLE,
@@ -263,4 +274,6 @@ DDL_COMMANDS = [
     CREATE_IMPORT_HASHES_TABLE,
     CREATE_PROPERTIES_TABLE,
     CREATE_EVENT_LOG_TABLE,
+    BUILD_INDEXES,
+    REBUILD_INDEXES,
 ]

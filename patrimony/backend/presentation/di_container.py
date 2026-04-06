@@ -107,26 +107,26 @@ class Container(containers.DeclarativeContainer):
     )
 
     # Domain Services
-    currency_service = providers.Factory(
+    currency_service = providers.Singleton(
         CurrencyService,
         currency_repo=currency_repository,
         market_data_provider=market_data_provider,
     )
 
-    price_sync_service = providers.Factory(
+    price_sync_service = providers.Singleton(
         PriceSyncService,
         price_repo=price_repository,
         market_data=market_data_provider,
     )
 
-    dividend_sync_service = providers.Factory(
+    dividend_sync_service = providers.Singleton(
         DividendSyncService,
         dividend_repo=dividend_repository,
         securities_repo=securities_repository,
         market_data=market_data_provider,
     )
 
-    portfolio_service = providers.Factory(
+    portfolio_service = providers.Singleton(
         PortfolioService,
         securities_repo=securities_repository,
         cash_repo=cash_repository,
@@ -137,7 +137,7 @@ class Container(containers.DeclarativeContainer):
         property_repo=property_repository,
     )
 
-    securities_service = providers.Factory(
+    securities_service = providers.Singleton(
         SecuritiesService,
         securities_repo=securities_repository,
         price_repo=price_repository,

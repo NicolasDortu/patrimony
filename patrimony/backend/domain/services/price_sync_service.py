@@ -2,7 +2,7 @@
 
 Orchestrates fetching missing price data from external providers
 and storing it via the price repository. Handles staleness ordering,
-batch rate-limiting, and gap-fill logic.
+batch rate-limiting, gap-fill logic, and cooldown to avoid redundant calls.
 """
 
 import logging
@@ -11,6 +11,7 @@ from datetime import datetime, timedelta
 
 from ..interfaces import MarketDataProvider
 from ..repositories import PriceRepository
+from .enrichment_utilities import SyncCooldownMixin
 
 logger = logging.getLogger(__name__)
 
@@ -20,8 +21,10 @@ _SYNC_BATCH_SIZE: int = 5
 _SYNC_BATCH_DELAY_S: float = 2.0
 
 
-class PriceSyncService:
+class PriceSyncService(SyncCooldownMixin):
     """Synchronizes price history from external providers into the repository."""
+
+    _cooldown_seconds: int = 900  # 15 minutes
 
     def __init__(
         self,
@@ -30,6 +33,7 @@ class PriceSyncService:
     ):
         self._price_repo = price_repo
         self._market_data = market_data
+        self._init_cooldown()
 
     def sync_price_history(
         self, tickers: list[str], start_date: datetime, period: str = "1d"
@@ -39,12 +43,21 @@ class PriceSyncService:
         Tickers are sorted by staleness (oldest-updated first) and
         processed in batches with a short delay between batches to
         avoid hitting Yahoo Finance rate limits.
+
+        Recently synced tickers are skipped unless the cooldown has
+        expired.  New tickers (never synced in this session) are
+        always processed immediately.
         """
         if not tickers:
             return
 
         today = datetime.now()
         upper_tickers = [t.upper() for t in tickers]
+
+        # Determine which tickers actually need syncing
+        upper_tickers = self._apply_cooldown(upper_tickers)
+        if not upper_tickers:
+            return
 
         # Order tickers by staleness (oldest last_updated first).
         # Tickers absent from cache sort to the front so they get fetched first.
@@ -59,8 +72,11 @@ class PriceSyncService:
 
             try:
                 self._sync_single_ticker(ticker, start_date, today, period)
+                self._mark_synced(ticker)
             except Exception as e:
                 logger.warning("Skipping price sync for %s: %s", ticker, e)
+
+        self._finish_sync()
 
     def _sync_single_ticker(
         self,

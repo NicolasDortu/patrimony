@@ -11,7 +11,7 @@ from typing import Optional
 import polars as pl
 
 from ..entities import AssetType, Currency, EntryType
-from ..interfaces import CurrencyProvider, PriceProvider
+from ..interfaces import CurrencyProvider
 
 
 class BaseRepository(ABC):
@@ -185,17 +185,12 @@ class CashRepository(BaseRepository, CashOperationRepository, ABC):
         pass
 
 
-class PriceRepository(PriceProvider, ABC):
+class PriceRepository(ABC):
     """Repository for asset price data."""
 
     @abstractmethod
     def cache_price(self, ticker: str, price: float, timestamp: datetime) -> None:
         """Cache a price for later use."""
-        pass
-
-    @abstractmethod
-    def get_cached_price(self, ticker: str, max_age_minutes: int = 15) -> float:
-        """Get cached price if available and not stale."""
         pass
 
     @abstractmethod
@@ -215,6 +210,13 @@ class PriceRepository(PriceProvider, ABC):
     @abstractmethod
     def get_cache_timestamps(self, tickers: list[str]) -> dict[str, datetime]:
         """Return {ticker: last_updated} for tickers present in price cache."""
+        pass
+
+    @abstractmethod
+    def get_current_prices(
+        self, tickers: list[str], max_age_minutes: int = 15
+    ) -> dict[str, float]:
+        """Bulk-fetch current prices: return cached values and fetch stale/missing from API."""
         pass
 
 
@@ -317,6 +319,9 @@ class PropertyRepository(BaseRepository, ABC):
         pass
 
     @abstractmethod
-    def get_total_value(self) -> float:
-        """Return the total value of all properties."""
+    def get_total_by_currency(self) -> pl.DataFrame:
+        """Return aggregated property values grouped by currency.
+
+        Returns a DataFrame with columns: currency, total_value.
+        """
         pass

@@ -4,8 +4,8 @@ Orchestrates securities, cash, prices, and currency conversion
 to provide portfolio views and chart data.
 """
 
+import bisect
 import logging
-from bisect import bisect_right
 from datetime import datetime, timedelta
 from typing import Optional
 
@@ -23,8 +23,10 @@ from ..repositories import (
 from .currency_service import CurrencyService
 from .enrichment_utilities import (
     apply_currency_conversion,
+    build_quantity_timeline,
     enrich_with_prices,
     forward_fill_prices,
+    get_quantity_at_date,
     normalize_date,
 )
 from .price_sync_service import PriceSyncService
@@ -101,7 +103,7 @@ class PortfolioService:
             self._cash_repo.get_all(), user_currency
         )
         cash_timeline = self._build_cash_timeline(user_currency)
-        quantity_timeline = self._build_quantity_timeline()
+        quantity_timeline = build_quantity_timeline(self._securities_repo)
 
         rates, ticker_data, all_dates = self._resolve_price_timeline(
             securities, config, is_intraday, user_currency
@@ -175,8 +177,11 @@ class PortfolioService:
             today = datetime.now().date()
             existing = {normalize_date(d) for d in all_dates} if all_dates else set()
             if today not in existing:
+                today_prices = self._price_repo.get_current_prices(
+                    list(securities.keys())
+                )
                 for ticker in securities:
-                    price = self._price_repo.get_current_price(ticker)
+                    price = today_prices.get(ticker.upper())
                     if price:
                         ticker_data.setdefault(ticker, {})[today] = price
                 all_dates.append(today)
@@ -251,12 +256,22 @@ class PortfolioService:
         return self._sum_with_currency(df, "balance", user_currency)
 
     def _calculate_properties_value(self, user_currency: str) -> float:
-        """Sum property values converted to user currency."""
+        """Sum property values converted to user currency using SQL aggregation."""
         if not self._property_repo:
             return 0.0
-        return self._sum_with_currency(
-            self._property_repo.get_all(), "value", user_currency
-        )
+        df = self._property_repo.get_total_by_currency()
+        if df is None or df.is_empty():
+            return 0.0
+        total = 0.0
+        rate_cache: dict[str, float] = {}
+        for row in df.iter_rows(named=True):
+            curr = row.get("currency", "EUR") or "EUR"
+            if curr not in rate_cache:
+                rate_cache[curr] = self._currency_service.get_exchange_rate(
+                    curr, user_currency
+                )
+            total += row["total_value"] * rate_cache[curr]
+        return total
 
     def _build_cash_timeline(self, user_currency: str) -> dict:
         """Build a timeline of total cash balance keyed by date."""
@@ -305,43 +320,6 @@ class PortfolioService:
                 df["asset_type"].to_list(),
             )
         }
-
-    def _build_quantity_timeline(self) -> dict[str, list[tuple]]:
-        """Build per-ticker cumulative quantity timeline from individual positions.
-
-        Returns a dict mapping ticker -> sorted list of (date, cumulative_quantity).
-        """
-        df = self._securities_repo.get_all()
-        if df is None or df.is_empty():
-            return {}
-
-        df = df.sort("date").with_columns(
-            pl.col("quantity").cum_sum().over("ticker").alias("cum_qty"),
-            pl.col("date")
-            .map_elements(normalize_date, return_dtype=pl.Date)
-            .alias("norm_date"),
-        )
-
-        timeline: dict[str, list[tuple]] = {}
-        for ticker in df["ticker"].unique().to_list():
-            ticker_df = df.filter(pl.col("ticker") == ticker)
-            timeline[ticker] = list(
-                zip(ticker_df["norm_date"].to_list(), ticker_df["cum_qty"].to_list())
-            )
-        return timeline
-
-    @staticmethod
-    def _get_quantity_at_date(
-        quantity_timeline: dict[str, list[tuple]], ticker: str, dt
-    ) -> float:
-        """Get the cumulative quantity held for a ticker at a given date."""
-        entries = quantity_timeline.get(ticker, [])
-        if not entries:
-            return 0.0
-        dt_date = normalize_date(dt)
-        # entries is sorted by date; bisect for O(log n) lookup
-        idx = bisect_right(entries, dt_date, key=lambda e: e[0])
-        return entries[idx - 1][1] if idx > 0 else 0.0
 
     def _fetch_ticker_prices(
         self, tickers: list[str], config: dict, is_intraday: bool
@@ -401,20 +379,15 @@ class PortfolioService:
         return ticker_data, sorted_dates
 
     @staticmethod
-    def _get_cash_at_date(cash_timeline: dict, dt, current_cash: float) -> float:
-        if not cash_timeline:
+    def _get_cash_at_date(
+        sorted_dates: list, sorted_values: list, dt, current_cash: float
+    ) -> float:
+        if not sorted_dates:
             return current_cash
 
         dt_date = normalize_date(dt)
-
-        best_value = None
-        for timeline_dt, value in cash_timeline.items():
-            tl_date = normalize_date(timeline_dt)
-            if tl_date <= dt_date:
-                if best_value is None or tl_date >= best_value[0]:
-                    best_value = (tl_date, value)
-
-        return best_value[1] if best_value else 0.0
+        idx = bisect.bisect_right(sorted_dates, dt_date) - 1
+        return sorted_values[idx] if idx >= 0 else 0.0
 
     def _build_chart_rows(
         self,
@@ -430,6 +403,18 @@ class PortfolioService:
     ) -> list[dict]:
         rows = []
         properties = self._calculate_properties_value(user_currency)
+
+        # Pre-sort cash timeline for O(log N) lookups via bisect
+        if cash_timeline:
+            sorted_items = sorted(
+                ((normalize_date(d), v) for d, v in cash_timeline.items()),
+                key=lambda x: x[0],
+            )
+            cash_dates = [item[0] for item in sorted_items]
+            cash_values = [item[1] for item in sorted_items]
+        else:
+            cash_dates, cash_values = [], []
+
         for dt in all_dates:
             asset_values = {v: 0.0 for v in ASSET_TYPE_LABELS.values()}
             for ticker, info in securities.items():
@@ -438,14 +423,14 @@ class PortfolioService:
                     price = 0
                 rate = rates.get(ticker, 1.0) if rates else 1.0
                 if quantity_timeline is not None:
-                    qty = self._get_quantity_at_date(quantity_timeline, ticker, dt)
+                    qty = get_quantity_at_date(quantity_timeline, ticker, dt)
                 else:
                     qty = info["quantity"]
                 value = qty * price * rate
                 label = ASSET_TYPE_LABELS.get(info.get("asset_type", "STOCK"), "Stocks")
                 asset_values[label] += value
 
-            cash = self._get_cash_at_date(cash_timeline, dt, current_cash)
+            cash = self._get_cash_at_date(cash_dates, cash_values, dt, current_cash)
             securities_total = sum(asset_values.values())
             date_str = dt.strftime(date_fmt) if hasattr(dt, "strftime") else str(dt)
 

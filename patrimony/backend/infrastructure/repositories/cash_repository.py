@@ -29,7 +29,7 @@ class CashOperationRepositoryImpl(CashOperationRepository):
         operation_date: datetime,
         entry_type: EntryType,
         category: str = "Uncategorized",
-    ) -> str:
+    ) -> int:
         """Record a cash operation on the balance and return the operation ID."""
         with self._conn.transaction():
             result = self._conn.execute(
@@ -37,7 +37,7 @@ class CashOperationRepositoryImpl(CashOperationRepository):
                 INSERT INTO balance_operations
                 (account_number, amount, balance, rank, title, category, operation_date, entry_type)
                 VALUES (?, ?, 0, 0, ?, ?, ?, ?)
-                RETURNING account_number
+                RETURNING id
                 """,
                 [
                     account_number,
@@ -92,7 +92,10 @@ class CashOperationRepositoryImpl(CashOperationRepository):
                 "SELECT account_number FROM balance_operations WHERE id = ?",
                 [id],
             )
-            account_number = result.fetchone()[0]
+            row = result.fetchone()
+            if row is None:
+                raise ValueError(f"Operation {id} not found")
+            account_number = row[0]
             self._conn.execute("DELETE FROM balance_operations WHERE id = ?", [id])
             self.recalculate_balances(account_number)
 
@@ -111,7 +114,10 @@ class CashOperationRepositoryImpl(CashOperationRepository):
                 "SELECT account_number FROM balance_operations WHERE id = ?",
                 [id],
             )
-            account_number = result.fetchone()[0]
+            row = result.fetchone()
+            if row is None:
+                raise ValueError(f"Operation {id} not found")
+            account_number = row[0]
             self._conn.execute(
                 """
                 UPDATE balance_operations
@@ -260,7 +266,8 @@ class CashRepositoryImpl(CashRepository):
             """,
             [account_number],
         )
-        return result.fetchone()[0]
+        row = result.fetchone()
+        return row[0] if row is not None else 0.0
 
     def get_total_balance(self) -> float:
         """Return the total balance across all cash accounts (raw, no currency conversion)."""

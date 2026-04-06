@@ -133,6 +133,17 @@ class SecuritiesService:
             ticker, period, user_currency
         )
 
+    @staticmethod
+    def get_current_prices(
+        tickers: list[str], user_currency: str = "EUR"
+    ) -> dict[str, float]:
+        """Get current prices for tickers, converted to user currency."""
+        prices = container.price_repository().get_current_prices(tickers)
+        rates = container.currency_service().get_rates_for_tickers(
+            tickers, user_currency
+        )
+        return {t: (p or 0.0) * rates.get(t, 1.0) for t, p in prices.items()}
+
 
 class PortfolioService:
     """Frontend service for portfolio operations."""
@@ -172,13 +183,6 @@ class SecuritiesReferenceService:
 
 class CurrencyService:
     """Frontend service for currency operations."""
-
-    @staticmethod
-    def get_exchange_rate(from_currency: str, to_currency: str) -> float:
-        """Get exchange rate between two currencies."""
-        return container.currency_service().get_exchange_rate(
-            from_currency, to_currency
-        )
 
     @staticmethod
     def get_currency_symbol(currency_code: str) -> str:
@@ -341,10 +345,6 @@ class PropertyService:
     def get_all_properties() -> list[dict]:
         df = container.property_repository().get_all()
         return df.to_dicts() if df is not None else []
-
-    @staticmethod
-    def get_total_value() -> float:
-        return container.property_repository().get_total_value()
 
     @staticmethod
     def delete_property(id: int) -> OperationResult:

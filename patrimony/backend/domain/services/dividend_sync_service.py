@@ -6,14 +6,18 @@ based on position quantities, and stores new dividends in the repository.
 
 import logging
 import time
-from bisect import bisect_right
 from datetime import datetime
 
 import polars as pl
 
 from ..interfaces import MarketDataProvider
 from ..repositories import DividendRepository, SecuritiesRepository
-from .enrichment_utilities import normalize_date
+from .enrichment_utilities import (
+    SyncCooldownMixin,
+    build_quantity_timeline,
+    get_quantity_at_date,
+    normalize_date,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -21,8 +25,11 @@ _SYNC_BATCH_SIZE: int = 5
 _SYNC_BATCH_DELAY_S: float = 2.0
 
 
-class DividendSyncService:
+class DividendSyncService(SyncCooldownMixin):
     """Synchronizes dividend history from external providers into the repository."""
+
+    # Dividends change infrequently — longer cooldown than prices.
+    _cooldown_seconds: int = 3600  # 60 minutes
 
     def __init__(
         self,
@@ -33,6 +40,7 @@ class DividendSyncService:
         self._dividend_repo = dividend_repo
         self._securities_repo = securities_repo
         self._market_data = market_data
+        self._init_cooldown()
 
     def sync_dividends(self, tickers: list[str] | None = None) -> dict:
         """Fetch and store dividends for the given tickers (or all held tickers).
@@ -41,6 +49,9 @@ class DividendSyncService:
         provider, multiplies per-share amounts by the quantity held at each
         ex-dividend date, and inserts new records that don't already exist.
 
+        Recently synced tickers are skipped unless the cooldown has expired.
+        New tickers (never synced in this session) are always processed.
+
         Returns a summary dict: {imported: int, skipped: int, errors: list[str]}.
         """
         if tickers is None:
@@ -48,12 +59,17 @@ class DividendSyncService:
         if not tickers:
             return {"imported": 0, "skipped": 0, "errors": []}
 
-        quantity_timeline = self._build_quantity_timeline()
+        upper_tickers = [t.upper() for t in tickers]
+        upper_tickers = self._apply_cooldown(upper_tickers)
+        if not upper_tickers:
+            return {"imported": 0, "skipped": 0, "errors": []}
+
+        quantity_timeline = build_quantity_timeline(self._securities_repo)
         imported = 0
         skipped = 0
         errors: list[str] = []
 
-        for idx, ticker in enumerate(tickers):
+        for idx, ticker in enumerate(upper_tickers):
             if idx > 0 and idx % _SYNC_BATCH_SIZE == 0:
                 time.sleep(_SYNC_BATCH_DELAY_S)
 
@@ -61,10 +77,12 @@ class DividendSyncService:
                 result = self._sync_ticker_dividends(ticker, quantity_timeline)
                 imported += result["imported"]
                 skipped += result["skipped"]
+                self._mark_synced(ticker)
             except Exception as e:
                 logger.warning("Error syncing dividends for %s: %s", ticker, e)
                 errors.append(f"{ticker}: {e}")
 
+        self._finish_sync()
         return {"imported": imported, "skipped": skipped, "errors": errors}
 
     def _sync_ticker_dividends(
@@ -80,11 +98,12 @@ class DividendSyncService:
         if div_df is None or div_df.is_empty():
             return {"imported": 0, "skipped": 0}
 
-        # Get existing dividend dates to avoid duplicates
+        # Get existing dividend dates to avoid duplicates (normalize to date objects)
         existing_df = self._dividend_repo.get_by_ticker(ticker)
         existing_dates: set = set()
         if existing_df is not None and not existing_df.is_empty():
-            existing_dates = {normalize_date(d) for d in existing_df["date"].to_list()}
+            for d in existing_df["date"].to_list():
+                existing_dates.add(normalize_date(d))
 
         imported = 0
         skipped = 0
@@ -96,26 +115,34 @@ class DividendSyncService:
                 skipped += 1
                 continue
 
-            qty = self._get_quantity_at_date(quantity_timeline, ticker, div_date)
+            qty = get_quantity_at_date(quantity_timeline, ticker, div_date)
             if qty <= 0:
                 skipped += 1
                 continue
 
             total_amount = row["amount_per_share"] * qty
+            # Normalize to midnight datetime for consistent storage
+            store_date = datetime.combine(div_date, datetime.min.time())
             try:
                 self._dividend_repo.add_dividend(
                     ticker=ticker.upper(),
                     amount=round(total_amount, 4),
-                    date=datetime.combine(div_date, datetime.min.time())
-                    if not isinstance(div_date, datetime)
-                    else div_date,
+                    date=store_date,
                 )
                 imported += 1
+                existing_dates.add(div_date)
             except Exception as e:
-                logger.warning(
-                    "Failed to store dividend for %s on %s: %s", ticker, div_date, e
-                )
-                skipped += 1
+                # UNIQUE constraint violation means duplicate — safe to skip
+                if "unique" in str(e).lower() or "duplicate" in str(e).lower():
+                    skipped += 1
+                else:
+                    logger.warning(
+                        "Failed to store dividend for %s on %s: %s",
+                        ticker,
+                        div_date,
+                        e,
+                    )
+                    skipped += 1
 
         return {"imported": imported, "skipped": skipped}
 
@@ -126,39 +153,3 @@ class DividendSyncService:
             return []
         held = df.filter(pl.col("total_quantity") > 0)
         return held["ticker"].to_list() if not held.is_empty() else []
-
-    def _build_quantity_timeline(self) -> dict[str, list[tuple]]:
-        """Build per-ticker cumulative quantity timeline."""
-        df = self._securities_repo.get_all()
-        if df is None or df.is_empty():
-            return {}
-
-        df = df.sort("date").with_columns(
-            pl.col("quantity").cum_sum().over("ticker").alias("cum_qty"),
-            pl.col("date")
-            .map_elements(normalize_date, return_dtype=pl.Date)
-            .alias("norm_date"),
-        )
-
-        timeline: dict[str, list[tuple]] = {}
-        for ticker in df["ticker"].unique().to_list():
-            ticker_df = df.filter(pl.col("ticker") == ticker)
-            timeline[ticker] = list(
-                zip(ticker_df["norm_date"].to_list(), ticker_df["cum_qty"].to_list())
-            )
-        return timeline
-
-    @staticmethod
-    def _get_quantity_at_date(
-        quantity_timeline: dict[str, list[tuple]], ticker: str, dt
-    ) -> float:
-        """Get the cumulative quantity held for a ticker at a given date."""
-        entries = quantity_timeline.get(ticker.upper(), [])
-        if not entries:
-            # Try original case
-            entries = quantity_timeline.get(ticker, [])
-        if not entries:
-            return 0.0
-        dt_date = normalize_date(dt)
-        idx = bisect_right(entries, dt_date, key=lambda e: e[0])
-        return entries[idx - 1][1] if idx > 0 else 0.0

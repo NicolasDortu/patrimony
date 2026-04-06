@@ -30,20 +30,6 @@ class PriceRepositoryImpl(PriceRepository):
         self._conn = connection
         self._market_data = market_data_provider
 
-    def get_current_price(self, ticker: str) -> float:
-        """Fetch current price, using cache when available."""
-        cached_price = self.get_cached_price(ticker, max_age_minutes=15)
-        if cached_price:
-            return cached_price
-
-        price = self._market_data.get_current_price(ticker)
-        if price:
-            self.cache_price(ticker, price, datetime.now())
-        else:
-            logger.debug("No price returned for %s", ticker)
-
-        return price
-
     def cache_price(self, ticker: str, price: float, timestamp: datetime) -> None:
         """Cache a price in the database."""
         self._conn.execute(
@@ -54,22 +40,6 @@ class PriceRepositoryImpl(PriceRepository):
             """,
             [ticker.upper(), price, timestamp],
         )
-
-    def get_cached_price(self, ticker: str, max_age_minutes: int = 15) -> float:
-        """Get cached price if available and not stale."""
-        result = self._conn.execute(
-            f"""
-            SELECT current_price, last_updated
-            FROM price_cache
-            WHERE ticker = ?
-            AND last_updated > current_timestamp - INTERVAL '{max_age_minutes}' MINUTE
-            ORDER BY last_updated DESC
-            LIMIT 1
-            """,
-            [ticker.upper()],
-        ).fetchone()
-
-        return result[0] if result else None
 
     def get_price_history(
         self,
@@ -156,3 +126,42 @@ class PriceRepositoryImpl(PriceRepository):
             upper_tickers,
         ).fetchall()
         return {r[0]: r[1] for r in rows}
+
+    def get_current_prices(
+        self, tickers: list[str], max_age_minutes: int = 15
+    ) -> dict[str, float]:
+        """Bulk-fetch current prices: return cached values and fetch stale/missing from API.
+
+        Performs a single DB query to get all fresh cached prices, then
+        calls the API only for tickers that are stale or missing.
+        """
+        if not tickers:
+            return {}
+
+        upper_tickers = [t.upper() for t in tickers]
+        placeholders = ", ".join(["?"] * len(upper_tickers))
+
+        rows = self._conn.execute(
+            f"""
+            SELECT ticker, current_price
+            FROM price_cache
+            WHERE ticker IN ({placeholders})
+            AND last_updated > current_timestamp - INTERVAL '{max_age_minutes}' MINUTE
+            """,
+            upper_tickers,
+        ).fetchall()
+
+        prices: dict[str, float] = {r[0]: r[1] for r in rows if r[1] is not None}
+        stale_tickers = [t for t in upper_tickers if t not in prices]
+
+        now = datetime.now()
+        for ticker in stale_tickers:
+            try:
+                price = self._market_data.get_current_price(ticker)
+                if price:
+                    self.cache_price(ticker, price, now)
+                    prices[ticker] = price
+            except Exception as e:
+                logger.warning("Error fetching price for %s: %s", ticker, e)
+
+        return prices

@@ -43,18 +43,23 @@ class TableStateDetails(SpreadsheetMixin, SearchSortMixin, PaginationMixin, rx.S
         yield
         try:
             ticker = self.router.url.query_parameters.get("ticker", "")
+            if not ticker:
+                # Also try page.params as fallback
+                ticker = self.router.page.params.get("ticker", "")
+            if not ticker:
+                logger.warning("No ticker in URL, redirecting to securities list")
+                self.is_loading = False
+                yield rx.redirect("/securities")
+                return
             self.ticker = ticker
             self.load_entries()
             await self._load_chart_data()
-            # Load current price from aggregated positions
+            # Load current price directly from price cache (avoids fetching all positions)
             theme_state = await self.get_state(ThemeState)
-            agg = SecuritiesService.get_aggregated_positions(
-                theme_state.default_currency
+            prices = SecuritiesService.get_current_prices(
+                [ticker], theme_state.default_currency
             )
-            for pos in agg:
-                if pos.get("ticker", "").upper() == ticker.upper():
-                    self.current_price = pos.get("current_price", 0.0) or 0.0
-                    break
+            self.current_price = prices.get(ticker.upper(), 0.0) or 0.0
             dividends_state = await self.get_state(DividendsState)
             dividends_state.ticker = ticker
             try:

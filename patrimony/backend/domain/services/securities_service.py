@@ -64,8 +64,6 @@ class SecuritiesService:
 
         is_intraday = period == "1D"
         price_df = self._fetch_price_data(ticker, config, is_intraday)
-        if price_df is None or price_df.is_empty():
-            return []
 
         rate = self._currency_service.get_rates_for_tickers(
             [ticker], user_currency
@@ -76,30 +74,33 @@ class SecuritiesService:
         )
 
         rows = []
-        prices_dict = {
-            row["date"]: row["close_price"] for row in price_df.iter_rows(named=True)
-        }
-        sorted_dates = sorted(prices_dict.keys())
-        forward_fill_prices(prices_dict, sorted_dates)
+        if price_df is not None and not price_df.is_empty():
+            prices_dict = {
+                row["date"]: row["close_price"]
+                for row in price_df.iter_rows(named=True)
+            }
+            sorted_dates = sorted(prices_dict.keys())
+            forward_fill_prices(prices_dict, sorted_dates)
 
-        for dt in sorted_dates:
-            price = prices_dict[dt]
-            if price is None or price <= 0:
-                continue
+            for dt in sorted_dates:
+                price = prices_dict[dt]
+                if price is None or price <= 0:
+                    continue
 
-            date_str = dt.strftime(date_fmt) if hasattr(dt, "strftime") else str(dt)
-            rows.append(
-                {
-                    "name": date_str,
-                    "price": round(price * df["total_quantity"][0] * rate, 2),
-                }
-            )
+                date_str = dt.strftime(date_fmt) if hasattr(dt, "strftime") else str(dt)
+                rows.append(
+                    {
+                        "name": date_str,
+                        "price": round(price * df["total_quantity"][0] * rate, 2),
+                    }
+                )
 
         # Add today's data point for non-intraday charts
-        if not is_intraday and rows:
+        if not is_intraday:
             today_str = datetime.now().strftime(date_fmt)
-            if rows[-1]["name"] != today_str:
-                current_price = self._price_repo.get_current_price(ticker)
+            if not rows or rows[-1]["name"] != today_str:
+                today_prices = self._price_repo.get_current_prices([ticker])
+                current_price = today_prices.get(ticker.upper())
                 if current_price and current_price > 0:
                     rows.append(
                         {
