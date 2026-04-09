@@ -10,6 +10,8 @@ from datetime import datetime
 
 import polars as pl
 
+from ..constants import SYNC_BATCH_DELAY_S, SYNC_BATCH_SIZE
+from ..exceptions import DividendSyncError
 from ..interfaces import MarketDataProvider
 from ..repositories import DividendRepository, SecuritiesRepository
 from .enrichment_utilities import (
@@ -20,9 +22,6 @@ from .enrichment_utilities import (
 )
 
 logger = logging.getLogger(__name__)
-
-_SYNC_BATCH_SIZE: int = 5
-_SYNC_BATCH_DELAY_S: float = 2.0
 
 
 class DividendSyncService(SyncCooldownMixin):
@@ -70,14 +69,16 @@ class DividendSyncService(SyncCooldownMixin):
         errors: list[str] = []
 
         for idx, ticker in enumerate(upper_tickers):
-            if idx > 0 and idx % _SYNC_BATCH_SIZE == 0:
-                time.sleep(_SYNC_BATCH_DELAY_S)
+            if idx > 0 and idx % SYNC_BATCH_SIZE == 0:
+                time.sleep(SYNC_BATCH_DELAY_S)
 
             try:
                 result = self._sync_ticker_dividends(ticker, quantity_timeline)
                 imported += result["imported"]
                 skipped += result["skipped"]
                 self._mark_synced(ticker)
+            except DividendSyncError:
+                raise
             except Exception as e:
                 logger.warning("Error syncing dividends for %s: %s", ticker, e)
                 errors.append(f"{ticker}: {e}")

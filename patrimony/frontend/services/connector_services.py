@@ -23,7 +23,7 @@ class FileConnectorService:
         Returns:
             Tuple of (column names, first 5 rows as dicts).
         """
-        df = container.connector_service().read_file(file_bytes, filename, delimiter)
+        df = container.file_connector().read_file(file_bytes, filename, delimiter)
         columns = df.columns
         preview = df.head(5).to_dicts()
         return columns, preview
@@ -33,7 +33,7 @@ class FileConnectorService:
         file_bytes: bytes, filename: str, delimiter: str = ","
     ) -> list[dict]:
         """Read an uploaded file and return all rows."""
-        df = container.connector_service().read_file(file_bytes, filename, delimiter)
+        df = container.file_connector().read_file(file_bytes, filename, delimiter)
         return df.to_dicts()
 
     @staticmethod
@@ -58,7 +58,7 @@ class FileConnectorService:
             )
 
             svc = container.connector_service()
-            df = svc.read_file(file_bytes, filename, delimiter)
+            df = container.file_connector().read_file(file_bytes, filename, delimiter)
             result = svc.import_positions(
                 df, column_mapping, entry_type, asset_type_overrides
             )
@@ -120,7 +120,7 @@ class FileConnectorService:
     ) -> list[str]:
         """Return account numbers from the file that don't exist in the cash table."""
         svc = container.connector_service()
-        df = svc.read_file(file_bytes, filename, delimiter)
+        df = container.file_connector().read_file(file_bytes, filename, delimiter)
         return svc.detect_unknown_cash_accounts(df, column_mapping)
 
     @staticmethod
@@ -140,7 +140,7 @@ class FileConnectorService:
             )
 
             svc = container.connector_service()
-            df = svc.read_file(file_bytes, filename, delimiter)
+            df = container.file_connector().read_file(file_bytes, filename, delimiter)
             result = svc.import_cash_operations(
                 df, column_mapping, entry_type, new_accounts
             )

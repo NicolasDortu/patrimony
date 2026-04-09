@@ -18,3 +18,7 @@ ASSET_TYPE_LABELS = {
     "CASH": "Cash",
     "PROPERTY": "Properties",
 }
+
+# Sync batch settings for price & dividend synchronization.
+SYNC_BATCH_SIZE: int = 5
+SYNC_BATCH_DELAY_S: float = 2.0

@@ -157,8 +157,8 @@ class CashRepository(BaseRepository, CashOperationRepository, ABC):
         bank: str,
         account_number: str,
         currency: Currency,
-        balance: float,
         last_updated: datetime,
+        entry_type: EntryType = EntryType.MANUAL,
     ) -> str:
         """Add a new cash account and return its account number."""
         pass

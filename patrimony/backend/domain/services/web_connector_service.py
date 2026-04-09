@@ -1,41 +1,34 @@
 """Domain service for web-based automated data import.
 
-Orchestrates site connector selection, browser automation,
-file download, and ingestion through the file import pipeline.
+Orchestrates site connector selection, data fetching,
+and ingestion through the file import pipeline.
 """
 
-import asyncio
-from collections.abc import Callable
-from concurrent.futures import ThreadPoolExecutor
 import logging
-import tempfile
-from pathlib import Path
+from collections.abc import Callable
 
 from ..entities import ConnectorProfile, EntryType, WebConnectorResult
-from ..interfaces import FileConnector, SiteConnector
+from ..exceptions import ConnectorNotFoundError, DataFetchError
+from ..interfaces import SiteConnector
 from .file_connector_service import FileConnectorService
 
 logger = logging.getLogger(__name__)
 
 
 class WebConnectorService:
-    """Orchestrates the full web connector pipeline.
+    """Orchestrates the web connector import pipeline.
 
     1. Resolve the site connector by ID
-    2. Execute browser automation to download a file
-    3. Read the downloaded file
-    4. Apply the connector's column mapping
-    5. Import via existing FileConnectorService
+    2. Fetch data (connector handles all collection details)
+    3. Import via existing FileConnectorService
     """
 
     def __init__(
         self,
         site_connectors: list[SiteConnector],
-        file_connector: FileConnector,
         connector_service: FileConnectorService,
     ):
         self._sites: dict[str, SiteConnector] = {s.site_id: s for s in site_connectors}
-        self._file_connector = file_connector
         self._connector_service = connector_service
 
     def list_profiles(self) -> list[ConnectorProfile]:
@@ -66,100 +59,62 @@ class WebConnectorService:
         # 1. Resolve site connector
         site = self._sites.get(site_id)
         if not site:
-            return WebConnectorResult(
-                success=False,
-                errors=[f"No connector registered for '{site_id}'."],
-                status_log=[f"No connector for '{site_id}'."],
-            )
+            raise ConnectorNotFoundError(site_id)
 
         profile = site.profile
         _log(f"Loaded profile: {profile.name}")
 
-        # 2. Execute browser automation
-        with tempfile.TemporaryDirectory() as tmp_dir:
-            download_dir = Path(tmp_dir)
-            try:
-                _log("Launching browser...")
+        # 2. Fetch data from the external source
+        try:
+            _log("Fetching data...")
+            df = site.fetch_data(
+                credentials=credentials,
+                on_status=_log,
+                headless=headless,
+            )
+            _log(f"Fetched {len(df)} rows")
+        except Exception as e:
+            _log(f"Data fetch failed: {e}")
+            raise DataFetchError(site_id, cause=e) from e
 
-                # Run playwright in a separate thread with its own event loop
-                # because Reflex already occupies the main event loop.
-                with ThreadPoolExecutor(1) as pool:
-                    downloaded_file = pool.submit(
-                        asyncio.run,
-                        site.execute(
-                            credentials=credentials,
-                            download_dir=download_dir,
-                            on_status=_log,
-                            headless=headless,
-                        ),
-                    ).result()
-                _log(f"File downloaded: {downloaded_file.name}")
-            except Exception as e:
-                _log(f"Browser automation failed: {e}")
-                return WebConnectorResult(
-                    success=False,
-                    errors=[f"Browser automation failed: {e}"],
-                    status_log=status_log,
+        # 3. Import using existing pipeline with auto-applied column mapping
+        try:
+            _log("Importing data...")
+            entry_type = EntryType.WEB
+
+            if profile.import_mode == "cash":
+                result = self._connector_service.import_cash_operations(
+                    df=df,
+                    column_mapping=profile.column_mapping,
+                    entry_type=entry_type,
+                    new_accounts=profile.new_accounts,
+                )
+            else:
+                result = self._connector_service.import_positions(
+                    df=df,
+                    column_mapping=profile.column_mapping,
+                    entry_type=entry_type,
                 )
 
-            # 3. Read the downloaded file
-            try:
-                _log("Reading downloaded file...")
-                file_bytes = downloaded_file.read_bytes()
-                filename = downloaded_file.name
-                df = self._file_connector.read_file(
-                    file_bytes, filename, profile.delimiter
+            if result.success:
+                _log(
+                    f"Import complete: {result.imported} imported, "
+                    f"{result.skipped} skipped"
                 )
-                _log(f"Parsed {len(df)} rows from {filename}")
-            except Exception as e:
-                _log(f"Failed to read file: {e}")
-                return WebConnectorResult(
-                    success=False,
-                    errors=[f"Failed to read downloaded file: {e}"],
-                    status_log=status_log,
-                    download_path=str(downloaded_file),
-                )
+            else:
+                _log(f"Import failed: {'; '.join(result.errors)}")
 
-            # 4. Import using existing pipeline with auto-applied column mapping
-            try:
-                _log("Importing data...")
-                entry_type = EntryType.WEB
-
-                if profile.import_mode == "cash":
-                    result = self._connector_service.import_cash_operations(
-                        df=df,
-                        column_mapping=profile.column_mapping,
-                        entry_type=entry_type,
-                        new_accounts=profile.new_accounts,
-                    )
-                else:
-                    result = self._connector_service.import_positions(
-                        df=df,
-                        column_mapping=profile.column_mapping,
-                        entry_type=entry_type,
-                    )
-
-                if result.success:
-                    _log(
-                        f"Import complete: {result.imported} imported, "
-                        f"{result.skipped} skipped"
-                    )
-                else:
-                    _log(f"Import failed: {'; '.join(result.errors)}")
-
-                return WebConnectorResult(
-                    success=result.success,
-                    imported=result.imported,
-                    skipped=result.skipped,
-                    errors=result.errors,
-                    download_path=str(downloaded_file),
-                    status_log=status_log,
-                )
-            except Exception as e:
-                _log(f"Import failed: {e}")
-                return WebConnectorResult(
-                    success=False,
-                    errors=[f"Import failed: {e}"],
-                    status_log=status_log,
-                    download_path=str(downloaded_file),
-                )
+            return WebConnectorResult(
+                success=result.success,
+                imported=result.imported,
+                skipped=result.skipped,
+                errors=result.errors,
+                status_log=status_log,
+            )
+        except Exception as e:
+            _log(f"Import failed: {e}")
+            return WebConnectorResult(
+                success=False,
+                errors=[f"Import failed: {e}"],
+                status_log=status_log,
+            )

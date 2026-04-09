@@ -26,13 +26,21 @@ class CashService:
         try:
             if last_updated is None:
                 last_updated = datetime.now()
-            cash_id = container.cash_repository().add_cash(
+            repo = container.cash_repository()
+            cash_id = repo.add_cash(
                 bank=bank,
                 account_number=account_number,
                 currency=currency,
-                balance=balance,
                 last_updated=last_updated,
             )
+            if balance:
+                repo.add_operation_balance(
+                    account_number=account_number,
+                    amount=balance,
+                    title="Initial balance",
+                    operation_date=last_updated,
+                    entry_type=EntryType.MANUAL,
+                )
             return OperationResult(
                 success=True,
                 message="Bank account added successfully",

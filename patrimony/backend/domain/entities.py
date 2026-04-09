@@ -133,7 +133,6 @@ class ConnectorProfile:
     name: str
     column_mapping: dict[str, str]
     import_mode: str = "positions"  # "positions" or "cash"
-    delimiter: str = ","
     description: str = ""
     new_accounts: dict[str, dict] | None = (
         None  # for cash import: acct -> {bank, currency}
@@ -148,7 +147,6 @@ class WebConnectorResult:
     imported: int = 0
     skipped: int = 0
     errors: list[str] = field(default_factory=list)
-    download_path: str = ""
     status_log: list[str] = field(default_factory=list)
 
 

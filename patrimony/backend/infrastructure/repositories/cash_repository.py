@@ -194,7 +194,6 @@ class CashRepositoryImpl(CashRepository):
         bank: str,
         account_number: str,
         currency: Currency,
-        balance: float,
         last_updated: datetime,
         entry_type: EntryType = EntryType.MANUAL,
     ) -> str:
@@ -214,31 +213,7 @@ class CashRepositoryImpl(CashRepository):
                 entry_type.value,
             ],
         )
-        # also create the initial balance operation
-        self._create_initial_balance_operation(account_number, balance, entry_type)
         return result.fetchone()[0]
-
-    def _create_initial_balance_operation(
-        self,
-        account_number: str,
-        balance: float,
-        entry_type: EntryType,
-    ) -> None:
-        """Create an initial balance operation for a new cash account."""
-        self._conn.execute(
-            """
-            INSERT INTO balance_operations
-            (account_number, amount, balance, rank, title, operation_date, entry_type)
-            VALUES (?, ?, ?, 1, ?, CURRENT_TIMESTAMP, ?)
-            """,
-            [
-                account_number,
-                balance,
-                balance,
-                "Initial balance",
-                entry_type.value,
-            ],
-        )
 
     def update_cash(
         self,

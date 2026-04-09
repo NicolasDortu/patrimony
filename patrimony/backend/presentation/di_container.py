@@ -148,7 +148,6 @@ class Container(containers.DeclarativeContainer):
 
     connector_service = providers.Factory(
         FileConnectorService,
-        file_connector=file_connector,
         securities_repo=securities_repository,
         cash_repo=cash_repository,
         reference_repo=reference_repository,
@@ -158,7 +157,6 @@ class Container(containers.DeclarativeContainer):
     web_connector_service = providers.Factory(
         WebConnectorService,
         site_connectors=site_connectors,
-        file_connector=file_connector,
         connector_service=connector_service,
     )
 

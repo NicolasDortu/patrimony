@@ -12,7 +12,7 @@ from datetime import datetime
 import polars as pl
 
 from ..entities import AssetType, EntryType
-from ..interfaces import FileConnector
+from ..exceptions import AssetTypeResolutionError, DateParsingError, MissingMappingError
 from ..repositories import (
     CashRepository,
     ImportHashRepository,
@@ -46,23 +46,15 @@ class FileConnectorService:
 
     def __init__(
         self,
-        file_connector: FileConnector,
         securities_repo: SecuritiesRepository,
         cash_repo: CashRepository,
         reference_repo: ReferenceRepository,
         hash_repo: ImportHashRepository | None = None,
     ):
-        self._file_connector = file_connector
         self._securities_repo = securities_repo
         self._cash_repo = cash_repo
         self._reference_repo = reference_repo
         self._hash_repo = hash_repo
-
-    def read_file(
-        self, file_bytes: bytes, filename: str, delimiter: str = ","
-    ) -> pl.DataFrame:
-        """Read an uploaded file and return the raw DataFrame."""
-        return self._file_connector.read_file(file_bytes, filename, delimiter)
 
     def resolve_asset_types(self, tickers: list[str]) -> dict[str, str | None]:
         """Look up each ticker in the reference table.
@@ -104,10 +96,7 @@ class FileConnectorService:
         mapped_fields = set(column_mapping.values())
         missing = REQUIRED_POSITION_FIELDS - mapped_fields
         if missing:
-            return ImportResult(
-                success=False,
-                errors=[f"Missing required mappings: {', '.join(missing)}"],
-            )
+            raise MissingMappingError(missing)
 
         # Rename columns based on mapping
         rename_map = {
@@ -171,11 +160,7 @@ class FileConnectorService:
                 elif resolved_types.get(ticker):
                     asset_type = AssetType(resolved_types[ticker])
                 else:
-                    errors.append(
-                        f"Row {i}: Unknown asset type for ticker '{ticker}', skipped"
-                    )
-                    skipped += 1
-                    continue
+                    raise AssetTypeResolutionError(ticker, row=i)
 
                 self._securities_repo.add_position(
                     ticker=ticker,
@@ -268,8 +253,8 @@ class FileConnectorService:
                         bank=info["bank"],
                         account_number=acct_num,
                         currency=Currency(info["currency"]),
-                        balance=0.0,
                         last_updated=datetime.now(),
+                        entry_type=entry_type,
                     )
                 except Exception as e:
                     logger.warning("Failed to create account %s: %s", acct_num, e)
@@ -277,10 +262,7 @@ class FileConnectorService:
         mapped_fields = set(column_mapping.values())
         missing = REQUIRED_CASH_FIELDS - mapped_fields
         if missing:
-            return ImportResult(
-                success=False,
-                errors=[f"Missing required mappings: {', '.join(missing)}"],
-            )
+            raise MissingMappingError(missing)
 
         rename_map = {
             src: dst for src, dst in column_mapping.items() if src in df.columns
@@ -356,7 +338,7 @@ def _parse_date(value: str) -> datetime:
             return datetime.strptime(value.strip(), fmt)
         except ValueError:
             continue
-    raise ValueError(f"Unrecognized date format: '{value}'")
+    raise DateParsingError(value)
 
 
 def _normalize_date(val) -> str:

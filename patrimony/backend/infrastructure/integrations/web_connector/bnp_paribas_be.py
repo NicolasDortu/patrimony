@@ -1,7 +1,7 @@
-"""Trade Republic broker connector.
+"""BNP Paribas Belgium bank connector.
 
-TODO: Implement Trade Republic-specific login (OTP),
-      navigation, and portfolio export download logic.
+TODO: Implement BNP-specific login, navigation,
+      and transaction export download logic.
 """
 
 from collections.abc import Callable
@@ -13,20 +13,20 @@ from ....domain.entities import ConnectorProfile
 from .base import PlaywrightSiteConnector
 
 
-class TradeRepublicConnector(PlaywrightSiteConnector):
-    """Browser automation for Trade Republic portfolio export."""
+class BNPParibasBEConnector(PlaywrightSiteConnector):
+    """Browser automation for BNP Paribas Belgium transaction export."""
 
     @property
     def site_id(self) -> str:
-        return "trade_republic"
+        return "bnp_paribas_be"
 
     @property
     def profile(self) -> ConnectorProfile:
         return ConnectorProfile(
-            id="trade_republic",
-            name="Trade Republic",
-            description="Trade Republic online broker.",
-            import_mode="positions",
+            id="bnp_paribas_be",
+            name="BNP Paribas Belgium",
+            description="BNP Paribas Belgium bank.",
+            import_mode="cash",
             column_mapping={},  # TODO: fill when implementing
         )
 
@@ -36,4 +36,4 @@ class TradeRepublicConnector(PlaywrightSiteConnector):
         credentials: dict[str, str],
         on_status: Callable[[str], None] | None,
     ) -> pl.DataFrame:
-        raise NotImplementedError("Trade Republic connector not yet implemented.")
+        raise NotImplementedError("BNP Paribas Belgium connector not yet implemented.")

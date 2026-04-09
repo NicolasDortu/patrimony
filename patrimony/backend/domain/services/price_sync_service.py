@@ -9,16 +9,13 @@ import logging
 import time
 from datetime import datetime, timedelta
 
+from ..constants import SYNC_BATCH_DELAY_S, SYNC_BATCH_SIZE
+from ..exceptions import PriceSyncError
 from ..interfaces import MarketDataProvider
 from ..repositories import PriceRepository
 from .enrichment_utilities import SyncCooldownMixin
 
 logger = logging.getLogger(__name__)
-
-# How many tickers to process before pausing during bulk sync.
-_SYNC_BATCH_SIZE: int = 5
-# Seconds to sleep between batches during sync.
-_SYNC_BATCH_DELAY_S: float = 2.0
 
 
 class PriceSyncService(SyncCooldownMixin):
@@ -66,15 +63,15 @@ class PriceSyncService(SyncCooldownMixin):
         ordered = sorted(upper_tickers, key=lambda t: staleness.get(t, epoch))
 
         for idx, ticker in enumerate(ordered):
-            if idx > 0 and idx % _SYNC_BATCH_SIZE == 0:
+            if idx > 0 and idx % SYNC_BATCH_SIZE == 0:
                 logger.debug("Rate-limit pause after %d/%d tickers", idx, len(ordered))
-                time.sleep(_SYNC_BATCH_DELAY_S)
+                time.sleep(SYNC_BATCH_DELAY_S)
 
             try:
                 self._sync_single_ticker(ticker, start_date, today, period)
                 self._mark_synced(ticker)
             except Exception as e:
-                logger.warning("Skipping price sync for %s: %s", ticker, e)
+                logger.warning("%s", PriceSyncError(ticker, cause=e))
 
         self._finish_sync()
 

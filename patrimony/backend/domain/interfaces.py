@@ -7,7 +7,6 @@ from external sources (market data APIs, exchange rate services, etc.).
 from abc import ABC, abstractmethod
 from collections.abc import Callable
 from datetime import datetime
-from pathlib import Path
 
 import polars as pl
 
@@ -133,10 +132,11 @@ class FileConnector(ABC):
 
 
 class SiteConnector(ABC):
-    """Interface for a site-specific browser automation plugin.
+    """Interface for a site-specific data connector.
 
-    Each site (broker or bank) implements this interface with its own
-    login flow, navigation, data mapping, and file download logic.
+    Each site (broker or bank) implements this interface to fetch data
+    and return it as a DataFrame. The implementation handles all details
+    of data collection (browser automation, API calls, scraping, etc.).
     """
 
     @property
@@ -148,26 +148,24 @@ class SiteConnector(ABC):
     @property
     @abstractmethod
     def profile(self) -> ConnectorProfile:
-        """Data mapping configuration for this connector."""
+        """Data mapping and import configuration."""
         pass
 
     @abstractmethod
-    async def execute(
+    def fetch_data(
         self,
         credentials: dict[str, str],
-        download_dir: Path,
         on_status: Callable[[str], None] | None = None,
-        headless: bool = False,
-    ) -> Path:
-        """Run the full browser automation to download a data file.
+        **options,
+    ) -> pl.DataFrame:
+        """Fetch data from the external source.
 
         Args:
-            credentials: Dict with "username" and "password" keys.
-            download_dir: Directory where the downloaded file will be saved.
+            credentials: Dict with authentication keys.
             on_status: Optional callback receiving status messages.
-            headless: Whether to run the browser headless.
+            **options: Implementation-specific options (e.g. headless).
 
         Returns:
-            Path to the downloaded file.
+            A DataFrame with the fetched raw data.
         """
         pass

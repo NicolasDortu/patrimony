@@ -5,8 +5,8 @@ TODO: Implement Revolut-specific login, navigation,
 """
 
 from collections.abc import Callable
-from pathlib import Path
 
+import polars as pl
 from playwright.async_api import Page
 
 from ....domain.entities import ConnectorProfile
@@ -30,11 +30,10 @@ class RevolutConnector(PlaywrightSiteConnector):
             column_mapping={},  # TODO: fill when implementing
         )
 
-    async def _run(
+    async def _execute(
         self,
         page: Page,
         credentials: dict[str, str],
-        download_dir: Path,
         on_status: Callable[[str], None] | None,
-    ) -> Path:
+    ) -> pl.DataFrame:
         raise NotImplementedError("Revolut connector not yet implemented.")
