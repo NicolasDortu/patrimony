@@ -60,7 +60,10 @@ class FileConnectorService:
             svc = container.connector_service()
             df = container.file_connector().read_file(file_bytes, filename, delimiter)
             result = svc.import_positions(
-                df, column_mapping, entry_type, asset_type_overrides
+                df,
+                column_mapping,
+                entry_type,
+                asset_type_overrides,
             )
 
             if result.success:
@@ -253,6 +256,16 @@ class WebConnectorService:
                 "name": p.name,
                 "description": p.description,
                 "import_mode": p.import_mode,
+                "credential_fields": [
+                    {
+                        "placeholder": ph,
+                        "label": label,
+                        "type": "password" if "password" in label.lower() else "text",
+                    }
+                    for ph, label in p.credential_fields
+                ]
+                if p.credential_fields
+                else [],
             }
             for p in profiles
         ]
@@ -369,12 +382,12 @@ class CredentialService:
             return False
 
     @staticmethod
-    def store_credentials(profile_id: str, username: str, password: str) -> bool:
+    def store_credentials(profile_id: str, credentials: dict[str, str]) -> bool:
         if not _session_fernet_key:
             return False
         try:
             container.credential_repository().store_credentials(
-                profile_id, username, password, _session_fernet_key
+                profile_id, credentials, _session_fernet_key
             )
             return True
         except Exception as e:
@@ -382,7 +395,7 @@ class CredentialService:
             return False
 
     @staticmethod
-    def get_credentials(profile_id: str) -> tuple[str, str] | None:
+    def get_credentials(profile_id: str) -> dict[str, str] | None:
         if not _session_fernet_key:
             return None
         return container.credential_repository().get_credentials(

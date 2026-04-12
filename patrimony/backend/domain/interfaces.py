@@ -110,6 +110,22 @@ class MarketDataProvider(PriceProvider, CurrencyProvider, ABC):
         """
         pass
 
+    @abstractmethod
+    def resolve_isin(self, isin: str) -> str | None:
+        """Resolve an ISIN code to a ticker symbol.
+
+        Returns the ticker symbol if found, None otherwise.
+        """
+        pass
+
+    @abstractmethod
+    def resolve_asset_type(self, ticker: str) -> str | None:
+        """Resolve a ticker to its asset type (e.g. STOCK, ETF, CRYPTO).
+
+        Returns the asset type string if found, None otherwise.
+        """
+        pass
+
 
 class FileConnector(ABC):
     """Interface for reading uploaded files into a raw DataFrame."""

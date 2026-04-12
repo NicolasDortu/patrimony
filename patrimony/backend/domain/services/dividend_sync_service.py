@@ -28,7 +28,7 @@ class DividendSyncService(SyncCooldownMixin):
     """Synchronizes dividend history from external providers into the repository."""
 
     # Dividends change infrequently — longer cooldown than prices.
-    _cooldown_seconds: int = 3600  # 60 minutes
+    _cooldown_seconds: int = 3600
 
     def __init__(
         self,

@@ -257,5 +257,12 @@
   "connector.step_result": "Resultado",
   "connector.bank_name": "Nombre del banco",
   "connector.currency_label": "Moneda",
+  "connector.auto_resolved_tickers": "Los siguientes ISINs se resolvieron automáticamente a tickers:",
+  "connector.unmatched_tickers": "Los siguientes valores no pudieron asociarse a un ticker. Por favor, asigne uno para cada uno:",
+  "connector.ticker_placeholder": "Buscar o escribir ticker...",
+  "connector.cash_detected": "Cuentas de efectivo detectadas en el archivo. Se importarán como saldos:",
+  "connector.cash_amount": "Monto",
+  "connector.cash_currency": "Moneda",
+  "connector.no_results": "Sin resultados",
   "btn.save_short": "Guardar"
 }

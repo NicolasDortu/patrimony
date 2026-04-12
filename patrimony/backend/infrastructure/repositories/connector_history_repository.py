@@ -20,7 +20,8 @@ class ConnectorHistoryRepositoryImpl(ConnectorHistoryRepository):
             INSERT INTO connector_history (
                 connector_type, profile_id, source_name, source_path,
                 import_mode, column_mapping, delimiter,
-                asset_type_overrides, new_accounts,
+                asset_type_overrides,
+                new_accounts,
                 imported, skipped, errors, status
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             RETURNING id
@@ -50,7 +51,8 @@ class ConnectorHistoryRepositoryImpl(ConnectorHistoryRepository):
             """
             SELECT id, connector_type, profile_id, source_name, source_path,
                    import_mode, column_mapping, delimiter,
-                   asset_type_overrides, new_accounts,
+                   asset_type_overrides,
+                   new_accounts,
                    imported, skipped, errors, status, created_at
             FROM connector_history
             WHERE id IN (
@@ -79,7 +81,8 @@ class ConnectorHistoryRepositoryImpl(ConnectorHistoryRepository):
             """
             SELECT id, connector_type, profile_id, source_name, source_path,
                    import_mode, column_mapping, delimiter,
-                   asset_type_overrides, new_accounts,
+                   asset_type_overrides,
+                   new_accounts,
                    imported, skipped, errors, status, created_at
             FROM connector_history
             WHERE connector_type = ? AND (profile_id = ? OR source_path = ?)

@@ -11,6 +11,7 @@ from .import_hash_repository import ImportHashRepositoryImpl
 from .connector_history_repository import ConnectorHistoryRepositoryImpl
 from .property_repository import PropertyRepositoryImpl
 from .event_log_repository import EventLogRepositoryImpl
+from .ticker_alias_repository import TickerAliasRepositoryImpl
 
 __all__ = [
     "CashRepositoryImpl",
@@ -24,4 +25,5 @@ __all__ = [
     "ConnectorHistoryRepositoryImpl",
     "PropertyRepositoryImpl",
     "EventLogRepositoryImpl",
+    "TickerAliasRepositoryImpl",
 ]

@@ -28,9 +28,9 @@ class WebConnectorState(rx.State):
     selected_profile_description: str = ""
     selected_profile_import_mode: str = ""
 
-    # Credentials (never persisted in state — held in memory only)
-    username: str = ""
-    password: str = ""
+    # Dynamic credential fields from the selected profile
+    # Each entry: {"placeholder": "$user$", "label": "Username", "type": "text", "value": ""}
+    credential_fields: list[dict] = []
 
     # Master password / credential storage
     master_password_input: str = ""
@@ -61,7 +61,9 @@ class WebConnectorState(rx.State):
 
     @rx.var
     def credentials_valid(self) -> bool:
-        return self.username.strip() != "" and self.password.strip() != ""
+        if not self.credential_fields:
+            return False
+        return all(f.get("value", "").strip() != "" for f in self.credential_fields)
 
     @rx.var
     def show_credential_lock(self) -> bool:
@@ -82,6 +84,9 @@ class WebConnectorState(rx.State):
                 self.selected_profile_name = p["name"]
                 self.selected_profile_description = p.get("description", "")
                 self.selected_profile_import_mode = p.get("import_mode", "positions")
+                self.credential_fields = [
+                    {**f, "value": ""} for f in p.get("credential_fields", [])
+                ]
                 break
 
         # Check credential storage status
@@ -103,18 +108,15 @@ class WebConnectorState(rx.State):
             self.needs_master_unlock = False
             creds = CredentialService.get_credentials(profile_id)
             if creds:
-                self.username, self.password = creds
+                for f in self.credential_fields:
+                    f["value"] = creds.get(f["placeholder"], "")
                 self.has_saved_credentials = True
             else:
                 self.has_saved_credentials = False
 
     @rx.event
-    def set_username(self, value: str) -> None:
-        self.username = value
-
-    @rx.event
-    def set_password(self, value: str) -> None:
-        self.password = value
+    def set_credential_value(self, index: int, value: str) -> None:
+        self.credential_fields[index]["value"] = value
 
     @rx.event
     def set_master_password_input(self, value: str) -> None:
@@ -157,7 +159,8 @@ class WebConnectorState(rx.State):
             # Try to load saved credentials for selected profile
             creds = CredentialService.get_credentials(self.selected_profile_id)
             if creds:
-                self.username, self.password = creds
+                for f in self.credential_fields:
+                    f["value"] = creds.get(f["placeholder"], "")
                 self.has_saved_credentials = True
             yield rx.toast.success("Credentials unlocked!", position="top-center")
         else:
@@ -168,8 +171,8 @@ class WebConnectorState(rx.State):
         """Delete stored credentials for the selected profile."""
         CredentialService.delete_credentials(self.selected_profile_id)
         self.has_saved_credentials = False
-        self.username = ""
-        self.password = ""
+        for f in self.credential_fields:
+            f["value"] = ""
         yield rx.toast.info("Saved credentials deleted.", position="top-center")
 
     @rx.event
@@ -177,16 +180,15 @@ class WebConnectorState(rx.State):
         """Validate credentials and start the browser automation."""
         if not self.credentials_valid:
             yield rx.toast.error(
-                "Please enter both username and password.",
+                "Please fill in all credential fields.",
                 position="top-center",
             )
             return
 
         # Save credentials if requested and vault is unlocked
         if self.save_credentials_checked and CredentialService.is_unlocked():
-            CredentialService.store_credentials(
-                self.selected_profile_id, self.username, self.password
-            )
+            creds = {f["placeholder"]: f["value"] for f in self.credential_fields}
+            CredentialService.store_credentials(self.selected_profile_id, creds)
             self.has_saved_credentials = True
 
         self.step = 3
@@ -196,18 +198,17 @@ class WebConnectorState(rx.State):
 
         theme = await self.get_state(ThemeState)
 
+        credentials = {f["placeholder"]: f["value"] for f in self.credential_fields}
+
         result = WebConnectorService.run_connector(
             profile_id=self.selected_profile_id,
-            credentials={
-                "username": self.username,
-                "password": self.password,
-            },
+            credentials=credentials,
             headless=not theme.show_browser,
         )
 
         # Clear credentials from memory immediately after use
-        self.username = ""
-        self.password = ""
+        for f in self.credential_fields:
+            f["value"] = ""
 
         self.is_running = False
         self.result_message = result.message
@@ -235,8 +236,7 @@ class WebConnectorState(rx.State):
         self.selected_profile_name = ""
         self.selected_profile_description = ""
         self.selected_profile_import_mode = ""
-        self.username = ""
-        self.password = ""
+        self.credential_fields = []
         self.master_password_input = ""
         self.needs_master_setup = False
         self.needs_master_unlock = False
@@ -258,7 +258,6 @@ class WebConnectorState(rx.State):
             self.step = 1
             self.selected_profile_id = ""
             self.selected_profile_name = ""
-            self.username = ""
-            self.password = ""
+            self.credential_fields = []
         elif self.step > 2:
             self.step -= 1

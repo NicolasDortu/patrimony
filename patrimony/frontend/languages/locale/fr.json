@@ -253,5 +253,12 @@
   "connector.step_result": "Résultat",
   "connector.bank_name": "Nom de la banque",
   "connector.currency_label": "Devise",
+  "connector.auto_resolved_tickers": "Les ISINs suivants ont été automatiquement résolus en tickers :",
+  "connector.unmatched_tickers": "Les valeurs suivantes n'ont pas pu être associées à un ticker. Veuillez en attribuer un pour chacune :",
+  "connector.ticker_placeholder": "Rechercher ou saisir un ticker...",
+  "connector.cash_detected": "Comptes de trésorerie détectés dans le fichier. Ils seront importés comme soldes :",
+  "connector.cash_amount": "Montant",
+  "connector.cash_currency": "Devise",
+  "connector.no_results": "Aucun résultat",
   "btn.save_short": "Sauvegarder"
 }

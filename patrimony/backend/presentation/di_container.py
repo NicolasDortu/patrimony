@@ -25,6 +25,7 @@ from ..infrastructure.repositories import (
     ConnectorHistoryRepositoryImpl,
     PropertyRepositoryImpl,
     EventLogRepositoryImpl,
+    TickerAliasRepositoryImpl,
 )
 
 
@@ -106,6 +107,11 @@ class Container(containers.DeclarativeContainer):
         connection=database,
     )
 
+    ticker_alias_repository = providers.Singleton(
+        TickerAliasRepositoryImpl,
+        connection=database,
+    )
+
     # Domain Services
     currency_service = providers.Singleton(
         CurrencyService,
@@ -152,6 +158,8 @@ class Container(containers.DeclarativeContainer):
         cash_repo=cash_repository,
         reference_repo=reference_repository,
         hash_repo=import_hash_repository,
+        alias_repo=ticker_alias_repository,
+        market_data_provider=market_data_provider,
     )
 
     web_connector_service = providers.Factory(

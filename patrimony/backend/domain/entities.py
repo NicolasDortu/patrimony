@@ -137,6 +137,7 @@ class ConnectorProfile:
     new_accounts: dict[str, dict] | None = (
         None  # for cash import: acct -> {bank, currency}
     )
+    credential_fields: list[tuple[str, str]] | None = None
 
 
 @dataclass(slots=True)

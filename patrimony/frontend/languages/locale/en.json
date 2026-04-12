@@ -257,5 +257,12 @@
   "connector.step_result": "Result",
   "connector.bank_name": "Bank name",
   "connector.currency_label": "Currency",
+  "connector.auto_resolved_tickers": "The following ISINs were automatically resolved to tickers:",
+  "connector.unmatched_tickers": "The following values could not be matched to a ticker. Please assign a ticker for each:",
+  "connector.ticker_placeholder": "Search or type ticker...",
+  "connector.cash_detected": "Cash accounts detected in the file. These will be imported as cash balances:",
+  "connector.cash_amount": "Amount",
+  "connector.cash_currency": "Currency",
+  "connector.no_results": "No results",
   "btn.save_short": "Save"
 }

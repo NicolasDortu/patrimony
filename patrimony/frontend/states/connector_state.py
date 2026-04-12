@@ -14,6 +14,7 @@ POSITION_TARGET_FIELDS: list[str] = [
     "fees",
     "date",
     "asset_type",
+    "currency",
 ]
 
 CASH_TARGET_FIELDS: list[str] = [
@@ -78,7 +79,7 @@ class ConnectorState(rx.State):
         """Check if all required fields are mapped."""
         mapped_values = set(self.column_mapping.values())
         if self.import_mode == "positions":
-            required = {"ticker", "price", "quantity"}
+            required = {"ticker", "quantity"}
         else:
             required = {"account_number", "amount", "title"}
         return required.issubset(mapped_values)
@@ -218,11 +219,11 @@ class ConnectorState(rx.State):
             )
             return
 
-        # For positions, resolve asset types
+        self.is_loading = True
+        yield
+
         if self.import_mode == "positions":
-            # Only resolve if asset_type is not mapped
-            if "asset_type" not in self.column_mapping.values():
-                self._resolve_tickers()
+            self._resolve_tickers()
         else:
             # For cash, detect unknown accounts
             clean_mapping = {k: v for k, v in self.column_mapping.items() if v}
@@ -231,10 +232,11 @@ class ConnectorState(rx.State):
             )
             self.new_account_details = {}
 
+        self.is_loading = False
         self.step = 3
 
     def _resolve_tickers(self) -> None:
-        """Find tickers that need manual asset type assignment."""
+        """Resolve asset types for tickers found in the file."""
         ticker_col = None
         for col, target in self.column_mapping.items():
             if target == "ticker":
@@ -243,21 +245,23 @@ class ConnectorState(rx.State):
         if not ticker_col:
             return
 
-        # Collect unique tickers from preview data
         all_rows = FileConnectorService.read_file_full(
             self._file_bytes, self.filename, self.delimiter
         )
+
+        # Collect unique non-empty tickers (handle None values from polars)
         tickers = list(
             {
-                str(row.get(ticker_col, "")).strip().upper()
+                str(v).strip().upper()
                 for row in all_rows
-                if row.get(ticker_col)
+                if (v := row.get(ticker_col)) is not None and str(v).strip()
             }
         )
+        if not tickers:
+            return
 
         resolved = FileConnectorService.resolve_asset_types(tickers)
         self.unresolved_tickers = [t for t, at in resolved.items() if at is None]
-        # Pre-fill resolved ones
         self.asset_type_overrides = {
             t: at for t, at in resolved.items() if at is not None
         }

@@ -76,50 +76,45 @@ class CredentialRepositoryImpl(CredentialRepository):
         return None
 
     def store_credentials(
-        self, profile_id: str, username: str, password: str, fernet_key: bytes
+        self, profile_id: str, credentials: dict[str, str], fernet_key: bytes
     ) -> None:
         f = Fernet(fernet_key)
-        enc_user = f.encrypt(username.encode())
-        enc_pass = f.encrypt(password.encode())
 
-        # Upsert
-        existing = self._conn.execute(
-            "SELECT 1 FROM connector_credentials WHERE profile_id = ?",
+        # Delete existing credentials for this profile
+        self._conn.execute(
+            "DELETE FROM connector_credentials WHERE profile_id = ?",
             [profile_id],
-        ).fetchone()
+        )
 
-        if existing:
-            self._conn.execute(
-                "UPDATE connector_credentials "
-                "SET encrypted_username = ?, encrypted_password = ?, updated_at = CURRENT_TIMESTAMP "
-                "WHERE profile_id = ?",
-                [enc_user, enc_pass, profile_id],
-            )
-        else:
+        # Insert each credential field
+        for placeholder, value in credentials.items():
+            enc_value = f.encrypt(value.encode())
             self._conn.execute(
                 "INSERT INTO connector_credentials "
-                "(profile_id, encrypted_username, encrypted_password) VALUES (?, ?, ?)",
-                [profile_id, enc_user, enc_pass],
+                "(profile_id, placeholder, encrypted_value) VALUES (?, ?, ?)",
+                [profile_id, placeholder, enc_value],
             )
 
     def get_credentials(
         self, profile_id: str, fernet_key: bytes
-    ) -> tuple[str, str] | None:
-        row = self._conn.execute(
-            "SELECT encrypted_username, encrypted_password "
+    ) -> dict[str, str] | None:
+        rows = self._conn.execute(
+            "SELECT placeholder, encrypted_value "
             "FROM connector_credentials WHERE profile_id = ?",
             [profile_id],
-        ).fetchone()
-        if not row:
+        ).fetchall()
+        if not rows:
             return None
 
         try:
             f = Fernet(fernet_key)
-            enc_user = bytes(row[0]) if isinstance(row[0], memoryview) else row[0]
-            enc_pass = bytes(row[1]) if isinstance(row[1], memoryview) else row[1]
-            username = f.decrypt(enc_user).decode()
-            password = f.decrypt(enc_pass).decode()
-            return username, password
+            result = {}
+            for placeholder, enc_value in rows:
+                raw = (
+                    bytes(enc_value) if isinstance(enc_value, memoryview) else enc_value
+                )
+                result[placeholder] = f.decrypt(raw).decode()
+            return result
         except InvalidToken:
             logger.warning("Failed to decrypt credentials for profile %s", profile_id)
             return None
@@ -136,6 +131,6 @@ class CredentialRepositoryImpl(CredentialRepository):
 
     def list_stored_profiles(self) -> list[str]:
         rows = self._conn.execute(
-            "SELECT profile_id FROM connector_credentials"
+            "SELECT DISTINCT profile_id FROM connector_credentials"
         ).fetchall()
         return [row[0] for row in rows]

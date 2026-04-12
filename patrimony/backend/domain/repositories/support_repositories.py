@@ -30,7 +30,7 @@ class CredentialRepository(ABC):
 
     @abstractmethod
     def store_credentials(
-        self, profile_id: str, username: str, password: str, fernet_key: bytes
+        self, profile_id: str, credentials: dict[str, str], fernet_key: bytes
     ) -> None:
         """Encrypt and store credentials for a profile."""
         pass
@@ -38,8 +38,8 @@ class CredentialRepository(ABC):
     @abstractmethod
     def get_credentials(
         self, profile_id: str, fernet_key: bytes
-    ) -> tuple[str, str] | None:
-        """Decrypt and return (username, password) for a profile, or None."""
+    ) -> dict[str, str] | None:
+        """Decrypt and return credentials dict for a profile, or None."""
         pass
 
     @abstractmethod
@@ -95,6 +95,25 @@ class ImportHashRepository(ABC):
     @abstractmethod
     def add_hashes(self, hashes: list[str], import_type: str) -> None:
         """Persist new hashes."""
+        pass
+
+
+class TickerAliasRepository(ABC):
+    """Repository for cached ticker alias mappings (ISIN → ticker, etc.)."""
+
+    @abstractmethod
+    def get(self, alias: str) -> str | None:
+        """Return the ticker for a given alias, or None."""
+        pass
+
+    @abstractmethod
+    def get_batch(self, aliases: list[str]) -> dict[str, str]:
+        """Return a dict of alias → ticker for all aliases found."""
+        pass
+
+    @abstractmethod
+    def save(self, alias: str, ticker: str, alias_type: str = "ISIN") -> None:
+        """Persist an alias → ticker mapping."""
         pass
 
 

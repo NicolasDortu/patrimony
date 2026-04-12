@@ -160,6 +160,23 @@ def _master_password_overlay() -> rx.Component:
     )
 
 
+def _credential_field_input(field: dict, index: int) -> rx.Component:
+    """Render a single credential input field dynamically."""
+    return rx.vstack(
+        rx.text(field["label"], weight="medium", size="2"),
+        rx.input(
+            placeholder=field["label"],
+            type=field["type"],
+            value=field["value"],
+            on_change=WebConnectorState.set_credential_value(index),
+            width="100%",
+            auto_complete=False,
+        ),
+        spacing="1",
+        width="100%",
+    )
+
+
 def step_credentials() -> rx.Component:
     """Credentials input step."""
     return rx.vstack(
@@ -223,30 +240,10 @@ def step_credentials() -> rx.Component:
             ),
         ),
         rx.separator(),
-        rx.vstack(
-            rx.text(t("web_connector.username"), weight="medium", size="2"),
-            rx.input(
-                placeholder=t("web_connector.enter_username"),
-                value=WebConnectorState.username,
-                on_change=WebConnectorState.set_username,
-                width="100%",
-                auto_complete=False,
-            ),
-            spacing="1",
-            width="100%",
-        ),
-        rx.vstack(
-            rx.text(t("web_connector.password"), weight="medium", size="2"),
-            rx.input(
-                placeholder=t("web_connector.enter_password"),
-                type="password",
-                value=WebConnectorState.password,
-                on_change=WebConnectorState.set_password,
-                width="100%",
-                auto_complete=False,
-            ),
-            spacing="1",
-            width="100%",
+        # Dynamic credential fields from the connector profile
+        rx.foreach(
+            WebConnectorState.credential_fields,
+            _credential_field_input,
         ),
         # Save credentials checkbox (only visible when vault is unlocked)
         rx.cond(

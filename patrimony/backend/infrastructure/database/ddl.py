@@ -175,11 +175,12 @@ CREATE TABLE IF NOT EXISTS connector_master_key (
 
 CREATE_CONNECTOR_CREDENTIALS_TABLE = """
 CREATE TABLE IF NOT EXISTS connector_credentials (
-    profile_id VARCHAR PRIMARY KEY,
-    encrypted_username BLOB NOT NULL,
-    encrypted_password BLOB NOT NULL,
+    profile_id VARCHAR NOT NULL,
+    placeholder VARCHAR NOT NULL,
+    encrypted_value BLOB NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (profile_id, placeholder)
 );
 """
 
@@ -237,6 +238,15 @@ CREATE_EVENT_LOG_TABLE = """
 );
 """
 
+CREATE_TICKER_ALIAS_TABLE = """
+CREATE TABLE IF NOT EXISTS ticker_alias (
+    alias VARCHAR PRIMARY KEY,
+    ticker VARCHAR NOT NULL,
+    alias_type VARCHAR DEFAULT 'ISIN',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+"""
+
 BUILD_INDEXES = """
     CREATE INDEX IF NOT EXISTS idx_ref_name ON tickers_reference(name);
     CREATE INDEX IF NOT EXISTS idx_ref_asset_type ON tickers_reference(asset_type);
@@ -274,6 +284,7 @@ DDL_COMMANDS = [
     CREATE_IMPORT_HASHES_TABLE,
     CREATE_PROPERTIES_TABLE,
     CREATE_EVENT_LOG_TABLE,
+    CREATE_TICKER_ALIAS_TABLE,
     BUILD_INDEXES,
     REBUILD_INDEXES,
 ]

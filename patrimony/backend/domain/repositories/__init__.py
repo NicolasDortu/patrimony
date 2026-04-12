@@ -20,6 +20,7 @@ from .support_repositories import (
     CredentialRepository,
     EventLogRepository,
     ImportHashRepository,
+    TickerAliasRepository,
 )
 
 __all__ = [
@@ -35,4 +36,5 @@ __all__ = [
     "PropertyRepository",
     "ReferenceRepository",
     "SecuritiesRepository",
+    "TickerAliasRepository",
 ]
