@@ -6,12 +6,13 @@ from ..infrastructure.integrations import (
     ExcelCsvConnector,
 )
 from ..infrastructure.integrations.web_connector import SITE_CONNECTORS
-from ..domain.services.file_connector_service import FileConnectorService
+from ..domain.services.connectors import FileConnectorService
 from ..domain.services.currency_service import CurrencyService
 from ..domain.services.portfolio_service import PortfolioService
+from ..domain.services.portfolio_chart_service import PortfolioChartService
 from ..domain.services.price_sync_service import PriceSyncService
 from ..domain.services.securities_service import SecuritiesService
-from ..domain.services.web_connector_service import WebConnectorService
+from ..domain.services.connectors import WebConnectorService
 from ..domain.services.dividend_sync_service import DividendSyncService
 from ..infrastructure.repositories import (
     CashRepositoryImpl,
@@ -25,7 +26,7 @@ from ..infrastructure.repositories import (
     ConnectorHistoryRepositoryImpl,
     PropertyRepositoryImpl,
     EventLogRepositoryImpl,
-    TickerAliasRepositoryImpl,
+    TickerInfoRepositoryImpl,
 )
 
 
@@ -107,8 +108,8 @@ class Container(containers.DeclarativeContainer):
         connection=database,
     )
 
-    ticker_alias_repository = providers.Singleton(
-        TickerAliasRepositoryImpl,
+    ticker_info_repository = providers.Singleton(
+        TickerInfoRepositoryImpl,
         connection=database,
     )
 
@@ -132,14 +133,23 @@ class Container(containers.DeclarativeContainer):
         market_data=market_data_provider,
     )
 
-    portfolio_service = providers.Singleton(
-        PortfolioService,
+    portfolio_chart_service = providers.Singleton(
+        PortfolioChartService,
         securities_repo=securities_repository,
         cash_repo=cash_repository,
         price_repo=price_repository,
         currency_service=currency_service,
         market_data=market_data_provider,
         price_sync=price_sync_service,
+    )
+
+    portfolio_service = providers.Singleton(
+        PortfolioService,
+        securities_repo=securities_repository,
+        cash_repo=cash_repository,
+        price_repo=price_repository,
+        currency_service=currency_service,
+        chart_service=portfolio_chart_service,
         property_repo=property_repository,
     )
 
@@ -158,7 +168,7 @@ class Container(containers.DeclarativeContainer):
         cash_repo=cash_repository,
         reference_repo=reference_repository,
         hash_repo=import_hash_repository,
-        alias_repo=ticker_alias_repository,
+        info_repo=ticker_info_repository,
         market_data_provider=market_data_provider,
     )
 

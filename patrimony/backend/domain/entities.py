@@ -107,6 +107,21 @@ class Currency(StrEnum):
 
 
 @dataclass(slots=True)
+class TickerInfo:
+    """Enriched ticker metadata from yfinance or manual entry."""
+
+    ticker: str
+    isin: str | None = None
+    name: str | None = None
+    asset_type: str | None = None
+    exchange: str | None = None
+    currency: str | None = None
+    quote_type: str | None = None
+    source: str = ""
+    last_updated: str | None = None
+
+
+@dataclass(slots=True)
 class PortfolioOverview:
     """Aggregated portfolio data with metrics."""
 

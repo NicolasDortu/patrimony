@@ -14,6 +14,7 @@ import yfinance as yf
 from typing import Optional
 
 from ...domain.interfaces import MarketDataProvider
+from ...domain.entities import TickerInfo
 
 
 logger = logging.getLogger(__name__)
@@ -168,23 +169,6 @@ class YahooFinanceProvider(MarketDataProvider):
         rate_ticker = f"{from_currency.upper()}{to_currency.upper()}=X"
         return self.get_current_price(rate_ticker)
 
-    def resolve_isin(self, isin: str) -> Optional[str]:
-        """Resolve an ISIN code to a ticker symbol via yfinance."""
-        try:
-            self._throttle()
-            stock = yf.Ticker(isin)
-            # Accessing info triggers the lookup; yfinance resolves ISINs to tickers
-            info = stock.info
-            symbol = info.get("symbol")
-            if symbol and symbol.upper() != isin.upper():
-                logger.info("Resolved ISIN %s → %s", isin, symbol)
-                return symbol.upper()
-            logger.warning("Could not resolve ISIN %s", isin)
-            return None
-        except Exception as e:
-            logger.warning("Error resolving ISIN %s: %s", isin, e)
-            return None
-
     # Mapping from yfinance quoteType to our AssetType values
     _QUOTE_TYPE_MAP: dict[str, str] = {
         "EQUITY": "STOCK",
@@ -195,20 +179,40 @@ class YahooFinanceProvider(MarketDataProvider):
         "MUTUALFUND": "ETF",
     }
 
-    def resolve_asset_type(self, ticker: str) -> Optional[str]:
-        """Resolve a ticker to its asset type via yfinance quoteType."""
+    def resolve_ticker_info(self, identifier: str) -> TickerInfo | None:
+        """Resolve an identifier (ISIN or ticker) to enriched info via a single API call.
+
+        Returns a TickerInfo entity or None if the lookup fails entirely.
+        """
         try:
             self._throttle()
-            stock = yf.Ticker(ticker)
-            quote_type = stock.info.get("quoteType", "")
-            mapped = self._QUOTE_TYPE_MAP.get(quote_type.upper())
-            if mapped:
-                logger.info(
-                    "Resolved asset type for %s: %s → %s", ticker, quote_type, mapped
-                )
-                return mapped
-            logger.warning("Unknown quoteType '%s' for %s", quote_type, ticker)
-            return None
+            stock = yf.Ticker(identifier)
+            info = stock.info
+
+            symbol = info.get("symbol")
+            if not symbol:
+                logger.warning("No symbol returned for %s", identifier)
+                return None
+
+            quote_type = info.get("quoteType", "")
+            asset_type = self._QUOTE_TYPE_MAP.get(quote_type.upper())
+
+            result = TickerInfo(
+                ticker=symbol.upper(),
+                asset_type=asset_type,
+                name=info.get("shortName") or info.get("longName"),
+                currency=info.get("currency"),
+                exchange=info.get("exchange"),
+                quote_type=quote_type,
+            )
+
+            logger.info(
+                "Resolved info for %s: symbol=%s, type=%s",
+                identifier,
+                result.ticker,
+                result.asset_type,
+            )
+            return result
         except Exception as e:
-            logger.warning("Error resolving asset type for %s: %s", ticker, e)
+            logger.warning("Error resolving ticker info for %s: %s", identifier, e)
             return None

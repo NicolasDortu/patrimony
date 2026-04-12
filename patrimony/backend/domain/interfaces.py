@@ -10,7 +10,7 @@ from datetime import datetime
 
 import polars as pl
 
-from .entities import ConnectorProfile
+from .entities import ConnectorProfile, TickerInfo
 
 
 class PriceProvider(ABC):
@@ -111,18 +111,11 @@ class MarketDataProvider(PriceProvider, CurrencyProvider, ABC):
         pass
 
     @abstractmethod
-    def resolve_isin(self, isin: str) -> str | None:
-        """Resolve an ISIN code to a ticker symbol.
+    def resolve_ticker_info(self, identifier: str) -> TickerInfo | None:
+        """Resolve an identifier (ISIN or ticker) to enriched metadata via a single API call.
 
-        Returns the ticker symbol if found, None otherwise.
-        """
-        pass
-
-    @abstractmethod
-    def resolve_asset_type(self, ticker: str) -> str | None:
-        """Resolve a ticker to its asset type (e.g. STOCK, ETF, CRYPTO).
-
-        Returns the asset type string if found, None otherwise.
+        Returns a TickerInfo entity with resolved fields,
+        or None if resolution failed.
         """
         pass
 

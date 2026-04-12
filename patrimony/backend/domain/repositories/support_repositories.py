@@ -7,7 +7,7 @@ from abc import ABC, abstractmethod
 
 import polars as pl
 
-from ..entities import ConnectorHistoryEntry
+from ..entities import ConnectorHistoryEntry, TickerInfo
 
 
 class CredentialRepository(ABC):
@@ -98,22 +98,27 @@ class ImportHashRepository(ABC):
         pass
 
 
-class TickerAliasRepository(ABC):
-    """Repository for cached ticker alias mappings (ISIN → ticker, etc.)."""
+class TickerInfoRepository(ABC):
+    """Repository for enriched ticker metadata (ISIN lookups, asset type, etc.)."""
 
     @abstractmethod
-    def get(self, alias: str) -> str | None:
-        """Return the ticker for a given alias, or None."""
+    def get_by_ticker(self, ticker: str) -> TickerInfo | None:
+        """Return ticker info for a given ticker, or None."""
         pass
 
     @abstractmethod
-    def get_batch(self, aliases: list[str]) -> dict[str, str]:
-        """Return a dict of alias → ticker for all aliases found."""
+    def get_by_isin(self, isin: str) -> TickerInfo | None:
+        """Return ticker info for a given ISIN, or None."""
         pass
 
     @abstractmethod
-    def save(self, alias: str, ticker: str, alias_type: str = "ISIN") -> None:
-        """Persist an alias → ticker mapping."""
+    def get_batch_by_isin(self, isins: list[str]) -> dict[str, TickerInfo]:
+        """Return a dict of ISIN → TickerInfo for all ISINs found."""
+        pass
+
+    @abstractmethod
+    def upsert(self, info: TickerInfo) -> None:
+        """Insert or update ticker info."""
         pass
 
 

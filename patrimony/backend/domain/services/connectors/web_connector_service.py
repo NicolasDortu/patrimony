@@ -9,10 +9,11 @@ from collections.abc import Callable
 
 import polars as pl
 
-from ..entities import ConnectorProfile, EntryType, WebConnectorResult
-from ..exceptions import ConnectorNotFoundError, DataFetchError
-from ..interfaces import SiteConnector
-from .file_connector_service import FileConnectorService
+from ...entities import ConnectorProfile, EntryType, WebConnectorResult
+from ...exceptions import ConnectorNotFoundError, DataFetchError
+from ...interfaces import SiteConnector
+from .helpers import ImportResult
+from .import_service import FileConnectorService
 
 logger = logging.getLogger(__name__)
 
@@ -97,58 +98,7 @@ class WebConnectorService:
                     new_accounts=profile.new_accounts,
                 )
             else:
-                # Resolve ISIN → ticker aliases and apply to DataFrame
-                ticker_col = None
-                for src, tgt in profile.column_mapping.items():
-                    if tgt == "ticker":
-                        ticker_col = src
-                        break
-
-                if ticker_col and ticker_col in df.columns:
-                    raw_values = df[ticker_col].drop_nulls().unique().to_list()
-                    raw_values = [v for v in raw_values if v and str(v).strip()]
-                    if raw_values:
-                        _log(f"Resolving {len(raw_values)} ticker aliases...")
-                        resolved = self._connector_service.resolve_ticker_aliases(
-                            [str(v) for v in raw_values]
-                        )
-                        ticker_overrides = {
-                            raw: info.ticker
-                            for raw, info in resolved.items()
-                            if info.ticker
-                        }
-                        unresolved = [r for r, i in resolved.items() if not i.ticker]
-                        if unresolved:
-                            _log(
-                                f"Warning: {len(unresolved)} tickers could not "
-                                f"be resolved: {', '.join(unresolved[:5])}"
-                            )
-                        # Apply ticker overrides directly to the DataFrame
-                        if ticker_overrides:
-                            df = df.with_columns(
-                                pl.col(ticker_col).map_elements(
-                                    lambda v, _ov=ticker_overrides: _ov.get(
-                                        str(v).strip().upper(), v
-                                    ),
-                                    return_dtype=pl.Utf8,
-                                )
-                            )
-
-                # Detect and handle cash rows before position import
-                cash_rows, df = self._connector_service.detect_cash_rows(
-                    df, profile.column_mapping
-                )
-                if cash_rows:
-                    self._connector_service._handle_cash_from_positions(
-                        cash_rows, profile.name, entry_type
-                    )
-                    _log(f"Processed {len(cash_rows)} cash row(s)")
-
-                result = self._connector_service.import_positions(
-                    df=df,
-                    column_mapping=profile.column_mapping,
-                    entry_type=entry_type,
-                )
+                result = self._import_positions(df, profile, entry_type, _log)
 
             if result.success:
                 _log(
@@ -172,3 +122,62 @@ class WebConnectorService:
                 errors=[f"Import failed: {e}"],
                 status_log=status_log,
             )
+
+    def _import_positions(
+        self,
+        df: pl.DataFrame,
+        profile: ConnectorProfile,
+        entry_type: EntryType,
+        _log: Callable[[str], None],
+    ) -> ImportResult:
+        """Resolve tickers, separate cash rows, and import positions."""
+        # Resolve ISIN → ticker aliases and apply to DataFrame
+        ticker_col = None
+        for src, tgt in profile.column_mapping.items():
+            if tgt == "ticker":
+                ticker_col = src
+                break
+
+        if ticker_col and ticker_col in df.columns:
+            raw_values = df[ticker_col].drop_nulls().unique().to_list()
+            raw_values = [v for v in raw_values if v and str(v).strip()]
+            if raw_values:
+                _log(f"Resolving {len(raw_values)} ticker aliases...")
+                resolved = self._connector_service.resolve_ticker_aliases(
+                    [str(v) for v in raw_values]
+                )
+                ticker_overrides = {
+                    raw: info.ticker for raw, info in resolved.items() if info.ticker
+                }
+                unresolved = [r for r, i in resolved.items() if not i.ticker]
+                if unresolved:
+                    _log(
+                        f"Warning: {len(unresolved)} tickers could not "
+                        f"be resolved: {', '.join(unresolved[:5])}"
+                    )
+                # Apply ticker overrides directly to the DataFrame
+                if ticker_overrides:
+                    df = df.with_columns(
+                        pl.col(ticker_col).map_elements(
+                            lambda v, _ov=ticker_overrides: _ov.get(
+                                str(v).strip().upper(), v
+                            ),
+                            return_dtype=pl.Utf8,
+                        )
+                    )
+
+        # Detect and handle cash rows before position import
+        cash_rows, df = self._connector_service.detect_cash_rows(
+            df, profile.column_mapping
+        )
+        if cash_rows:
+            self._connector_service.handle_cash_from_positions(
+                cash_rows, profile.name, entry_type
+            )
+            _log(f"Processed {len(cash_rows)} cash row(s)")
+
+        return self._connector_service.import_positions(
+            df=df,
+            column_mapping=profile.column_mapping,
+            entry_type=entry_type,
+        )
