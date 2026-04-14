@@ -52,8 +52,7 @@ class CashTableState(SpreadsheetMixin, SearchSortMixin, PaginationMixin, rx.Stat
         cash_entries = CashService.get_all_cash()
         self.items = cash_entries
         self.total_items = len(self.items)
-        # Cache operations for computed vars
-        self._cached_operations = CashService.get_all_operations()
+        self._operations_stale = True
 
     def toggle_sort(self) -> None:
         self.sort_reverse = not self.sort_reverse
@@ -109,18 +108,26 @@ class CashTableState(SpreadsheetMixin, SearchSortMixin, PaginationMixin, rx.Stat
             f"/cash_operations?account_number={account_number}&currency={currency}"
         )
 
-    # Cached operations to avoid double query in computed vars
+    # Lazy-loaded operations cache — only fetched when chart vars are accessed
     _cached_operations: list[dict] = []
+    _operations_stale: bool = True
+
+    def _ensure_operations_loaded(self) -> list[dict]:
+        """Load operations from DB only if the cache is stale."""
+        if self._operations_stale:
+            self._cached_operations = CashService.get_all_operations()
+            self._operations_stale = False
+        return self._cached_operations
 
     @rx.var
     def all_operations_expense_data(self) -> list[dict]:
         """Aggregate all operations across all accounts into monthly income vs expense."""
-        return aggregate_monthly_income_expense(self._cached_operations)
+        return aggregate_monthly_income_expense(self._ensure_operations_loaded())
 
     @rx.var
     def all_operations_category_data(self) -> list[dict]:
         """Aggregate expenses by category across all accounts."""
-        return aggregate_expenses_by_category(self._cached_operations)
+        return aggregate_expenses_by_category(self._ensure_operations_loaded())
 
     @rx.var
     def balance_by_account_data(self) -> list[dict]:

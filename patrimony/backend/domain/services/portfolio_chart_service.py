@@ -144,7 +144,7 @@ class PortfolioChartService:
             today = datetime.now().date()
             existing = {normalize_date(d) for d in all_dates} if all_dates else set()
             if today not in existing:
-                today_prices = self._price_repo.get_current_prices(
+                today_prices = self._price_sync.get_current_prices(
                     list(securities.keys())
                 )
                 for ticker in securities:

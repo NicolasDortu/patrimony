@@ -49,7 +49,7 @@ class SecuritiesService:
         if df is None or df.is_empty():
             return None
 
-        df = enrich_with_prices(df, self._price_repo)
+        df = enrich_with_prices(df, self._price_sync)
         df = apply_currency_conversion(df, self._currency_service, user_currency)
         return df
 
@@ -99,7 +99,7 @@ class SecuritiesService:
         if not is_intraday:
             today_str = datetime.now().strftime(date_fmt)
             if not rows or rows[-1]["name"] != today_str:
-                today_prices = self._price_repo.get_current_prices([ticker])
+                today_prices = self._price_sync.get_current_prices([ticker])
                 current_price = today_prices.get(ticker.upper())
                 if current_price and current_price > 0:
                     rows.append(

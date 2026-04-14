@@ -10,7 +10,7 @@ from datetime import date, datetime
 
 import polars as pl
 
-from ..repositories import PriceRepository, SecuritiesRepository
+from ..repositories import SecuritiesRepository
 from .currency_service import CurrencyService
 
 logger = logging.getLogger(__name__)
@@ -63,13 +63,13 @@ class SyncCooldownMixin:
         self._last_sync_time = datetime.now()
 
 
-def enrich_with_prices(df: pl.DataFrame, price_repo: PriceRepository) -> pl.DataFrame:
+def enrich_with_prices(df: pl.DataFrame, price_sync) -> pl.DataFrame:
     """Add current_price (and total_value if applicable) columns to a DataFrame of positions."""
     if df is None or df.is_empty() or "ticker" not in df.columns:
         return df
 
     tickers = df["ticker"].to_list()
-    bulk_prices = price_repo.get_current_prices(tickers)
+    bulk_prices = price_sync.get_current_prices(tickers)
     prices = [bulk_prices.get(t.upper(), 0.0) or 0.0 for t in tickers]
 
     df = df.with_columns(pl.Series("current_price", prices))

@@ -1,7 +1,6 @@
 """Repository implementation for price data.
 
-Handles fetching current prices from external APIs and
-caching price data in the database.
+Handles caching and retrieving price data from the database.
 """
 
 import logging
@@ -9,7 +8,6 @@ from datetime import datetime
 
 import polars as pl
 
-from ...domain.interfaces import MarketDataProvider
 from ...domain.repositories import PriceRepository
 from ..database.connection import DatabaseConnection
 
@@ -17,18 +15,13 @@ logger = logging.getLogger(__name__)
 
 
 class PriceRepositoryImpl(PriceRepository):
-    """Concrete implementation of PriceRepository.
-
-    Integrates external market data provider with local caching.
-    """
+    """Concrete implementation of PriceRepository."""
 
     def __init__(
         self,
         connection: DatabaseConnection,
-        market_data_provider: MarketDataProvider,
     ):
         self._conn = connection
-        self._market_data = market_data_provider
 
     def cache_price(self, ticker: str, price: float, timestamp: datetime) -> None:
         """Cache a price in the database."""
@@ -127,14 +120,10 @@ class PriceRepositoryImpl(PriceRepository):
         ).fetchall()
         return {r[0]: r[1] for r in rows}
 
-    def get_current_prices(
+    def get_cached_prices(
         self, tickers: list[str], max_age_minutes: int = 15
     ) -> dict[str, float]:
-        """Bulk-fetch current prices: return cached values and fetch stale/missing from API.
-
-        Performs a single DB query to get all fresh cached prices, then
-        calls the API only for tickers that are stale or missing.
-        """
+        """Return cached prices that are still fresh (within max_age_minutes)."""
         if not tickers:
             return {}
 
@@ -151,22 +140,4 @@ class PriceRepositoryImpl(PriceRepository):
             upper_tickers,
         ).fetchall()
 
-        prices: dict[str, float] = {r[0]: r[1] for r in rows if r[1] is not None}
-        stale_tickers = [t for t in upper_tickers if t not in prices]
-
-        now = datetime.now()
-        for ticker in stale_tickers:
-            try:
-                price = self._market_data.get_current_price(ticker)
-                if price:
-                    self.cache_price(ticker, price, now)
-                    prices[ticker] = price
-                else:
-                    # Negative-cache: store 0.0 so we don't re-fetch on every call
-                    self.cache_price(ticker, 0.0, now)
-            except Exception as e:
-                logger.warning("Error fetching price for %s: %s", ticker, e)
-                # Negative-cache on exception too
-                self.cache_price(ticker, 0.0, now)
-
-        return prices
+        return {r[0]: r[1] for r in rows if r[1] is not None}

@@ -1,8 +1,9 @@
-"""Domain service for price history synchronization.
+"""Domain service for price synchronization.
 
 Orchestrates fetching missing price data from external providers
 and storing it via the price repository. Handles staleness ordering,
 batch rate-limiting, gap-fill logic, and cooldown to avoid redundant calls.
+Also provides current-price resolution (cache + API fallback).
 """
 
 import logging
@@ -19,7 +20,7 @@ logger = logging.getLogger(__name__)
 
 
 class PriceSyncService(SyncCooldownMixin):
-    """Synchronizes price history from external providers into the repository."""
+    """Synchronizes price data from external providers into the repository."""
 
     _cooldown_seconds: int = 900  # 15 minutes
 
@@ -31,6 +32,37 @@ class PriceSyncService(SyncCooldownMixin):
         self._price_repo = price_repo
         self._market_data = market_data
         self._init_cooldown()
+
+    def get_current_prices(
+        self, tickers: list[str], max_age_minutes: int = 15
+    ) -> dict[str, float]:
+        """Return current prices, fetching from API for stale/missing tickers.
+
+        1. Query cache for fresh prices
+        2. Fetch stale/missing from MarketDataProvider
+        3. Cache all results (including negative-cache 0.0 for failures)
+        """
+        if not tickers:
+            return {}
+
+        upper_tickers = [t.upper() for t in tickers]
+        prices = self._price_repo.get_cached_prices(upper_tickers, max_age_minutes)
+        stale_tickers = [t for t in upper_tickers if t not in prices]
+
+        now = datetime.now()
+        for ticker in stale_tickers:
+            try:
+                price = self._market_data.get_current_price(ticker)
+                if price:
+                    self._price_repo.cache_price(ticker, price, now)
+                    prices[ticker] = price
+                else:
+                    self._price_repo.cache_price(ticker, 0.0, now)
+            except Exception as e:
+                logger.warning("Error fetching price for %s: %s", ticker, e)
+                self._price_repo.cache_price(ticker, 0.0, now)
+
+        return prices
 
     def sync_price_history(
         self, tickers: list[str], start_date: datetime, period: str = "1d"

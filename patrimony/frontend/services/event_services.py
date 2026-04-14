@@ -2,7 +2,7 @@
 
 import logging
 
-from ...backend.presentation.di_container import container
+from ...backend.application.di_container import container
 
 logger = logging.getLogger(__name__)
 

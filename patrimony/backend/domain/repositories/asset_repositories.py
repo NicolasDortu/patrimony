@@ -213,10 +213,10 @@ class PriceRepository(ABC):
         pass
 
     @abstractmethod
-    def get_current_prices(
+    def get_cached_prices(
         self, tickers: list[str], max_age_minutes: int = 15
     ) -> dict[str, float]:
-        """Bulk-fetch current prices: return cached values and fetch stale/missing from API."""
+        """Return cached prices that are still fresh (within max_age_minutes)."""
         pass
 
 

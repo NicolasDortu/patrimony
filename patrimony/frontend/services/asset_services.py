@@ -5,8 +5,8 @@ from datetime import datetime
 from typing import Optional
 
 from ...backend.domain.entities import AssetType, Currency, EntryType, PortfolioOverview
-from ...backend.presentation.di_container import container
-from .models import OperationResult
+from ...backend.application.di_container import container
+from .models import OperationResult, operation_result, safe_query
 
 logger = logging.getLogger(__name__)
 
@@ -15,6 +15,9 @@ class SecuritiesService:
     """Frontend service for securities operations."""
 
     @staticmethod
+    @operation_result(
+        failure="Failed to add position", success="Position added successfully"
+    )
     def add_position(
         ticker: str,
         price: float,
@@ -23,32 +26,21 @@ class SecuritiesService:
         asset_type: AssetType,
         date: Optional[datetime] = None,
         fees: float = 0.0,
-    ) -> OperationResult:
-        """Add new security position."""
-        try:
-            if date is None:
-                date = datetime.now()
-            position_id = container.securities_repository().add_position(
-                ticker=ticker,
-                price=price,
-                quantity=quantity,
-                entry_type=entry_type,
-                asset_type=asset_type,
-                date=date,
-                fees=fees,
-            )
-            return OperationResult(
-                success=True,
-                message=f"Position for {ticker} added successfully",
-                data={"id": position_id},
-            )
-        except Exception as e:
-            return OperationResult(
-                success=False,
-                message=f"Failed to add position: {e}",
-            )
+    ):
+        return container.securities_use_cases().add_position(
+            ticker=ticker,
+            price=price,
+            quantity=quantity,
+            entry_type=entry_type,
+            asset_type=asset_type,
+            date=date,
+            fees=fees,
+        )
 
     @staticmethod
+    @operation_result(
+        failure="Failed to update position", success="Position updated successfully"
+    )
     def update_position(
         id: int,
         ticker: str,
@@ -58,91 +50,57 @@ class SecuritiesService:
         asset_type: AssetType,
         date: Optional[datetime] = None,
         fees: float = 0.0,
-    ) -> OperationResult:
-        """Update an existing security position."""
-        try:
-            if date is None:
-                date = datetime.now()
-            container.securities_repository().update_position(
-                id=id,
-                ticker=ticker,
-                price=price,
-                quantity=quantity,
-                entry_type=entry_type,
-                asset_type=asset_type,
-                date=date,
-                fees=fees,
-            )
-            return OperationResult(
-                success=True,
-                message=f"Position {id} updated successfully",
-            )
-        except Exception as e:
-            return OperationResult(
-                success=False,
-                message=f"Failed to update position: {e}",
-            )
+    ):
+        container.securities_use_cases().update_position(
+            id=id,
+            ticker=ticker,
+            price=price,
+            quantity=quantity,
+            entry_type=entry_type,
+            asset_type=asset_type,
+            date=date,
+            fees=fees,
+        )
 
     @staticmethod
-    def delete_position(id: int) -> OperationResult:
-        """Delete security position."""
-        try:
-            container.securities_repository().delete(id)
-            return OperationResult(
-                success=True,
-                message=f"Position {id} deleted successfully",
-            )
-        except Exception as e:
-            return OperationResult(
-                success=False,
-                message=f"Failed to delete position: {e}",
-            )
+    @operation_result(
+        failure="Failed to delete position", success="Position deleted successfully"
+    )
+    def delete_position(id: int):
+        container.securities_use_cases().delete_position(id)
 
     @staticmethod
+    @safe_query([])
     def get_all_positions() -> list[dict]:
-        """Get all individual positions."""
-        df = container.securities_repository().get_all()
-        if df is None:
-            return []
-        if "currency" in df.columns:
-            df = df.drop("currency")
-        return df.to_dicts()
+        return container.securities_use_cases().get_all_positions()
 
     @staticmethod
+    @safe_query([])
     def get_positions_by_ticker(ticker: str) -> list[dict]:
-        """Get positions for specific ticker."""
-        df = container.securities_repository().get_by_ticker(ticker)
-        if df is None:
-            return []
-        if "currency" in df.columns:
-            df = df.drop("currency")
-        return df.to_dicts()
+        return container.securities_use_cases().get_positions_by_ticker(ticker)
 
     @staticmethod
+    @safe_query([])
     def get_aggregated_positions(user_currency: str = "EUR") -> list[dict]:
-        """Get aggregated positions (totals)."""
-        df = container.securities_service().get_aggregated_positions(user_currency)
-        return df.to_dicts() if df is not None else []
+        return container.securities_use_cases().get_aggregated_positions(user_currency)
 
     @staticmethod
+    @safe_query([])
     def get_chart_data_ticker(
         ticker: str, period: str = "1M", user_currency: str = "EUR"
     ) -> list[dict]:
-        """Get chart data for a single ticker."""
-        return container.securities_service().get_chart_data_ticker(
+        return container.securities_use_cases().get_chart_data_ticker(
             ticker, period, user_currency
         )
 
     @staticmethod
+    @safe_query({})
     def get_current_prices(
         tickers: list[str], user_currency: str = "EUR"
     ) -> dict[str, float]:
-        """Get current prices for tickers, converted to user currency."""
-        prices = container.price_repository().get_current_prices(tickers)
-        rates = container.currency_service().get_rates_for_tickers(
+        return container.securities_use_cases().get_current_prices(
             tickers, user_currency
         )
-        return {t: (p or 0.0) * rates.get(t, 1.0) for t, p in prices.items()}
 
 
 class PortfolioService:
@@ -150,32 +108,20 @@ class PortfolioService:
 
     @staticmethod
     def get_portfolio_overview(user_currency: str = "EUR") -> PortfolioOverview:
-        """Get complete portfolio overview."""
-        overview = container.portfolio_service().get_overview(user_currency)
-        overview.securities_total = (
-            overview.securities_total.to_dicts()
-            if overview.securities_total is not None
-            else []
-        )
-        overview.cash_entries = (
-            overview.cash_entries.to_dicts()
-            if overview.cash_entries is not None
-            else []
-        )
-        return overview
+        return container.portfolio_use_cases().get_portfolio_overview(user_currency)
 
     @staticmethod
+    @safe_query([])
     def get_chart_data(period: str = "1M", user_currency: str = "EUR") -> list[dict]:
-        """Get chart data for the entire portfolio."""
-        return container.portfolio_service().get_chart_data(period, user_currency)
+        return container.portfolio_use_cases().get_chart_data(period, user_currency)
 
 
 class SecuritiesReferenceService:
     """Frontend service for securities reference lookup."""
 
     @staticmethod
+    @safe_query([])
     def search(query: str, limit: int = 10) -> list[dict]:
-        """Search securities reference by ticker or name."""
         if not query or len(query) < 1:
             return []
         return container.reference_repository().search(query, limit)
@@ -186,7 +132,6 @@ class CurrencyService:
 
     @staticmethod
     def get_currency_symbol(currency_code: str) -> str:
-        """Get the display symbol for a currency code."""
         try:
             return Currency(currency_code).symbols
         except ValueError:
@@ -197,120 +142,81 @@ class DividendService:
     """Frontend service for dividend operations."""
 
     @staticmethod
+    @operation_result(
+        failure="Failed to add dividend", success="Dividend added successfully"
+    )
     def add_dividend(
         ticker: str,
         amount: float,
         date: Optional[datetime] = None,
-    ) -> OperationResult:
-        """Add a new dividend."""
-        try:
-            if date is None:
-                date = datetime.now()
-            dividend_id = container.dividend_repository().add_dividend(
-                ticker=ticker,
-                amount=amount,
-                date=date,
-            )
-            return OperationResult(
-                success=True,
-                message=f"Dividend for {ticker} added successfully",
-                data={"id": dividend_id},
-            )
-        except Exception as e:
-            return OperationResult(
-                success=False,
-                message=f"Failed to add dividend: {e}",
-            )
+    ):
+        return container.dividend_use_cases().add_dividend(
+            ticker=ticker, amount=amount, date=date
+        )
 
     @staticmethod
+    @safe_query([])
     def get_dividends_by_ticker(ticker: str) -> list[dict]:
-        """Get dividends for a specific ticker."""
-        df = container.dividend_repository().get_by_ticker(ticker)
-        return df.to_dicts() if df is not None else []
+        return container.dividend_use_cases().get_dividends_by_ticker(ticker)
 
     @staticmethod
+    @safe_query([])
     def get_all_dividends() -> list[dict]:
-        """Get all dividends."""
-        df = container.dividend_repository().get_all()
-        return df.to_dicts() if df is not None else []
+        return container.dividend_use_cases().get_all_dividends()
 
     @staticmethod
+    @safe_query(0.0)
     def get_total_amount() -> float:
-        """Get total amount of all dividends."""
-        return container.dividend_repository().get_total_amount()
+        return container.dividend_use_cases().get_total_amount()
 
     @staticmethod
-    def delete_dividend(id: int) -> OperationResult:
-        """Delete a dividend by ID."""
-        try:
-            container.dividend_repository().delete(id)
-            return OperationResult(
-                success=True,
-                message=f"Dividend {id} deleted successfully",
-            )
-        except Exception as e:
-            return OperationResult(
-                success=False,
-                message=f"Failed to delete dividend: {e}",
-            )
+    @operation_result(
+        failure="Failed to delete dividend", success="Dividend deleted successfully"
+    )
+    def delete_dividend(id: int):
+        container.dividend_use_cases().delete_dividend(id)
 
     @staticmethod
+    @operation_result(
+        failure="Failed to update dividend", success="Dividend updated successfully"
+    )
     def update_dividend(
         id: int,
         ticker: str,
         amount: float,
         date: Optional[datetime] = None,
-    ) -> OperationResult:
-        """Update an existing dividend."""
-        try:
-            if date is None:
-                date = datetime.now()
-            container.dividend_repository().update_dividend(
-                id=id,
-                ticker=ticker,
-                amount=amount,
-                date=date,
-            )
-            return OperationResult(
-                success=True,
-                message=f"Dividend {id} updated successfully",
-            )
-        except Exception as e:
-            return OperationResult(
-                success=False,
-                message=f"Failed to update dividend: {e}",
-            )
+    ):
+        container.dividend_use_cases().update_dividend(
+            id=id, ticker=ticker, amount=amount, date=date
+        )
 
     @staticmethod
+    @operation_result(failure="Failed to sync dividends")
     def sync_dividends(tickers: list[str] | None = None) -> OperationResult:
-        """Fetch and store dividends from market data for the given tickers (or all held)."""
-        try:
-            result = container.dividend_sync_service().sync_dividends(tickers)
-            imported = result["imported"]
-            skipped = result["skipped"]
-            errors = result.get("errors", [])
-            if errors:
-                return OperationResult(
-                    success=imported > 0,
-                    message=f"Synced {imported} dividends, {skipped} skipped, {len(errors)} errors",
-                    data=result,
-                )
+        result = container.dividend_use_cases().sync_dividends(tickers)
+        imported = result["imported"]
+        skipped = result["skipped"]
+        errors = result.get("errors", [])
+        if errors:
             return OperationResult(
-                success=True,
-                message=f"Synced {imported} new dividends ({skipped} already existed)",
+                success=imported > 0,
+                message=f"Synced {imported} dividends, {skipped} skipped, {len(errors)} errors",
                 data=result,
             )
-        except Exception as e:
-            return OperationResult(
-                success=False,
-                message=f"Failed to sync dividends: {e}",
-            )
+        return OperationResult(
+            success=True,
+            message=f"Synced {imported} new dividends ({skipped} already existed)",
+            data=result,
+        )
 
 
 class PropertyService:
     """Frontend service for physical property operations."""
 
     @staticmethod
+    @operation_result(
+        failure="Failed to add property", success="Property added successfully"
+    )
     def add_property(
         name: str,
         value: float,
@@ -318,49 +224,32 @@ class PropertyService:
         description: str = "",
         category: str = "Other",
         currency: str = "EUR",
-    ) -> OperationResult:
-        try:
-            if purchase_date is None:
-                purchase_date = datetime.now()
-            prop_id = container.property_repository().add_property(
-                name=name,
-                value=value,
-                purchase_date=purchase_date,
-                description=description,
-                category=category,
-                currency=currency,
-            )
-            return OperationResult(
-                success=True,
-                message=f"Property '{name}' added successfully",
-                data={"id": prop_id},
-            )
-        except Exception as e:
-            return OperationResult(
-                success=False,
-                message=f"Failed to add property: {e}",
-            )
+    ):
+        return container.property_use_cases().add_property(
+            name=name,
+            value=value,
+            purchase_date=purchase_date,
+            description=description,
+            category=category,
+            currency=currency,
+        )
 
     @staticmethod
+    @safe_query([])
     def get_all_properties() -> list[dict]:
-        df = container.property_repository().get_all()
-        return df.to_dicts() if df is not None else []
+        return container.property_use_cases().get_all_properties()
 
     @staticmethod
-    def delete_property(id: int) -> OperationResult:
-        try:
-            container.property_repository().delete(id)
-            return OperationResult(
-                success=True,
-                message="Property deleted successfully",
-            )
-        except Exception as e:
-            return OperationResult(
-                success=False,
-                message=f"Failed to delete property: {e}",
-            )
+    @operation_result(
+        failure="Failed to delete property", success="Property deleted successfully"
+    )
+    def delete_property(id: int):
+        container.property_use_cases().delete_property(id)
 
     @staticmethod
+    @operation_result(
+        failure="Failed to update property", success="Property updated successfully"
+    )
     def update_property(
         id: int,
         name: str,
@@ -369,25 +258,13 @@ class PropertyService:
         description: str = "",
         category: str = "Other",
         currency: str = "EUR",
-    ) -> OperationResult:
-        try:
-            if purchase_date is None:
-                purchase_date = datetime.now()
-            container.property_repository().update_property(
-                id=id,
-                name=name,
-                value=value,
-                purchase_date=purchase_date,
-                description=description,
-                category=category,
-                currency=currency,
-            )
-            return OperationResult(
-                success=True,
-                message="Property updated successfully",
-            )
-        except Exception as e:
-            return OperationResult(
-                success=False,
-                message=f"Failed to update property: {e}",
-            )
+    ):
+        container.property_use_cases().update_property(
+            id=id,
+            name=name,
+            value=value,
+            purchase_date=purchase_date,
+            description=description,
+            category=category,
+            currency=currency,
+        )

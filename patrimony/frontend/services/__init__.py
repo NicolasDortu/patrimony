@@ -5,7 +5,7 @@ States and components should only import from this package, never directly from 
 """
 
 from ...backend.domain.entities import AssetType, Currency, EntryType
-from ...backend.presentation.di_container import container
+from ...backend.application.di_container import container
 
 from .models import OperationResult, Property, SecurityPosition, SecurityTotal
 from .cash_services import CashService

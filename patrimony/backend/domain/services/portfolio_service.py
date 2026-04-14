@@ -23,6 +23,7 @@ from .enrichment_utilities import (
     enrich_with_prices,
 )
 from .portfolio_chart_service import PortfolioChartService
+from .price_sync_service import PriceSyncService
 
 logger = logging.getLogger(__name__)
 
@@ -38,6 +39,7 @@ class PortfolioService:
         currency_service: CurrencyService,
         chart_service: PortfolioChartService,
         property_repo: PropertyRepository | None = None,
+        price_sync: PriceSyncService | None = None,
     ):
         self._securities_repo = securities_repo
         self._cash_repo = cash_repo
@@ -45,6 +47,7 @@ class PortfolioService:
         self._currency_service = currency_service
         self._chart_service = chart_service
         self._property_repo = property_repo
+        self._price_sync = price_sync
 
     # -- Portfolio Overview --------------------------------------------------
 
@@ -53,7 +56,7 @@ class PortfolioService:
         # Securities
         securities_df = self._securities_repo.get_aggregated_positions()
         if securities_df is not None and not securities_df.is_empty():
-            securities_df = enrich_with_prices(securities_df, self._price_repo)
+            securities_df = enrich_with_prices(securities_df, self._price_sync)
             securities_df = apply_currency_conversion(
                 securities_df, self._currency_service, user_currency
             )

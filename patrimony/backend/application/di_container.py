@@ -1,5 +1,13 @@
 from dependency_injector import containers, providers
 
+from . import (
+    CashUseCases,
+    ConnectorUseCases,
+    DividendUseCases,
+    PortfolioUseCases,
+    PropertyUseCases,
+    SecuritiesUseCases,
+)
 from ..infrastructure.database.connection import DatabaseConnection
 from ..infrastructure.integrations import (
     YahooFinanceProvider,
@@ -65,7 +73,6 @@ class Container(containers.DeclarativeContainer):
     price_repository = providers.Singleton(
         PriceRepositoryImpl,
         connection=database,
-        market_data_provider=market_data_provider,
     )
 
     reference_repository = providers.Singleton(
@@ -151,6 +158,7 @@ class Container(containers.DeclarativeContainer):
         currency_service=currency_service,
         chart_service=portfolio_chart_service,
         property_repo=property_repository,
+        price_sync=price_sync_service,
     )
 
     securities_service = providers.Singleton(
@@ -176,6 +184,44 @@ class Container(containers.DeclarativeContainer):
         WebConnectorService,
         site_connectors=site_connectors,
         connector_service=connector_service,
+    )
+
+    # Application Layer - Use Cases
+    securities_use_cases = providers.Singleton(
+        SecuritiesUseCases,
+        securities_repo=securities_repository,
+        securities_service=securities_service,
+        price_sync=price_sync_service,
+        currency_service=currency_service,
+    )
+
+    portfolio_use_cases = providers.Singleton(
+        PortfolioUseCases,
+        portfolio_service=portfolio_service,
+    )
+
+    cash_use_cases = providers.Singleton(
+        CashUseCases,
+        cash_repo=cash_repository,
+    )
+
+    dividend_use_cases = providers.Singleton(
+        DividendUseCases,
+        dividend_repo=dividend_repository,
+        dividend_sync_service=dividend_sync_service,
+    )
+
+    property_use_cases = providers.Singleton(
+        PropertyUseCases,
+        property_repo=property_repository,
+    )
+
+    connector_use_cases = providers.Factory(
+        ConnectorUseCases,
+        file_connector=file_connector,
+        connector_service=connector_service,
+        web_connector_service=web_connector_service,
+        history_repo=connector_history_repository,
     )
 
 
