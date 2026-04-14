@@ -242,6 +242,17 @@
   "web_connector.enter_password": "Ingrese su contraseña",
   "web_connector.save_credentials": "Guardar credenciales en la bóveda",
 
+  "web_connector.otp_title": "Verificación requerida",
+  "web_connector.otp_placeholder": "Ingrese el código...",
+  "web_connector.scan_qr": "Escanea este código QR con tu app de Revolut",
+  "web_connector.step_matching": "Coincidencias",
+  "web_connector.matching_title": "Asociar posiciones a tickers",
+  "web_connector.matching_desc": "Las siguientes posiciones fueron obtenidas por nombre. Por favor, asigne un símbolo ticker y una moneda a cada una.",
+  "web_connector.col_position": "Posición",
+  "web_connector.ticker_placeholder": "Ticker...",
+  "web_connector.currency_placeholder": "EUR",
+  "web_connector.confirm_import": "Confirmar e importar",
+
   "asset_type.all": "Todo",
   "asset_type.stocks": "Acciones",
   "asset_type.etfs": "ETFs",

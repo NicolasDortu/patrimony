@@ -164,13 +164,22 @@ def _credential_field_input(field: dict, index: int) -> rx.Component:
     """Render a single credential input field dynamically."""
     return rx.vstack(
         rx.text(field["label"], weight="medium", size="2"),
-        rx.input(
-            placeholder=field["label"],
-            type=field["type"],
-            value=field["value"],
-            on_change=WebConnectorState.set_credential_value(index),
-            width="100%",
-            auto_complete=False,
+        rx.cond(
+            field["type"] == "select",
+            rx.select(
+                field["options"].to(list[str]),
+                value=field["value"],
+                on_change=WebConnectorState.set_credential_value(index),
+                width="100%",
+            ),
+            rx.input(
+                placeholder=field["label"],
+                type=field["type"],
+                value=field["value"],
+                on_change=WebConnectorState.set_credential_value(index),
+                width="100%",
+                auto_complete=False,
+            ),
         ),
         spacing="1",
         width="100%",
@@ -284,8 +293,75 @@ def step_credentials() -> rx.Component:
 
 
 # ============================================================================
-# Step 3: Running
+# Step 3: Running (with OTP dialog overlay)
 # ============================================================================
+
+
+def _otp_dialog_overlay() -> rx.Component:
+    """Overlay shown during browser automation when user input is needed (OTP, QR, etc.)."""
+    return rx.cond(
+        WebConnectorState.prompt_visible,
+        rx.card(
+            rx.vstack(
+                rx.hstack(
+                    rx.icon("smartphone", size=20, color=rx.color("accent", 9)),
+                    rx.text(t("web_connector.otp_title"), weight="bold", size="3"),
+                    align="center",
+                    spacing="2",
+                ),
+                # QR code image (shown when prompt_type is "qr")
+                rx.cond(
+                    WebConnectorState.prompt_image != "",
+                    rx.vstack(
+                        rx.text(
+                            t("web_connector.scan_qr"),
+                            size="2",
+                            color=rx.color("gray", 10),
+                        ),
+                        rx.image(
+                            src=WebConnectorState.prompt_image,
+                            width="220px",
+                            height="220px",
+                            border_radius="var(--radius-2)",
+                        ),
+                        align="center",
+                        spacing="2",
+                    ),
+                ),
+                # Text message (shown when there is no QR image)
+                rx.cond(
+                    (WebConnectorState.prompt_image == "")
+                    & (WebConnectorState.prompt_message != ""),
+                    rx.text(
+                        WebConnectorState.prompt_message,
+                        size="2",
+                        color=rx.color("gray", 10),
+                    ),
+                ),
+                rx.cond(
+                    WebConnectorState.prompt_type == "text",
+                    rx.input(
+                        placeholder=t("web_connector.otp_placeholder"),
+                        value=WebConnectorState.prompt_input,
+                        on_change=WebConnectorState.set_prompt_input,
+                        width="100%",
+                        auto_complete=False,
+                        auto_focus=True,
+                    ),
+                ),
+                rx.button(
+                    rx.icon("check", size=16),
+                    t("btn.confirm"),
+                    on_click=WebConnectorState.submit_prompt,
+                    width="100%",
+                    size="3",
+                ),
+                spacing="3",
+                width="100%",
+            ),
+            width="100%",
+        ),
+    )
 
 
 def step_running() -> rx.Component:
@@ -303,6 +379,8 @@ def step_running() -> rx.Component:
             align="center",
             spacing="3",
         ),
+        # OTP / interactive prompt overlay
+        _otp_dialog_overlay(),
         rx.separator(),
         rx.text(t("web_connector.status_log"), weight="bold", size="2"),
         rx.box(
@@ -329,7 +407,102 @@ def step_running() -> rx.Component:
 
 
 # ============================================================================
-# Step 4: Result
+# Step 4: Matching (name → ticker)
+# ============================================================================
+
+
+def _matching_row(item: dict, index: int) -> rx.Component:
+    """A row in the matching table: position name + ticker input + currency select."""
+    return rx.hstack(
+        rx.vstack(
+            rx.text(item["name"], weight="medium", size="2"),
+            rx.text(
+                f"Qty: {item['quantity']}  |  Val: {item['value']}",
+                size="1",
+                color=rx.color("gray", 10),
+            ),
+            spacing="1",
+            flex="1",
+        ),
+        rx.input(
+            placeholder=t("web_connector.ticker_placeholder"),
+            value=item["ticker"],
+            on_change=WebConnectorState.set_match_ticker(index),
+            width="150px",
+            size="2",
+        ),
+        rx.input(
+            placeholder=t("web_connector.currency_placeholder"),
+            value=item["currency"],
+            on_change=WebConnectorState.set_match_currency(index),
+            width="100px",
+            size="2",
+        ),
+        align="center",
+        spacing="3",
+        width="100%",
+        padding_y="2",
+    )
+
+
+def step_matching() -> rx.Component:
+    """Matching step — user maps position names to tickers and currencies."""
+    return rx.vstack(
+        rx.hstack(
+            rx.icon("link", size=20, color=rx.color("accent", 9)),
+            rx.text(t("web_connector.matching_title"), weight="bold", size="3"),
+            align="center",
+            spacing="2",
+        ),
+        rx.text(
+            t("web_connector.matching_desc"),
+            size="2",
+            color=rx.color("gray", 10),
+        ),
+        rx.separator(),
+        # Header
+        rx.hstack(
+            rx.text(t("web_connector.col_position"), weight="bold", size="2", flex="1"),
+            rx.text(t("label.ticker"), weight="bold", size="2", width="150px"),
+            rx.text(t("label.currency"), weight="bold", size="2", width="100px"),
+            spacing="3",
+            width="100%",
+            padding_x="2",
+        ),
+        rx.box(
+            rx.foreach(
+                WebConnectorState.unmatched_positions,
+                _matching_row,
+            ),
+            max_height="400px",
+            overflow_y="auto",
+            width="100%",
+        ),
+        rx.separator(),
+        rx.hstack(
+            rx.button(
+                rx.icon("arrow-left", size=16),
+                t("btn.back"),
+                variant="outline",
+                on_click=WebConnectorState.reset_wizard,
+                size="3",
+            ),
+            rx.spacer(),
+            rx.button(
+                rx.icon("check", size=16),
+                t("web_connector.confirm_import"),
+                on_click=WebConnectorState.confirm_matching,
+                size="3",
+            ),
+            width="100%",
+        ),
+        spacing="4",
+        width="100%",
+    )
+
+
+# ============================================================================
+# Step 5: Result
 # ============================================================================
 
 
@@ -477,12 +650,20 @@ def step_indicator() -> rx.Component:
 
     return rx.hstack(
         _dot("1", t("web_connector.step_profile")),
-        rx.box(width="40px", height="2px", background=rx.color("gray", 6)),
+        rx.box(width="30px", height="2px", background=rx.color("gray", 6)),
         _dot("2", t("web_connector.step_credentials")),
-        rx.box(width="40px", height="2px", background=rx.color("gray", 6)),
+        rx.box(width="30px", height="2px", background=rx.color("gray", 6)),
         _dot("3", t("web_connector.step_running")),
-        rx.box(width="40px", height="2px", background=rx.color("gray", 6)),
-        _dot("4", t("web_connector.step_result")),
+        rx.box(width="30px", height="2px", background=rx.color("gray", 6)),
+        rx.cond(
+            WebConnectorState.selected_profile_needs_matching,
+            rx.fragment(
+                _dot("4", t("web_connector.step_matching")),
+                rx.box(width="30px", height="2px", background=rx.color("gray", 6)),
+                _dot("5", t("web_connector.step_result")),
+            ),
+            _dot("4", t("web_connector.step_result")),
+        ),
         justify="center",
         align="center",
         spacing="3",

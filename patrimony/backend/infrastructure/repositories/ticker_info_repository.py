@@ -40,6 +40,18 @@ class TickerInfoRepositoryImpl(TickerInfoRepository):
         row = df.row(0, named=True)
         return TickerInfo(**row)
 
+    def get_by_name(self, name: str) -> TickerInfo | None:
+        result = self._conn.execute(
+            "SELECT ticker, isin, name, asset_type, exchange, currency, quote_type, source, last_updated "
+            "FROM ticker_info WHERE LOWER(name) = LOWER(?)",
+            [name.strip()],
+        )
+        df = result.pl()
+        if df.is_empty():
+            return None
+        row = df.row(0, named=True)
+        return TickerInfo(**row)
+
     def get_batch_by_isin(self, isins: list[str]) -> dict[str, TickerInfo]:
         if not isins:
             return {}

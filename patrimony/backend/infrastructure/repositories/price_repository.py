@@ -161,7 +161,12 @@ class PriceRepositoryImpl(PriceRepository):
                 if price:
                     self.cache_price(ticker, price, now)
                     prices[ticker] = price
+                else:
+                    # Negative-cache: store 0.0 so we don't re-fetch on every call
+                    self.cache_price(ticker, 0.0, now)
             except Exception as e:
                 logger.warning("Error fetching price for %s: %s", ticker, e)
+                # Negative-cache on exception too
+                self.cache_price(ticker, 0.0, now)
 
         return prices

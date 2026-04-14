@@ -3,7 +3,6 @@
 Usage:
     # Record mode – opens Playwright codegen to record actions
     uv run development/connectors_constructor.py record degiro
-    uv run development/connectors_constructor.py record bnp_paribas_be
     uv run development/connectors_constructor.py record --url https://example.com -o my_recording.py
 
     # Run mode – execute a recording or connector step-by-step

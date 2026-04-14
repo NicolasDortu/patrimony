@@ -165,6 +165,7 @@ class SiteConnector(ABC):
         self,
         credentials: dict[str, str],
         on_status: Callable[[str], None] | None = None,
+        on_user_input: Callable[[str, str], str] | None = None,
         **options,
     ) -> pl.DataFrame:
         """Fetch data from the external source.
@@ -172,6 +173,9 @@ class SiteConnector(ABC):
         Args:
             credentials: Dict with authentication keys.
             on_status: Optional callback receiving status messages.
+            on_user_input: Optional callback to request input from the user.
+                Signature: (prompt_type, message) -> user_response.
+                prompt_type is "text" (input box) or "action" (confirm dialog).
             **options: Implementation-specific options (e.g. headless).
 
         Returns:

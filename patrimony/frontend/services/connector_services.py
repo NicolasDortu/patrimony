@@ -1,5 +1,6 @@
 """Frontend services for connector operations (file import, web import, credentials, history)."""
 
+from collections.abc import Callable
 import logging
 from pathlib import Path
 
@@ -256,13 +257,21 @@ class WebConnectorService:
                 "name": p.name,
                 "description": p.description,
                 "import_mode": p.import_mode,
+                "needs_matching": p.needs_matching,
                 "credential_fields": [
                     {
-                        "placeholder": ph,
-                        "label": label,
-                        "type": "password" if "password" in label.lower() else "text",
+                        "placeholder": f[0],
+                        "label": f[1],
+                        "type": (
+                            "select"
+                            if len(f) > 2
+                            else "password"
+                            if "password" in f[1].lower()
+                            else "text"
+                        ),
+                        "options": list(f[2]) if len(f) > 2 else [],
                     }
-                    for ph, label in p.credential_fields
+                    for f in p.credential_fields
                 ]
                 if p.credential_fields
                 else [],
@@ -274,19 +283,34 @@ class WebConnectorService:
     def run_connector(
         profile_id: str,
         credentials: dict[str, str],
+        on_user_input: Callable[[str, str], str] | None = None,
         headless: bool = False,
     ) -> OperationResult:
         """Execute a web connector profile and import the data."""
         try:
             svc = container.web_connector_service()
-            result = svc.run_connector(profile_id, credentials, headless=headless)
+            result = svc.run_connector(
+                profile_id,
+                credentials,
+                on_user_input=on_user_input,
+                headless=headless,
+            )
 
             data = {
                 "imported": result.imported,
                 "skipped": result.skipped,
                 "errors": result.errors,
                 "status_log": result.status_log,
+                "needs_matching": result.needs_matching,
+                "unmatched_positions": result.unmatched_positions,
             }
+
+            if result.needs_matching:
+                return OperationResult(
+                    success=True,
+                    message="Positions fetched — matching required.",
+                    data=data,
+                )
 
             if result.success:
                 msg = f"Imported {result.imported} entries"
@@ -325,6 +349,43 @@ class WebConnectorService:
                 success=False,
                 message=f"Connector failed: {e}",
                 data={"errors": [str(e)], "status_log": []},
+            )
+
+    @staticmethod
+    def import_matched_positions(
+        matched: list[dict],
+    ) -> OperationResult:
+        """Import user-matched positions (name→ticker) from a web connector."""
+        try:
+            svc = container.web_connector_service()
+            result = svc.import_matched_positions(matched)
+
+            data = {
+                "imported": result.imported,
+                "skipped": result.skipped,
+                "errors": result.errors,
+            }
+
+            if result.success:
+                msg = f"Imported {result.imported} entries"
+                if result.skipped:
+                    msg += f" ({result.skipped} duplicates skipped)"
+                return OperationResult(success=True, message=msg, data=data)
+            else:
+                detail = (
+                    "; ".join(result.errors)
+                    if result.errors
+                    else "No rows could be imported"
+                )
+                return OperationResult(
+                    success=False,
+                    message=f"Import failed: {detail}",
+                    data=data,
+                )
+        except Exception as e:
+            return OperationResult(
+                success=False,
+                message=f"Import failed: {e}",
             )
 
 

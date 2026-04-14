@@ -103,8 +103,9 @@ def normalize_date(val) -> str:
     return ""
 
 
-def position_hash(row: dict) -> str:
+def position_hash(row: dict, source: str = "") -> str:
     """Compute SHA-256 hash for a position row."""
+    src = source.strip().upper()
     ticker = to_str(row.get("ticker")).strip().upper()
     price_str = to_str(row.get("price")).strip()
     price = str(float(normalize_number(price_str))) if price_str else "0.0"
@@ -113,16 +114,17 @@ def position_hash(row: dict) -> str:
     fees_str = to_str(row.get("fees")).strip()
     fees = str(float(normalize_number(fees_str))) if fees_str else "0.0"
     date = normalize_date(row.get("date")) if "date" in row else ""
-    raw = f"{ticker}|{price}|{quantity}|{fees}|{date}"
+    raw = f"{src}|{ticker}|{price}|{quantity}|{fees}|{date}"
     return hashlib.sha256(raw.encode()).hexdigest()
 
 
-def cash_hash(row: dict) -> str:
+def cash_hash(row: dict, source: str = "") -> str:
     """Compute SHA-256 hash for a cash operation row."""
+    src = source.strip().upper()
     account = to_str(row.get("account_number")).strip()
     amount_str = to_str(row.get("amount")).strip()
     amount = str(float(normalize_number(amount_str))) if amount_str else "0.0"
     title = to_str(row.get("title")).strip()
     date = normalize_date(row.get("operation_date")) if "operation_date" in row else ""
-    raw = f"{account}|{amount}|{title}|{date}"
+    raw = f"{src}|{account}|{amount}|{title}|{date}"
     return hashlib.sha256(raw.encode()).hexdigest()

@@ -242,6 +242,17 @@
   "web_connector.enter_password": "Enter your password",
   "web_connector.save_credentials": "Save credentials to vault",
 
+  "web_connector.otp_title": "Verification Required",
+  "web_connector.otp_placeholder": "Enter code...",
+  "web_connector.scan_qr": "Scan this QR code with your Revolut app",
+  "web_connector.step_matching": "Matching",
+  "web_connector.matching_title": "Match Positions to Tickers",
+  "web_connector.matching_desc": "The following positions were scraped by name. Please assign a ticker symbol and currency for each.",
+  "web_connector.col_position": "Position",
+  "web_connector.ticker_placeholder": "Ticker...",
+  "web_connector.currency_placeholder": "EUR",
+  "web_connector.confirm_import": "Confirm & Import",
+
   "asset_type.all": "All",
   "asset_type.stocks": "Stocks",
   "asset_type.etfs": "ETFs",

@@ -43,6 +43,7 @@ class PlaywrightSiteConnector(SiteConnector):
         self,
         credentials: dict[str, str],
         on_status: Callable[[str], None] | None = None,
+        on_user_input: Callable[[str, str], str] | None = None,
         **options,
     ) -> pl.DataFrame:
         """Launch browser, delegate to _execute(), return DataFrame.
@@ -54,13 +55,16 @@ class PlaywrightSiteConnector(SiteConnector):
         with ThreadPoolExecutor(1) as pool:
             return pool.submit(
                 asyncio.run,
-                self._launch_and_execute(credentials, on_status, headless),
+                self._launch_and_execute(
+                    credentials, on_status, on_user_input, headless
+                ),
             ).result()
 
     async def _launch_and_execute(
         self,
         credentials: dict[str, str],
         on_status: Callable[[str], None] | None,
+        on_user_input: Callable[[str, str], str] | None,
         headless: bool,
     ) -> pl.DataFrame:
         """Launch a stealth browser and delegate to ``_execute()``."""
@@ -85,7 +89,7 @@ class PlaywrightSiteConnector(SiteConnector):
             await _stealth.apply_stealth_async(page)
 
             try:
-                return await self._execute(page, credentials, on_status)
+                return await self._execute(page, credentials, on_status, on_user_input)
             finally:
                 await browser.close()
 
@@ -94,6 +98,7 @@ class PlaywrightSiteConnector(SiteConnector):
         page: Page,
         credentials: dict[str, str],
         on_status: Callable[[str], None] | None,
+        on_user_input: Callable[[str, str], str] | None = None,
     ) -> pl.DataFrame:
         """Site-specific data extraction logic.  Override in subclasses.
 
@@ -102,6 +107,22 @@ class PlaywrightSiteConnector(SiteConnector):
         directly from the page, build and return a DataFrame.
         """
         raise NotImplementedError
+
+    @staticmethod
+    async def request_user_input(
+        on_user_input: Callable[[str, str], str] | None,
+        prompt_type: str,
+        message: str,
+    ) -> str:
+        """Request input from the user via the on_user_input callback.
+
+        Runs the blocking callback in a thread so the async event loop
+        is not blocked while waiting for user response.
+        """
+        if not on_user_input:
+            raise RuntimeError("User input required but no callback provided.")
+        loop = asyncio.get_event_loop()
+        return await loop.run_in_executor(None, on_user_input, prompt_type, message)
 
     # --- Shared helpers for subclasses ---
 

@@ -7,6 +7,7 @@ from ..templates import template
 from ..views.connectors.web_connector_wizard import (
     step_credentials,
     step_indicator,
+    step_matching,
     step_result,
     step_running,
     step_select_profile,
@@ -46,7 +47,11 @@ def web_connector() -> rx.Component:
                     rx.cond(
                         WebConnectorState.step == 3,
                         step_running(),
-                        step_result(),
+                        rx.cond(
+                            WebConnectorState.step == 4,
+                            step_matching(),
+                            step_result(),
+                        ),
                     ),
                 ),
             ),

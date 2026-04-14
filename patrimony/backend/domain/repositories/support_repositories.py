@@ -112,6 +112,11 @@ class TickerInfoRepository(ABC):
         pass
 
     @abstractmethod
+    def get_by_name(self, name: str) -> TickerInfo | None:
+        """Return ticker info by name (case-insensitive match), or None."""
+        pass
+
+    @abstractmethod
     def get_batch_by_isin(self, isins: list[str]) -> dict[str, TickerInfo]:
         """Return a dict of ISIN → TickerInfo for all ISINs found."""
         pass

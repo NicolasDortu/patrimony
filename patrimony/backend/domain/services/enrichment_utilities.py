@@ -70,7 +70,7 @@ def enrich_with_prices(df: pl.DataFrame, price_repo: PriceRepository) -> pl.Data
 
     tickers = df["ticker"].to_list()
     bulk_prices = price_repo.get_current_prices(tickers)
-    prices = [bulk_prices.get(t.upper()) for t in tickers]
+    prices = [bulk_prices.get(t.upper(), 0.0) or 0.0 for t in tickers]
 
     df = df.with_columns(pl.Series("current_price", prices))
     if "total_quantity" in df.columns:

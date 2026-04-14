@@ -10,7 +10,7 @@ from datetime import datetime
 
 import polars as pl
 
-from ...entities import AssetType, Currency, EntryType
+from ...entities import AssetType, Currency, EntryType, TickerInfo
 from ...exceptions import MissingMappingError
 from ...interfaces import MarketDataProvider
 from ...repositories import (
@@ -83,6 +83,12 @@ class FileConnectorService:
         return ticker_resolution.resolve_asset_types(
             tickers, self._info_repo, self._reference_repo, self._market_data
         )
+
+    def find_ticker_by_name(self, name: str) -> TickerInfo | None:
+        """Look up ticker info by name (case-insensitive partial match)."""
+        if not self._info_repo or not name:
+            return None
+        return self._info_repo.get_by_name(name)
 
     # ------------------------------------------------------------------
     # Cash row detection
@@ -160,6 +166,7 @@ class FileConnectorService:
         column_mapping: dict[str, str],
         entry_type: EntryType,
         asset_type_overrides: dict[str, str] | None = None,
+        source: str = "",
     ) -> ImportResult:
         """Import positions from a mapped DataFrame.
 
@@ -184,7 +191,7 @@ class FileConnectorService:
         known_hashes: set[str] = set()
         if self._hash_repo:
             for i, row in enumerate(mapped_df.iter_rows(named=True)):
-                row_hashes[i] = position_hash(row)
+                row_hashes[i] = position_hash(row, source=source)
             known_hashes = self._hash_repo.existing_hashes(set(row_hashes.values()))
 
         imported = 0
@@ -371,6 +378,7 @@ class FileConnectorService:
         column_mapping: dict[str, str],
         entry_type: EntryType,
         new_accounts: dict[str, dict] | None = None,
+        source: str = "",
     ) -> ImportResult:
         """Import cash operations from a mapped DataFrame."""
         if new_accounts:
@@ -400,7 +408,7 @@ class FileConnectorService:
         known_hashes: set[str] = set()
         if self._hash_repo:
             for i, row in enumerate(mapped_df.iter_rows(named=True)):
-                row_hashes[i] = cash_hash(row)
+                row_hashes[i] = cash_hash(row, source=source)
             known_hashes = self._hash_repo.existing_hashes(set(row_hashes.values()))
 
         imported = 0

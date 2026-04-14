@@ -1,9 +1,21 @@
 """State for the web connector wizard (browser-based automated import)."""
 
+import asyncio
+import threading
+
 import reflex as rx
 
 from ..services import CredentialService, WebConnectorService
 from ..templates.template import ThemeState
+
+# Module-level bridge for OTP prompt between Playwright thread and Reflex state.
+# Cannot live on the State class because threading.Event is not picklable.
+_need_input_event = threading.Event()
+_got_response_event = threading.Event()
+_bridge_prompt_type: str = ""
+_bridge_prompt_message: str = ""
+_bridge_prompt_image: str = ""  # base64 data URL for QR codes
+_bridge_response: str = ""
 
 
 class WebConnectorState(rx.State):
@@ -13,10 +25,11 @@ class WebConnectorState(rx.State):
         1. Select a connector profile
         2. Enter credentials (with optional master password unlock)
         3. Running (browser automation in progress)
-        4. Result
+        4. Matching (user maps names→tickers, only for needs_matching profiles)
+        5. Result
     """
 
-    # Wizard step: 1=profile, 2=credentials, 3=running, 4=result
+    # Wizard step: 1=profile, 2=credentials, 3=running, 4=matching, 5=result
     step: int = 1
 
     # Available profiles loaded from backend
@@ -27,6 +40,7 @@ class WebConnectorState(rx.State):
     selected_profile_name: str = ""
     selected_profile_description: str = ""
     selected_profile_import_mode: str = ""
+    selected_profile_needs_matching: bool = False
 
     # Dynamic credential fields from the selected profile
     # Each entry: {"placeholder": "$user$", "label": "Username", "type": "text", "value": ""}
@@ -51,6 +65,16 @@ class WebConnectorState(rx.State):
     result_skipped: int = 0
     result_status_log: list[str] = []
 
+    # OTP / interactive prompt dialog (shown during step 3)
+    prompt_visible: bool = False
+    prompt_message: str = ""
+    prompt_type: str = ""  # "text", "action", or "qr"
+    prompt_input: str = ""
+    prompt_image: str = ""  # base64 data URL for QR code display
+
+    # Matching step (step 4, conditional)
+    unmatched_positions: list[dict] = []
+
     @rx.var
     def has_profiles(self) -> bool:
         return len(self.profiles) > 0
@@ -62,7 +86,7 @@ class WebConnectorState(rx.State):
     @rx.var
     def credentials_valid(self) -> bool:
         if not self.credential_fields:
-            return False
+            return True  # No credentials needed (e.g. QR-code login)
         return all(f.get("value", "").strip() != "" for f in self.credential_fields)
 
     @rx.var
@@ -84,13 +108,19 @@ class WebConnectorState(rx.State):
                 self.selected_profile_name = p["name"]
                 self.selected_profile_description = p.get("description", "")
                 self.selected_profile_import_mode = p.get("import_mode", "positions")
+                self.selected_profile_needs_matching = p.get("needs_matching", False)
                 self.credential_fields = [
                     {**f, "value": ""} for f in p.get("credential_fields", [])
                 ]
                 break
 
-        # Check credential storage status
-        self._check_credential_status(profile_id)
+        # Check credential storage status (skip for connectors with no credentials)
+        if self.credential_fields:
+            self._check_credential_status(profile_id)
+        else:
+            self.needs_master_setup = False
+            self.needs_master_unlock = False
+            self.has_saved_credentials = False
         self.step = 2
 
     def _check_credential_status(self, profile_id: str) -> None:
@@ -176,52 +206,157 @@ class WebConnectorState(rx.State):
         yield rx.toast.info("Saved credentials deleted.", position="top-center")
 
     @rx.event
+    def set_prompt_input(self, value: str) -> None:
+        self.prompt_input = value
+
+    @rx.event
+    def submit_prompt(self) -> None:
+        """User submitted the OTP / prompt dialog — unblock the connector thread."""
+        global _bridge_response
+        _bridge_response = self.prompt_input
+        self.prompt_input = ""
+        self.prompt_image = ""
+        self.prompt_visible = False
+        _got_response_event.set()
+
+    @rx.event(background=True)
     async def start_connector(self):
-        """Validate credentials and start the browser automation."""
-        if not self.credentials_valid:
-            yield rx.toast.error(
-                "Please fill in all credential fields.",
-                position="top-center",
-            )
-            return
+        """Validate credentials and start the browser automation.
 
-        # Save credentials if requested and vault is unlocked
-        if self.save_credentials_checked and CredentialService.is_unlocked():
-            creds = {f["placeholder"]: f["value"] for f in self.credential_fields}
-            CredentialService.store_credentials(self.selected_profile_id, creds)
-            self.has_saved_credentials = True
+        Runs as a background task so we can push OTP dialog state changes
+        to the frontend while the connector is still running.
+        """
+        async with self:
+            if not self.credentials_valid:
+                yield rx.toast.error(
+                    "Please fill in all credential fields.",
+                    position="top-center",
+                )
+                return
 
-        self.step = 3
-        self.is_running = True
-        self.status_messages = ["Starting connector..."]
-        yield
+            # Save credentials if requested and vault is unlocked
+            if self.save_credentials_checked and CredentialService.is_unlocked():
+                creds = {f["placeholder"]: f["value"] for f in self.credential_fields}
+                CredentialService.store_credentials(self.selected_profile_id, creds)
+                self.has_saved_credentials = True
 
-        theme = await self.get_state(ThemeState)
+            self.step = 3
+            self.is_running = True
+            self.status_messages = ["Starting connector..."]
 
-        credentials = {f["placeholder"]: f["value"] for f in self.credential_fields}
+            theme = await self.get_state(ThemeState)
+            show_browser = theme.show_browser
 
-        result = WebConnectorService.run_connector(
-            profile_id=self.selected_profile_id,
-            credentials=credentials,
-            headless=not theme.show_browser,
+            credentials = {f["placeholder"]: f["value"] for f in self.credential_fields}
+            profile_id = self.selected_profile_id
+
+        # Reset bridge events
+        global _bridge_prompt_type, _bridge_prompt_message, _bridge_response
+        _need_input_event.clear()
+        _got_response_event.clear()
+
+        # Build on_user_input callback — runs in Playwright's thread,
+        # signals the bridge, blocks until user responds.
+        def on_user_input(prompt_type: str, message: str) -> str:
+            global _bridge_prompt_type, _bridge_prompt_message, _bridge_prompt_image
+            _bridge_prompt_type = prompt_type
+            # For QR prompts, message contains the base64 data URL image
+            if prompt_type == "qr":
+                _bridge_prompt_image = message
+                _bridge_prompt_message = ""
+            else:
+                _bridge_prompt_message = message
+                _bridge_prompt_image = ""
+            _need_input_event.set()
+            # Block Playwright thread until submit_prompt fires
+            _got_response_event.wait()
+            _got_response_event.clear()
+            return _bridge_response
+
+        # Run connector in a thread so we can poll for prompt requests
+        loop = asyncio.get_event_loop()
+        future = loop.run_in_executor(
+            None,
+            lambda: WebConnectorService.run_connector(
+                profile_id=profile_id,
+                credentials=credentials,
+                on_user_input=on_user_input,
+                headless=not show_browser,
+            ),
         )
 
-        # Clear credentials from memory immediately after use
-        for f in self.credential_fields:
-            f["value"] = ""
+        # Poll: detect prompt requests and push state to frontend
+        while not future.done():
+            if _need_input_event.is_set():
+                async with self:
+                    self.prompt_type = _bridge_prompt_type
+                    self.prompt_message = _bridge_prompt_message
+                    self.prompt_image = _bridge_prompt_image
+                    self.prompt_visible = True
+                _need_input_event.clear()
+            await asyncio.sleep(0.2)
 
-        self.is_running = False
-        self.result_message = result.message
-        self.result_success = result.success
+        result = await future
+
+        async with self:
+            # Clear credentials from memory immediately after use
+            for f in self.credential_fields:
+                f["value"] = ""
+
+            self.is_running = False
+            self.prompt_visible = False
+
+            data = result.data or {}
+            self.status_messages = data.get("status_log", [])
+
+            # If matching is needed, go to matching step instead of result
+            if data.get("needs_matching"):
+                self.unmatched_positions = data.get("unmatched_positions", [])
+                self.step = 4
+                return
+
+            self.result_message = result.message
+            self.result_success = result.success
+            self.result_errors = data.get("errors", [])
+            self.result_imported = data.get("imported", 0)
+            self.result_skipped = data.get("skipped", 0)
+            self.result_status_log = data.get("status_log", [])
+
+            self.step = 5
+
+        if result.success:
+            yield rx.toast.success(result.message, position="top-center")
+        else:
+            yield rx.toast.error(result.message, position="top-center")
+
+    # ------------------------------------------------------------------
+    # Matching step events (step 4)
+    # ------------------------------------------------------------------
+
+    @rx.event
+    def set_match_ticker(self, index: int, value: str) -> None:
+        """Update the ticker for an unmatched position."""
+        self.unmatched_positions[index]["ticker"] = value
+
+    @rx.event
+    def set_match_currency(self, index: int, value: str) -> None:
+        """Update the currency for an unmatched position."""
+        self.unmatched_positions[index]["currency"] = value
+
+    @rx.event
+    def confirm_matching(self):
+        """Import the matched positions and advance to result step."""
+        result = WebConnectorService.import_matched_positions(self.unmatched_positions)
 
         data = result.data or {}
+        self.result_message = result.message
+        self.result_success = result.success
         self.result_errors = data.get("errors", [])
         self.result_imported = data.get("imported", 0)
         self.result_skipped = data.get("skipped", 0)
-        self.result_status_log = data.get("status_log", [])
-        self.status_messages = data.get("status_log", [])
+        self.result_status_log = self.status_messages
 
-        self.step = 4
+        self.step = 5
 
         if result.success:
             yield rx.toast.success(result.message, position="top-center")
@@ -236,6 +371,7 @@ class WebConnectorState(rx.State):
         self.selected_profile_name = ""
         self.selected_profile_description = ""
         self.selected_profile_import_mode = ""
+        self.selected_profile_needs_matching = False
         self.credential_fields = []
         self.master_password_input = ""
         self.needs_master_setup = False
@@ -250,6 +386,12 @@ class WebConnectorState(rx.State):
         self.result_imported = 0
         self.result_skipped = 0
         self.result_status_log = []
+        self.prompt_visible = False
+        self.prompt_message = ""
+        self.prompt_type = ""
+        self.prompt_input = ""
+        self.prompt_image = ""
+        self.unmatched_positions = []
 
     @rx.event
     def go_back(self) -> None:

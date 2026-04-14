@@ -152,7 +152,8 @@ class ConnectorProfile:
     new_accounts: dict[str, dict] | None = (
         None  # for cash import: acct -> {bank, currency}
     )
-    credential_fields: list[tuple[str, str]] | None = None
+    credential_fields: list[tuple] | None = None
+    needs_matching: bool = False
 
 
 @dataclass(slots=True)
@@ -164,6 +165,8 @@ class WebConnectorResult:
     skipped: int = 0
     errors: list[str] = field(default_factory=list)
     status_log: list[str] = field(default_factory=list)
+    needs_matching: bool = False
+    unmatched_positions: list[dict] = field(default_factory=list)
 
 
 @dataclass(slots=True)

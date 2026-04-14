@@ -49,6 +49,7 @@ class DegiroConnector(PlaywrightSiteConnector):
         page: Page,
         credentials: dict[str, str],
         on_status: Callable[[str], None] | None,
+        on_user_input: Callable[[str, str], str] | None = None,
     ) -> pl.DataFrame:
         def _log(msg: str) -> None:
             logger.info(msg)
