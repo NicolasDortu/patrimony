@@ -22,3 +22,9 @@ ASSET_TYPE_LABELS = {
 # Sync batch settings for price & dividend synchronization.
 SYNC_BATCH_SIZE: int = 5
 SYNC_BATCH_DELAY_S: float = 2.0
+
+# Minimum days of data required to render a meaningful chart.
+MIN_CHART_DAYS: int = 2
+
+# Minimum interval (seconds) between consecutive external API calls.
+MIN_API_REQUEST_INTERVAL_S: float = 0.55

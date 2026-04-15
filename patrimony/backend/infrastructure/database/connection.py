@@ -3,6 +3,7 @@ import atexit
 import logging
 from pathlib import Path
 from contextlib import contextmanager
+from typing import Any
 
 import polars as pl
 import duckdb
@@ -56,7 +57,9 @@ class DatabaseConnection:
         )
         logger.info("Loaded %d securities into reference table", len(df))
 
-    def execute(self, query: str, parameters=None) -> duckdb.DuckDBPyConnection:
+    def execute(
+        self, query: str, parameters: list[Any] = None
+    ) -> duckdb.DuckDBPyConnection:
         """Execute a query and return the result.
 
         Args:
@@ -77,6 +80,22 @@ class DatabaseConnection:
             logger.error(
                 "Query failed: %s | Params: %s | Error: %s", query, parameters, e
             )
+            raise DatabaseError(message=str(e), query=query, original=e) from e
+
+    def executemany(self, query: str, parameters: list[tuple]) -> None:
+        """Execute a query once for each parameter set (batch insert).
+
+        Args:
+            query: SQL query string with placeholders
+            parameters: List of parameter tuples/lists
+
+        Raises:
+            DatabaseError: If the query fails
+        """
+        try:
+            self.conn.executemany(query, parameters)
+        except duckdb.Error as e:
+            logger.error("Batch query failed: %s | Error: %s", query, e)
             raise DatabaseError(message=str(e), query=query, original=e) from e
 
     @contextmanager

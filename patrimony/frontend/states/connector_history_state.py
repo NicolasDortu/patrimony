@@ -42,8 +42,8 @@ class ConnectorHistoryState(rx.State):
     @rx.event
     def delete_entry(self, entry_id: int):
         """Delete a history entry."""
-        success = ConnectorHistoryService.delete(entry_id)
-        if success:
+        result = ConnectorHistoryService.delete(entry_id)
+        if result.success:
             self.history_entries = [
                 e for e in self.history_entries if e["id"] != entry_id
             ]
@@ -96,11 +96,11 @@ class ConnectorHistoryState(rx.State):
     @rx.event
     def submit_unlock_and_refresh(self):
         """Unlock credentials and retry the pending refresh."""
-        success = CredentialService.unlock(self.master_password_input)
+        result = CredentialService.unlock(self.master_password_input)
         self.master_password_input = ""
         self.show_unlock_dialog = False
 
-        if success:
+        if result.success:
             yield rx.toast.success("Credentials unlocked!", position="top-center")
             yield ConnectorHistoryState.refresh_entry(self._pending_refresh_id)
         else:

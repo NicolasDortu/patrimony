@@ -28,17 +28,17 @@ class PriceProvider(ABC):
         start_date: datetime = None,
         end_date: datetime = None,
         interval: str = "1d",
+        *,
+        period: str | None = None,
     ) -> pl.DataFrame | None:
         """Fetch price history for a ticker.
 
-        Args:
-            ticker: Stock ticker symbol
-            start_date: Start of date range (inclusive)
-            end_date: End of date range (inclusive)
-            interval: Data interval (e.g. '5m', '1d', '1wk')
+        Either supply (start_date, end_date) for a date range, or ``period``
+        (e.g. '1d', '1mo', '1y') for a relative window.  When ``period`` is
+        given, start_date/end_date are ignored.
 
         Returns:
-            DataFrame with columns: date, close
+            DataFrame with columns: date, close_price
         """
         pass
 
@@ -66,25 +66,6 @@ class MarketDataProvider(PriceProvider, CurrencyProvider, ABC):
         result = self._api_was_called
         self._api_was_called = False
         return result
-
-    @abstractmethod
-    def get_price_history_period(
-        self,
-        ticker: str,
-        period: str = None,
-        interval: str = "1d",
-    ) -> pl.DataFrame | None:
-        """Fetch price history for a ticker using period instead of dates.
-
-        Args:
-            ticker: Stock ticker symbol
-            period: yfinance period string (e.g. '1d', '1mo', '1y')
-            interval: Data interval (e.g. '5m', '1d', '1wk')
-
-        Returns:
-            DataFrame with columns: date, close
-        """
-        pass
 
     @abstractmethod
     def get_exchange_rate(self, from_currency: str, to_currency: str) -> float | None:

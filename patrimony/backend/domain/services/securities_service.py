@@ -58,7 +58,7 @@ class SecuritiesService:
     ) -> list[dict]:
         """Get time-series price data for a single ticker."""
         config = PERIOD_CONFIG.get(period, PERIOD_CONFIG["1M"])
-        df = self._securities_repo.get_aggregated_positions_by_ticker(ticker)
+        df = self._securities_repo.get_aggregated_positions(ticker)
         if df is None or df.is_empty():
             return []
 
@@ -119,8 +119,8 @@ class SecuritiesService:
         self, ticker: str, config: dict, is_intraday: bool
     ) -> Optional[pl.DataFrame]:
         if is_intraday:
-            return self._market_data.get_price_history_period(
-                ticker, period=config["period"], interval=config["interval"]
+            return self._market_data.get_price_history(
+                ticker, interval=config["interval"], period=config["period"]
             )
         start = datetime.now() - timedelta(days=config["days"])
         earliest = self._securities_repo.get_earliest_purchase_date(ticker)

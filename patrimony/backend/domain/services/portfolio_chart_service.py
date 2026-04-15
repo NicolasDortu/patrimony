@@ -6,6 +6,7 @@ construction, and chart row assembly for the portfolio overview chart.
 
 import bisect
 import logging
+import math
 from datetime import datetime, timedelta
 
 import polars as pl
@@ -200,8 +201,8 @@ class PortfolioChartService:
         if is_intraday:
             for ticker in tickers:
                 try:
-                    df = self._market_data.get_price_history_period(
-                        ticker, period=config["period"], interval=config["interval"]
+                    df = self._market_data.get_price_history(
+                        ticker, interval=config["interval"], period=config["period"]
                     )
                     if df is not None and not df.is_empty():
                         dates = df["date"].to_list()
@@ -287,7 +288,7 @@ class PortfolioChartService:
             asset_values = {v: 0.0 for v in ASSET_TYPE_LABELS.values()}
             for ticker, info in securities.items():
                 price = ticker_data.get(ticker, {}).get(dt)
-                if price is None or price != price or price <= 0:
+                if price is None or math.isnan(price) or price <= 0:
                     price = 0
                 rate = rates.get(ticker, 1.0) if rates else 1.0
                 if quantity_timeline is not None:

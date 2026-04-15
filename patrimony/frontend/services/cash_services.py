@@ -5,7 +5,7 @@ from datetime import datetime
 from typing import Optional
 
 from ...backend.domain.entities import Currency, EntryType
-from ...backend.application.di_container import container
+from ...backend.application import container
 from .models import operation_result, safe_query
 
 logger = logging.getLogger(__name__)

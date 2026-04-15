@@ -1,29 +1,18 @@
 import reflex as rx
 
 from ...components.card import card
+from ...components.donut_chart import donut_pie_chart
 from ...states.portfolio_state import PortfolioState
 from ...templates import ThemeState, t
 
 
 def allocation_pie_chart() -> rx.Component:
     """Pie chart showing asset allocation."""
-    return rx.recharts.pie_chart(
-        rx.recharts.pie(
-            data=PortfolioState.allocation_data,
-            data_key="value",
-            name_key="name",
-            cx="50%",
-            cy="50%",
-            label=True,
-            inner_radius="100",
-            outer_radius="120",
-            stroke="none",
-            fill_opacity=0.7,
-        ),
-        rx.recharts.legend(),
-        rx.recharts.graphing_tooltip(),
-        width="100%",
-        height=300,
+    return donut_pie_chart(
+        PortfolioState.allocation_data,
+        inner_radius="100",
+        outer_radius="120",
+        fill_opacity=0.7,
     )
 
 

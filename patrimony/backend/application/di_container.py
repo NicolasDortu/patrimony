@@ -2,26 +2,29 @@ from dependency_injector import containers, providers
 
 from . import (
     CashUseCases,
-    ConnectorUseCases,
+    ConnectorHistoryUseCases,
     DividendUseCases,
+    FileImportUseCases,
     PortfolioUseCases,
     PropertyUseCases,
     SecuritiesUseCases,
+    WebConnectorUseCases,
 )
-from ..infrastructure.database.connection import DatabaseConnection
-from ..infrastructure.integrations import (
+from ..domain.services import (
+    CurrencyService,
+    DividendSyncService,
+    PortfolioChartService,
+    PortfolioService,
+    PriceSyncService,
+    SecuritiesService,
+)
+from ..domain.services.connectors import FileConnectorService, WebConnectorService
+from ..infrastructure import (
+    DatabaseConnection,
     YahooFinanceProvider,
     ExcelCsvConnector,
+    SITE_CONNECTORS,
 )
-from ..infrastructure.integrations.web_connector import SITE_CONNECTORS
-from ..domain.services.connectors import FileConnectorService
-from ..domain.services.currency_service import CurrencyService
-from ..domain.services.portfolio_service import PortfolioService
-from ..domain.services.portfolio_chart_service import PortfolioChartService
-from ..domain.services.price_sync_service import PriceSyncService
-from ..domain.services.securities_service import SecuritiesService
-from ..domain.services.connectors import WebConnectorService
-from ..domain.services.dividend_sync_service import DividendSyncService
 from ..infrastructure.repositories import (
     CashRepositoryImpl,
     SecuritiesRepositoryImpl,
@@ -217,10 +220,18 @@ class Container(containers.DeclarativeContainer):
     )
 
     connector_use_cases = providers.Factory(
-        ConnectorUseCases,
+        FileImportUseCases,
         file_connector=file_connector,
         connector_service=connector_service,
+    )
+
+    web_connector_use_cases = providers.Factory(
+        WebConnectorUseCases,
         web_connector_service=web_connector_service,
+    )
+
+    connector_history_use_cases = providers.Singleton(
+        ConnectorHistoryUseCases,
         history_repo=connector_history_repository,
     )
 

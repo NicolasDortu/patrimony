@@ -131,30 +131,24 @@ class CashOperationRepositoryImpl(CashOperationRepository):
     def recalculate_balances(self, account_number: str) -> None:
         """Recalculate ranks and running balances for all operations of an account.
 
-        Orders operations by operation_date ASC, id ASC, then assigns
-        sequential ranks and recomputes the cumulative balance.
+        Uses a single UPDATE with window functions instead of per-row updates.
         """
-        rows = self._conn.execute(
+        self._conn.execute(
             """
-            SELECT id, amount
-            FROM balance_operations
-            WHERE account_number = ?
-            ORDER BY operation_date ASC, id ASC
+            UPDATE balance_operations AS bo
+            SET rank = sub.new_rank, balance = sub.running_balance
+            FROM (
+                SELECT id,
+                       ROW_NUMBER() OVER w AS new_rank,
+                       SUM(amount) OVER w AS running_balance
+                FROM balance_operations
+                WHERE account_number = ?
+                WINDOW w AS (ORDER BY operation_date ASC, id ASC)
+            ) AS sub
+            WHERE bo.id = sub.id
             """,
             [account_number],
-        ).fetchall()
-
-        running_balance = 0.0
-        for rank, (op_id, amount) in enumerate(rows, start=1):
-            running_balance += amount
-            self._conn.execute(
-                """
-                UPDATE balance_operations
-                SET rank = ?, balance = ?
-                WHERE id = ?
-                """,
-                [rank, running_balance, op_id],
-            )
+        )
 
 
 class CashRepositoryImpl(CashRepository):

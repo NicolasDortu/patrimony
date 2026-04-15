@@ -3,6 +3,7 @@
 import reflex as rx
 
 from ...components.card import card
+from ...components.donut_chart import donut_pie_chart
 from ...states.properties_state import PropertiesState
 from ...templates import t
 
@@ -17,24 +18,7 @@ def properties_charts() -> rx.Component:
                     rx.text(
                         t("chart.properties_by_category"), size="3", weight="medium"
                     ),
-                    rx.recharts.pie_chart(
-                        rx.recharts.pie(
-                            data=PropertiesState.category_allocation_data,
-                            data_key="value",
-                            name_key="name",
-                            cx="50%",
-                            cy="50%",
-                            label=True,
-                            inner_radius="80",
-                            outer_radius="110",
-                            stroke="none",
-                            fill_opacity=0.8,
-                        ),
-                        rx.recharts.legend(),
-                        rx.recharts.graphing_tooltip(),
-                        width="100%",
-                        height=300,
-                    ),
+                    donut_pie_chart(PropertiesState.category_allocation_data),
                     spacing="3",
                     width="100%",
                 ),

@@ -1,6 +1,5 @@
 """State management for physical properties (real estate, valuables, etc.)."""
 
-import logging
 from datetime import datetime
 from typing import Union
 
@@ -10,8 +9,6 @@ from ..services import PropertyService, Property
 from ..utils import export_csv, get_pie_color, parse_form_date
 from .mixins import PaginationMixin, SearchSortMixin, apply_sort_and_search
 from .spreadsheet_mixin import SpreadsheetMixin
-
-logger = logging.getLogger(__name__)
 
 PROPERTY_CATEGORIES = [
     "Real Estate",
@@ -67,17 +64,12 @@ class PropertiesState(SpreadsheetMixin, SearchSortMixin, PaginationMixin, rx.Sta
 
     @rx.event
     def load_entries(self) -> None:
-        try:
-            items = PropertyService.get_all_properties()
-            for p in items:
-                raw = p.get("purchase_date", "")
-                p["purchase_date"] = str(raw)[:10] if raw else ""
-            self.items = items
-            self.total_items = len(self.items)
-        except Exception as e:
-            logger.error("Failed to load properties: %s", e)
-            self.items = []
-            self.total_items = 0
+        items = PropertyService.get_all_properties()
+        for p in items:
+            raw = p.get("purchase_date", "")
+            p["purchase_date"] = str(raw)[:10] if raw else ""
+        self.items = items
+        self.total_items = len(self.items)
 
     def toggle_sort(self) -> None:
         self.sort_reverse = not self.sort_reverse

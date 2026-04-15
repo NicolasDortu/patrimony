@@ -13,14 +13,12 @@ import polars as pl
 import yfinance as yf
 from typing import Optional
 
+from ...domain.constants import MIN_API_REQUEST_INTERVAL_S
 from ...domain.interfaces import MarketDataProvider
 from ...domain.entities import TickerInfo
 
 
 logger = logging.getLogger(__name__)
-
-# Minimum seconds between consecutive yfinance API calls.
-_MIN_REQUEST_INTERVAL_S: float = 0.55
 
 _EMPTY_HISTORY = pl.DataFrame({"date": [], "close_price": []})
 _EMPTY_DIVIDENDS = pl.DataFrame({"date": [], "amount_per_share": []})
@@ -38,13 +36,16 @@ class YahooFinanceProvider(MarketDataProvider):
         self._lock = threading.Lock()
 
     def _throttle(self) -> None:
-        """Block until at least ``_MIN_REQUEST_INTERVAL_S`` has passed since the last call."""
+        """Block until at least ``_MIN_REQUEST_INTERVAL_S`` has passed since the last call.
+
+        Holds the lock throughout check-sleep-update to prevent concurrent
+        threads from slipping through the rate-limit window.
+        """
         with self._lock:
             now = time.monotonic()
-            wait = self._last_call + _MIN_REQUEST_INTERVAL_S - now
-        if wait > 0:
-            time.sleep(wait)
-        with self._lock:
+            wait = self._last_call + MIN_API_REQUEST_INTERVAL_S - now
+            if wait > 0:
+                time.sleep(wait)
             self._last_call = time.monotonic()
             self._api_was_called = True
 
@@ -86,33 +87,25 @@ class YahooFinanceProvider(MarketDataProvider):
         start_date: datetime = None,
         end_date: datetime = None,
         interval: str = "1d",
+        *,
+        period: str | None = None,
     ) -> pl.DataFrame:
-        """Fetch price history from Yahoo Finance using date range."""
-        try:
-            self._throttle()
-            stock = yf.Ticker(ticker)
-            data = stock.history(
-                start=start_date.strftime("%Y-%m-%d"),
-                end=end_date.strftime("%Y-%m-%d"),
-                interval=interval,
-            )
-            if not data.empty:
-                return self._parse_history_df(data)
-        except Exception as e:
-            logger.warning("Error fetching price history for %s: %s", ticker, e)
-        return _EMPTY_HISTORY.clone()
+        """Fetch price history from Yahoo Finance.
 
-    def get_price_history_period(
-        self,
-        ticker: str,
-        period: str = None,
-        interval: str = "1d",
-    ) -> pl.DataFrame:
-        """Fetch price history from Yahoo Finance using period."""
+        Uses ``period`` (e.g. '1d', '1mo') when provided, otherwise falls
+        back to the (start_date, end_date) range.
+        """
         try:
             self._throttle()
             stock = yf.Ticker(ticker)
-            data = stock.history(period=period, interval=interval)
+            if period:
+                data = stock.history(period=period, interval=interval)
+            else:
+                data = stock.history(
+                    start=start_date.strftime("%Y-%m-%d"),
+                    end=end_date.strftime("%Y-%m-%d"),
+                    interval=interval,
+                )
             if not data.empty:
                 return self._parse_history_df(data)
         except Exception as e:

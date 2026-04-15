@@ -174,7 +174,7 @@ class PortfolioService:
         """Sum property values converted to user currency."""
         if not self._property_repo:
             return 0.0
-        df = self._property_repo.get_total_by_currency()
+        df = self._property_repo.get_total_value_by_currency()
         return self._sum_with_currency(df, "total_value", user_currency)
 
     def _get_all_securities(self) -> dict[str, dict]:

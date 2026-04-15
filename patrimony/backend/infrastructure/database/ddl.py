@@ -308,6 +308,7 @@ BUILD_INDEXES = """
     CREATE INDEX IF NOT EXISTS idx_ref_name ON tickers_reference(name);
     CREATE INDEX IF NOT EXISTS idx_ref_asset_type ON tickers_reference(asset_type);
     CREATE INDEX IF NOT EXISTS idx_ticker_info_isin ON ticker_info(isin);
+    CREATE INDEX IF NOT EXISTS idx_ticker_info_name ON ticker_info(name);
 """
 
 # Indexes on user-modified tables are rebuilt on every startup to prevent DuckDB ART index corruption.

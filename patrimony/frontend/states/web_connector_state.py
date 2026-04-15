@@ -8,14 +8,31 @@ import reflex as rx
 from ..services import CredentialService, WebConnectorService
 from ..templates.template import ThemeState
 
+
 # Module-level bridge for OTP prompt between Playwright thread and Reflex state.
 # Cannot live on the State class because threading.Event is not picklable.
-_need_input_event = threading.Event()
-_got_response_event = threading.Event()
-_bridge_prompt_type: str = ""
-_bridge_prompt_message: str = ""
-_bridge_prompt_image: str = ""  # base64 data URL for QR codes
-_bridge_response: str = ""
+class _BridgeContext:
+    """Inter-thread communication for OTP prompts between Playwright and Reflex."""
+
+    __slots__ = (
+        "need_input",
+        "got_response",
+        "prompt_type",
+        "prompt_message",
+        "prompt_image",
+        "response",
+    )
+
+    def __init__(self):
+        self.need_input = threading.Event()
+        self.got_response = threading.Event()
+        self.prompt_type = ""
+        self.prompt_message = ""
+        self.prompt_image = ""
+        self.response = ""
+
+
+_bridge = _BridgeContext()
 
 
 class WebConnectorState(rx.State):
@@ -166,10 +183,10 @@ class WebConnectorState(rx.State):
             )
             return
 
-        success = CredentialService.setup_master_password(self.master_password_input)
+        result = CredentialService.setup_master_password(self.master_password_input)
         self.master_password_input = ""
 
-        if success:
+        if result.success:
             self.needs_master_setup = False
             self.needs_master_unlock = False
             yield rx.toast.success("Master password set!", position="top-center")
@@ -181,10 +198,10 @@ class WebConnectorState(rx.State):
     @rx.event
     def unlock_master_password(self):
         """Unlock credential storage with master password."""
-        success = CredentialService.unlock(self.master_password_input)
+        result = CredentialService.unlock(self.master_password_input)
         self.master_password_input = ""
 
-        if success:
+        if result.success:
             self.needs_master_unlock = False
             # Try to load saved credentials for selected profile
             creds = CredentialService.get_credentials(self.selected_profile_id)
@@ -212,12 +229,11 @@ class WebConnectorState(rx.State):
     @rx.event
     def submit_prompt(self) -> None:
         """User submitted the OTP / prompt dialog — unblock the connector thread."""
-        global _bridge_response
-        _bridge_response = self.prompt_input
+        _bridge.response = self.prompt_input
         self.prompt_input = ""
         self.prompt_image = ""
         self.prompt_visible = False
-        _got_response_event.set()
+        _bridge.got_response.set()
 
     @rx.event(background=True)
     async def start_connector(self):
@@ -251,27 +267,25 @@ class WebConnectorState(rx.State):
             profile_id = self.selected_profile_id
 
         # Reset bridge events
-        global _bridge_prompt_type, _bridge_prompt_message, _bridge_response
-        _need_input_event.clear()
-        _got_response_event.clear()
+        _bridge.need_input.clear()
+        _bridge.got_response.clear()
 
         # Build on_user_input callback — runs in Playwright's thread,
         # signals the bridge, blocks until user responds.
         def on_user_input(prompt_type: str, message: str) -> str:
-            global _bridge_prompt_type, _bridge_prompt_message, _bridge_prompt_image
-            _bridge_prompt_type = prompt_type
+            _bridge.prompt_type = prompt_type
             # For QR prompts, message contains the base64 data URL image
             if prompt_type == "qr":
-                _bridge_prompt_image = message
-                _bridge_prompt_message = ""
+                _bridge.prompt_image = message
+                _bridge.prompt_message = ""
             else:
-                _bridge_prompt_message = message
-                _bridge_prompt_image = ""
-            _need_input_event.set()
+                _bridge.prompt_message = message
+                _bridge.prompt_image = ""
+            _bridge.need_input.set()
             # Block Playwright thread until submit_prompt fires
-            _got_response_event.wait()
-            _got_response_event.clear()
-            return _bridge_response
+            _bridge.got_response.wait()
+            _bridge.got_response.clear()
+            return _bridge.response
 
         # Run connector in a thread so we can poll for prompt requests
         loop = asyncio.get_event_loop()
@@ -287,13 +301,13 @@ class WebConnectorState(rx.State):
 
         # Poll: detect prompt requests and push state to frontend
         while not future.done():
-            if _need_input_event.is_set():
+            if _bridge.need_input.is_set():
                 async with self:
-                    self.prompt_type = _bridge_prompt_type
-                    self.prompt_message = _bridge_prompt_message
-                    self.prompt_image = _bridge_prompt_image
+                    self.prompt_type = _bridge.prompt_type
+                    self.prompt_message = _bridge.prompt_message
+                    self.prompt_image = _bridge.prompt_image
                     self.prompt_visible = True
-                _need_input_event.clear()
+                _bridge.need_input.clear()
             await asyncio.sleep(0.2)
 
         result = await future

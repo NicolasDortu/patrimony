@@ -78,46 +78,36 @@ class CashOperationsState(SpreadsheetMixin, SearchSortMixin, PaginationMixin, rx
     @rx.event
     def add_operation(self, form_data: dict) -> None:
         """Add a new cash operation from form data."""
-        try:
-            amount = float(form_data.get("amount", 0))
-            title = form_data.get("title", "")
-            category = form_data.get("category", "Uncategorized")
-            operation_date_str = form_data.get("operation_date", "")
-            operation_date = parse_form_date(operation_date_str)
+        amount = float(form_data.get("amount", 0))
+        title = form_data.get("title", "")
+        category = form_data.get("category", "Uncategorized")
+        operation_date_str = form_data.get("operation_date", "")
+        operation_date = parse_form_date(operation_date_str)
 
-            result = CashService.add_operation_balance(
-                account_number=self.account_number,
-                amount=amount,
-                title=title,
-                operation_date=operation_date,
-                entry_type=EntryType.MANUAL,
-                category=category,
-            )
+        result = CashService.add_operation_balance(
+            account_number=self.account_number,
+            amount=amount,
+            title=title,
+            operation_date=operation_date,
+            entry_type=EntryType.MANUAL,
+            category=category,
+        )
 
-            if result.success:
-                self.load_entries()
-                return rx.toast.success(result.message, position="top-center")
-            else:
-                return rx.toast.error(result.message, position="top-center")
-        except Exception as e:
-            return rx.toast.error(
-                f"Failed to add operation: {str(e)}", position="top-center"
-            )
+        if result.success:
+            self.load_entries()
+            return rx.toast.success(result.message, position="top-center")
+        else:
+            return rx.toast.error(result.message, position="top-center")
 
     @rx.event
     def delete_operation(self, id: int) -> None:
         """Delete a cash operation by ID."""
-        try:
-            result = CashService.delete_operation_by_id(id)
-            if result.success:
-                self.load_entries()
-                return rx.toast.success(result.message, position="top-center")
-            else:
-                return rx.toast.error(result.message, position="top-center")
-        except Exception as e:
-            return rx.toast.error(
-                f"Failed to delete operation: {str(e)}", position="top-center"
-            )
+        result = CashService.delete_operation_by_id(id)
+        if result.success:
+            self.load_entries()
+            return rx.toast.success(result.message, position="top-center")
+        else:
+            return rx.toast.error(result.message, position="top-center")
 
     @rx.event
     def export_csv(self):

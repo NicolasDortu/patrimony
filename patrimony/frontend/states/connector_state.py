@@ -119,6 +119,7 @@ class ConnectorState(rx.State):
     def reset_wizard(self) -> None:
         """Reset all state to start fresh."""
         self.step = 1
+        self.import_mode = "positions"
         self.filename = ""
         self._file_bytes = b""
         self._source_path = ""
@@ -245,8 +246,8 @@ class ConnectorState(rx.State):
         if not ticker_col:
             return
 
-        all_rows = FileConnectorService.read_file_full(
-            self._file_bytes, self.filename, self.delimiter
+        all_rows = FileConnectorService.read_file(
+            self._file_bytes, self.filename, self.delimiter, preview_only=False
         )
 
         # Collect unique non-empty tickers (handle None values from polars)

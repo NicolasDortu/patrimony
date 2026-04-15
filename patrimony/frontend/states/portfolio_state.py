@@ -30,6 +30,7 @@ class PortfolioState(rx.State):
     _chart_data: list[dict] = []
     _asset_colors: dict[str, str] = {}
     _dividends_data: list[dict] = []
+    _owned_types: list[str] = []
 
     # Loading flag
     is_loaded: bool = False
@@ -53,10 +54,6 @@ class PortfolioState(rx.State):
             or self.cash_value > 0
             or self.properties_value > 0
         )
-
-    @rx.var
-    def _owned_types(self) -> set[str]:
-        return {s.get("asset_type") for s in self._stocks_total_data}
 
     @rx.var
     def has_stocks(self) -> bool:
@@ -328,6 +325,9 @@ class PortfolioState(rx.State):
 
             self._stocks_total_data = portfolio_data.securities_total
             self._cash_data = portfolio_data.cash_entries
+            self._owned_types = list(
+                {s.get("asset_type") for s in self._stocks_total_data}
+            )
 
             self.total_value = portfolio_data.total_value
             self.total_invested = portfolio_data.total_invested
@@ -337,10 +337,7 @@ class PortfolioState(rx.State):
             self.properties_value = portfolio_data.properties_value
 
             await self._load_chart_data()
-            try:
-                DividendService.sync_dividends()
-            except Exception as sync_err:
-                logger.warning("Dividend sync failed: %s", sync_err)
+            DividendService.sync_dividends()
             self._dividends_data = DividendService.get_all_dividends()
             self._total_dividends = DividendService.get_total_amount()
         except Exception as e:

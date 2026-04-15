@@ -1,7 +1,7 @@
 """Use cases for portfolio operations."""
 
 from ..domain.entities import PortfolioOverview
-from ..domain.services.portfolio_service import PortfolioService
+from ..domain.services import PortfolioService
 
 
 class PortfolioUseCases:

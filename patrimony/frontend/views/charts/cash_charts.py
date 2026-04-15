@@ -3,6 +3,7 @@
 import reflex as rx
 
 from ...components.card import card
+from ...components.donut_chart import donut_pie_chart
 from ...states.cash_state import CashTableState
 from ...templates import t
 
@@ -15,24 +16,7 @@ def cash_charts() -> rx.Component:
             card(
                 rx.vstack(
                     rx.text(t("chart.balance_by_account"), size="3", weight="medium"),
-                    rx.recharts.pie_chart(
-                        rx.recharts.pie(
-                            data=CashTableState.balance_by_account_data,
-                            data_key="value",
-                            name_key="name",
-                            cx="50%",
-                            cy="50%",
-                            label=True,
-                            inner_radius="80",
-                            outer_radius="110",
-                            stroke="none",
-                            fill_opacity=0.8,
-                        ),
-                        rx.recharts.legend(),
-                        rx.recharts.graphing_tooltip(),
-                        width="100%",
-                        height=300,
-                    ),
+                    donut_pie_chart(CashTableState.balance_by_account_data),
                     spacing="3",
                     width="100%",
                 ),
@@ -74,24 +58,7 @@ def cash_charts() -> rx.Component:
             card(
                 rx.vstack(
                     rx.text(t("chart.expense_by_category"), size="3", weight="medium"),
-                    rx.recharts.pie_chart(
-                        rx.recharts.pie(
-                            data=CashTableState.all_operations_category_data,
-                            data_key="value",
-                            name_key="name",
-                            cx="50%",
-                            cy="50%",
-                            label=True,
-                            inner_radius="80",
-                            outer_radius="110",
-                            stroke="none",
-                            fill_opacity=0.8,
-                        ),
-                        rx.recharts.legend(),
-                        rx.recharts.graphing_tooltip(),
-                        width="100%",
-                        height=300,
-                    ),
+                    donut_pie_chart(CashTableState.all_operations_category_data),
                     spacing="3",
                     width="100%",
                 ),

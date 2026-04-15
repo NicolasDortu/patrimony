@@ -26,12 +26,12 @@ class EventLogRepositoryImpl(EventLogRepository):
     def add_batch(self, events: list[dict]) -> None:
         if not events:
             return
+        params = [(e["level"], e["summary"], e.get("detail", "")) for e in events]
         with self._conn.transaction():
-            for e in events:
-                self._conn.execute(
-                    "INSERT INTO event_log (level, summary, detail) VALUES (?, ?, ?)",
-                    [e["level"], e["summary"], e.get("detail", "")],
-                )
+            self._conn.executemany(
+                "INSERT INTO event_log (level, summary, detail) VALUES (?, ?, ?)",
+                params,
+            )
 
     def get_recent(self, limit: int = 100) -> pl.DataFrame:
         return self._conn.execute(

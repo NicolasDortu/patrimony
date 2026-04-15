@@ -4,7 +4,7 @@ from datetime import datetime
 from typing import Optional
 
 from ..domain.repositories import DividendRepository
-from ..domain.services.dividend_sync_service import DividendSyncService
+from ..domain.services import DividendSyncService
 
 
 class DividendUseCases:

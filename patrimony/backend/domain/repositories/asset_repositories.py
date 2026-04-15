@@ -74,13 +74,10 @@ class SecuritiesRepository(BaseRepository, ABC):
         pass
 
     @abstractmethod
-    def get_aggregated_positions(self) -> Optional[pl.DataFrame]:
-        """Get aggregated positions (total quantities, avg prices)."""
-        pass
-
-    @abstractmethod
-    def get_aggregated_positions_by_ticker(self, ticker: str) -> Optional[pl.DataFrame]:
-        """Get aggregated position for a specific ticker."""
+    def get_aggregated_positions(
+        self, ticker: str | None = None
+    ) -> Optional[pl.DataFrame]:
+        """Get aggregated positions, optionally filtered by a single ticker."""
         pass
 
     @abstractmethod
@@ -319,7 +316,7 @@ class PropertyRepository(BaseRepository, ABC):
         pass
 
     @abstractmethod
-    def get_total_by_currency(self) -> pl.DataFrame:
+    def get_total_value_by_currency(self) -> pl.DataFrame:
         """Return aggregated property values grouped by currency.
 
         Returns a DataFrame with columns: currency, total_value.

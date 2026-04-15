@@ -5,9 +5,7 @@ from typing import Optional
 
 from ..domain.entities import AssetType, EntryType
 from ..domain.repositories import SecuritiesRepository
-from ..domain.services.currency_service import CurrencyService
-from ..domain.services.price_sync_service import PriceSyncService
-from ..domain.services.securities_service import SecuritiesService
+from ..domain.services import CurrencyService, PriceSyncService, SecuritiesService
 
 
 class SecuritiesUseCases:

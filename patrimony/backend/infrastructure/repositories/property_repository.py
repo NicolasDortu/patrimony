@@ -67,7 +67,7 @@ class PropertyRepositoryImpl(PropertyRepository):
             "SELECT * FROM properties ORDER BY purchase_date DESC"
         ).pl()
 
-    def get_total_by_currency(self) -> pl.DataFrame:
+    def get_total_value_by_currency(self) -> pl.DataFrame:
         return self._conn.execute(
             "SELECT currency, SUM(value) AS total_value FROM properties GROUP BY currency"
         ).pl()

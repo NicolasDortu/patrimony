@@ -62,10 +62,7 @@ class TableStateDetails(SpreadsheetMixin, SearchSortMixin, PaginationMixin, rx.S
             self.current_price = prices.get(ticker.upper(), 0.0) or 0.0
             dividends_state = await self.get_state(DividendsState)
             dividends_state.ticker = ticker
-            try:
-                DividendService.sync_dividends([ticker])
-            except Exception as sync_err:
-                logger.warning("Dividend sync failed for %s: %s", ticker, sync_err)
+            DividendService.sync_dividends([ticker])
             dividends_state.load_entries()
             if was_market_data_fetched():
                 yield rx.toast.info("Market data refreshed", position="bottom-right")
@@ -98,14 +95,9 @@ class TableStateDetails(SpreadsheetMixin, SearchSortMixin, PaginationMixin, rx.S
 
     @rx.event
     def load_entries(self) -> None:
-        try:
-            positions = SecuritiesService.get_positions_by_ticker(self.ticker)
-            self.items = [SecurityPosition(**pos) for pos in positions]
-            self.total_items = len(self.items)
-        except Exception as e:
-            logger.error("Failed to load positions for %s: %s", self.ticker, e)
-            self.items = []
-            self.total_items = 0
+        positions = SecuritiesService.get_positions_by_ticker(self.ticker)
+        self.items = [SecurityPosition(**pos) for pos in positions]
+        self.total_items = len(self.items)
 
     def toggle_sort(self) -> None:
         self.sort_reverse = not self.sort_reverse

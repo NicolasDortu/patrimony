@@ -28,9 +28,9 @@ class SettingsState(rx.State):
 
     @rx.event
     def reset_master_password(self):
-        success = CredentialService.reset_master_password()
+        result = CredentialService.reset_master_password()
         self.show_reset_confirm = False
-        if success:
+        if result.success:
             yield rx.toast.success(
                 "Master password and all saved credentials have been deleted.",
                 position="top-center",

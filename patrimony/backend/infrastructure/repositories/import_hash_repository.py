@@ -1,7 +1,5 @@
 """Repository for tracking imported row hashes (deduplication)."""
 
-import duckdb
-
 from ...domain.repositories import ImportHashRepository
 from ..database.connection import DatabaseConnection
 
@@ -24,14 +22,14 @@ class ImportHashRepositoryImpl(ImportHashRepository):
         return {row[0] for row in rows}
 
     def add_hashes(self, hashes: list[str], import_type: str) -> None:
-        """Persist new hashes (ignores duplicates)."""
+        """Persist new hashes, skipping any that already exist."""
         if not hashes:
             return
-        for h in hashes:
-            try:
-                self._conn.execute(
-                    "INSERT INTO import_hashes (hash, import_type) VALUES (?, ?)",
-                    [h, import_type],
-                )
-            except duckdb.ConstraintException:
-                pass  # hash already exists — safe to ignore
+        existing = self.existing_hashes(set(hashes))
+        new_hashes = [(h, import_type) for h in hashes if h not in existing]
+        if not new_hashes:
+            return
+        self._conn.executemany(
+            "INSERT INTO import_hashes (hash, import_type) VALUES (?, ?)",
+            new_hashes,
+        )
