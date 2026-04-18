@@ -20,6 +20,7 @@ ASSET_TYPE_LABELS = {
 }
 
 DEFAULT_CURRENCY = "EUR"
+DEFAULT_PERIOD = "1M"
 
 # Minimum days of data required to render a meaningful chart (avoid having a single point).
 MIN_CHART_DAYS: int = 3

@@ -4,6 +4,7 @@ from datetime import datetime
 
 import polars as pl
 
+from ...domain.constants import DEFAULT_CURRENCY
 from ...domain.entities import EntryType
 from ...domain.repositories import PropertyRepository
 from ..database.connection import DatabaseConnection
@@ -22,7 +23,7 @@ class PropertyRepositoryImpl(PropertyRepository):
         purchase_date: datetime,
         description: str = "",
         category: str = "Other",
-        currency: str = "EUR",
+        currency: str = DEFAULT_CURRENCY,
         entry_type: EntryType = EntryType.MANUAL,
     ) -> int:
         result = self._conn.execute(
@@ -51,7 +52,7 @@ class PropertyRepositoryImpl(PropertyRepository):
         purchase_date: datetime,
         description: str = "",
         category: str = "Other",
-        currency: str = "EUR",
+        currency: str = DEFAULT_CURRENCY,
     ) -> None:
         self._conn.execute(
             """

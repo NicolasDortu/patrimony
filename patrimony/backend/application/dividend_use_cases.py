@@ -5,7 +5,7 @@ from datetime import datetime
 from typing import Optional
 
 from ..domain.repositories import DividendRepository, SecuritiesRepository
-from ..domain.services import DividendSyncService
+from ..domain.services import DividendService
 
 logger = logging.getLogger(__name__)
 
@@ -19,7 +19,7 @@ class DividendUseCases:
         self,
         dividend_repo: DividendRepository,
         securities_repo: SecuritiesRepository,
-        dividend_sync_service: DividendSyncService,
+        dividend_sync_service: DividendService,
     ):
         self._repo = dividend_repo
         self._securities_repo = securities_repo

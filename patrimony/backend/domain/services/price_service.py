@@ -13,7 +13,7 @@ from ..repositories import PriceRepository
 logger = logging.getLogger(__name__)
 
 
-class PriceSyncService:
+class PriceService:
     """Synchronizes price data from external providers into the repository."""
 
     def __init__(
@@ -82,11 +82,7 @@ class PriceSyncService:
     def inject_today_prices(
         self, ticker_data: dict[str, dict], tickers: list[str], all_dates: list
     ) -> list:
-        """Append today's price as the final chart point if not already present.
-
-        Uses the 3-tier lookup (intraday → cache → API) so no extra API call
-        is made when fresh data already exists.
-        """
+        """Append today's price as the final chart point if not already present."""
         today = datetime.now().date()
         if today in all_dates:
             return all_dates
@@ -108,21 +104,18 @@ class PriceSyncService:
             return
         for ticker in tickers:
             try:
-                self._sync_intraday_ticker(ticker, interval, max_age_minutes)
+                last_updated = self._price_repo.get_intraday_last_updated(ticker)
+                if last_updated is not None:
+                    age_minutes = (datetime.now() - last_updated).total_seconds() / 60
+                    if age_minutes < max_age_minutes:
+                        continue
+                df = self._market_data.get_price_history(
+                    ticker, interval=interval, period="1d"
+                )
+                if df is not None and not df.is_empty():
+                    self._price_repo.store_intraday_prices(ticker, df)
             except Exception as e:
                 logger.warning("%s", PriceSyncError(ticker, cause=e))
-
-    def _sync_intraday_ticker(
-        self, ticker: str, interval: str, max_age_minutes: int
-    ) -> None:
-        last_updated = self._price_repo.get_intraday_last_updated(ticker)
-        if last_updated is not None:
-            age_minutes = (datetime.now() - last_updated).total_seconds() / 60
-            if age_minutes < max_age_minutes:
-                return
-        df = self._market_data.get_price_history(ticker, interval=interval, period="1d")
-        if df is not None and not df.is_empty():
-            self._price_repo.store_intraday_prices(ticker, df)
 
     def sync_price_history(
         self, tickers: list[str], start_date: datetime, period: str = "1d"
@@ -141,33 +134,27 @@ class PriceSyncService:
 
         for ticker in ordered:
             try:
-                self._sync_single_ticker(ticker, start_date, today, period)
+                min_date, max_date = self._price_repo.get_stored_date_range(
+                    ticker, period
+                )
+
+                if min_date is None:
+                    self._fetch_and_store(ticker, start_date, today, period)
+                    continue
+
+                # Fill early gap
+                if start_date.date() < (min_date - timedelta(days=1)).date():
+                    self._fetch_and_store(
+                        ticker, start_date, min_date - timedelta(days=1), period
+                    )
+
+                # Fill recent gap (inject_today only handles live display, not DB persistence)
+                if max_date.date() < (today - timedelta(days=1)).date():
+                    self._fetch_and_store(
+                        ticker, max_date + timedelta(days=1), today, period
+                    )
             except Exception as e:
                 logger.warning("%s", PriceSyncError(ticker, cause=e))
-
-    def _sync_single_ticker(
-        self,
-        ticker: str,
-        start_date: datetime,
-        today: datetime,
-        period: str,
-    ) -> None:
-        """Fetch and store missing price history for a single ticker."""
-        min_date, max_date = self._price_repo.get_stored_date_range(ticker, period)
-
-        if min_date is None:
-            self._fetch_and_store(ticker, start_date, today, period)
-            return
-
-        # Fill early gap
-        if start_date.date() < (min_date - timedelta(days=1)).date():
-            self._fetch_and_store(
-                ticker, start_date, min_date - timedelta(days=1), period
-            )
-
-        # Fill recent gap (inject_today only handles live display, not DB persistence)
-        if max_date.date() < (today - timedelta(days=1)).date():
-            self._fetch_and_store(ticker, max_date + timedelta(days=1), today, period)
 
     def _fetch_and_store(
         self, ticker: str, start: datetime, end: datetime, period: str

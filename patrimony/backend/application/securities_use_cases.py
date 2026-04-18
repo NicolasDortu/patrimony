@@ -3,12 +3,13 @@
 from datetime import datetime
 from typing import Optional
 
+from ..domain.constants import DEFAULT_CURRENCY, DEFAULT_PERIOD
 from ..domain.entities import AssetType, EntryType
 from ..domain.repositories import SecuritiesRepository
 from ..domain.services import (
     ChartService,
     CurrencyService,
-    PriceSyncService,
+    PriceService,
     SecuritiesService,
 )
 
@@ -21,7 +22,7 @@ class SecuritiesUseCases:
         securities_repo: SecuritiesRepository,
         securities_service: SecuritiesService,
         chart_service: ChartService,
-        price_sync: PriceSyncService,
+        price_sync: PriceService,
         currency_service: CurrencyService,
     ):
         self._repo = securities_repo
@@ -97,17 +98,22 @@ class SecuritiesUseCases:
             df = df.drop("currency")
         return df.to_dicts()
 
-    def get_aggregated_positions(self, user_currency: str = "EUR") -> list[dict]:
+    def get_aggregated_positions(
+        self, user_currency: str = DEFAULT_CURRENCY
+    ) -> list[dict]:
         df = self._service.get_aggregated_positions(user_currency)
         return df.to_dicts() if df is not None else []
 
     def get_chart_data_ticker(
-        self, ticker: str, period: str = "1M", user_currency: str = "EUR"
+        self,
+        ticker: str,
+        period: str = DEFAULT_PERIOD,
+        user_currency: str = DEFAULT_CURRENCY,
     ) -> list[dict]:
         return self._chart_service.get_ticker_chart_data(ticker, period, user_currency)
 
     def get_current_prices(
-        self, tickers: list[str], user_currency: str = "EUR"
+        self, tickers: list[str], user_currency: str = DEFAULT_CURRENCY
     ) -> dict[str, float]:
         prices = self._price_sync.get_current_prices(tickers)
         rates = self._currency_service.get_rates_for_tickers(tickers, user_currency)

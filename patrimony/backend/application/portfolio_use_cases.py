@@ -1,5 +1,6 @@
 """Use cases for portfolio operations."""
 
+from ..domain.constants import DEFAULT_CURRENCY, DEFAULT_PERIOD
 from ..domain.entities import PortfolioOverview
 from ..domain.services import PortfolioService
 
@@ -10,10 +11,12 @@ class PortfolioUseCases:
     def __init__(self, portfolio_service: PortfolioService):
         self._service = portfolio_service
 
-    def get_portfolio_overview(self, user_currency: str = "EUR") -> PortfolioOverview:
+    def get_portfolio_overview(
+        self, user_currency: str = DEFAULT_CURRENCY
+    ) -> PortfolioOverview:
         return self._service.get_overview(user_currency)
 
     def get_chart_data(
-        self, period: str = "1M", user_currency: str = "EUR"
+        self, period: str = DEFAULT_PERIOD, user_currency: str = DEFAULT_CURRENCY
     ) -> list[dict]:
         return self._service.get_chart_data(period, user_currency)

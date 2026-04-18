@@ -8,9 +8,10 @@ from typing import Optional
 
 import polars as pl
 
+from ..constants import DEFAULT_CURRENCY
 from ..repositories import SecuritiesRepository
 from .currency_service import CurrencyService
-from .price_sync_service import PriceSyncService
+from .price_service import PriceService
 
 
 class SecuritiesService:
@@ -20,14 +21,14 @@ class SecuritiesService:
         self,
         securities_repo: SecuritiesRepository,
         currency_service: CurrencyService,
-        price_sync: PriceSyncService,
+        price_sync: PriceService,
     ):
         self._securities_repo = securities_repo
         self._currency_service = currency_service
         self._price_sync = price_sync
 
     def get_aggregated_positions(
-        self, user_currency: str = "EUR"
+        self, user_currency: str = DEFAULT_CURRENCY
     ) -> Optional[pl.DataFrame]:
         """Get aggregated positions enriched with current prices and currency-converted."""
         df = self._securities_repo.get_aggregated_positions()
@@ -57,7 +58,7 @@ class SecuritiesService:
         return df
 
     def calculate_metrics(
-        self, user_currency: str = "EUR"
+        self, user_currency: str = DEFAULT_CURRENCY
     ) -> tuple[float, float, float]:
         """Compute (total_invested, securities_value, return_pct)."""
         df = self.get_aggregated_positions(user_currency)

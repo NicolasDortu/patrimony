@@ -14,9 +14,9 @@ from ..domain.services import (
     CashService,
     ChartService,
     CurrencyService,
-    DividendSyncService,
+    DividendService,
     PortfolioService,
-    PriceSyncService,
+    PriceService,
     PropertyService,
     SecuritiesService,
 )
@@ -133,13 +133,13 @@ class Container(containers.DeclarativeContainer):
     )
 
     price_sync_service = providers.Singleton(
-        PriceSyncService,
+        PriceService,
         price_repo=price_repository,
         market_data=market_data_provider,
     )
 
     dividend_sync_service = providers.Singleton(
-        DividendSyncService,
+        DividendService,
         dividend_repo=dividend_repository,
         securities_repo=securities_repository,
         market_data=market_data_provider,

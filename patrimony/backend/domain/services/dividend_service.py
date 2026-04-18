@@ -19,7 +19,7 @@ from .timeline import (
 logger = logging.getLogger(__name__)
 
 
-class DividendSyncService:
+class DividendService:
     """Synchronizes dividend history from external providers into the repository."""
 
     def __init__(

@@ -198,7 +198,6 @@ class YahooFinanceProvider(MarketDataProvider):
                 name=info.get("shortName") or info.get("longName"),
                 currency=info.get("currency"),
                 exchange=info.get("exchange"),
-                quote_type=quote_type,
             )
 
             logger.info(

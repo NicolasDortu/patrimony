@@ -5,6 +5,7 @@ Orchestrates asset services to provide portfolio overview and chart data.
 
 import logging
 
+from ..constants import DEFAULT_CURRENCY, DEFAULT_PERIOD
 from ..entities import PortfolioOverview
 from .cash_service import CashService
 from .chart_service import ChartService
@@ -29,7 +30,7 @@ class PortfolioService:
         self._property_service = property_service
         self._chart_service = chart_service
 
-    def get_overview(self, user_currency: str = "EUR") -> PortfolioOverview:
+    def get_overview(self, user_currency: str = DEFAULT_CURRENCY) -> PortfolioOverview:
         """Build aggregated portfolio metrics."""
         total_invested, securities_value, total_return = (
             self._securities_service.calculate_metrics(user_currency)
@@ -47,7 +48,7 @@ class PortfolioService:
         )
 
     def get_chart_data(
-        self, period: str = "1M", user_currency: str = "EUR"
+        self, period: str = DEFAULT_PERIOD, user_currency: str = DEFAULT_CURRENCY
     ) -> list[dict]:
         """Build time-series chart data for the entire portfolio."""
         return self._chart_service.get_portfolio_chart_data(

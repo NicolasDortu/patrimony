@@ -115,9 +115,6 @@ class TickerInfo:
     asset_type: str | None = None
     exchange: str | None = None
     currency: str | None = None
-    quote_type: str | None = (
-        None  # TODO: virer le quotetype car c'est la même chose que asset_type mais pour yfinance
-    )
     source: str = ""
     last_updated: str | None = None
 
@@ -189,7 +186,7 @@ class ConnectorHistoryEntry:
     column_mapping: dict[str, str] = field(default_factory=dict)
     delimiter: str = ","
     asset_type_overrides: dict[str, str] = field(default_factory=dict)
-    new_accounts: dict[str, dict] | None = None
+    new_cash_accounts: dict[str, dict] | None = None
     imported: int = 0
     skipped: int = 0
     errors: list[str] = field(default_factory=list)

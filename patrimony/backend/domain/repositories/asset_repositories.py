@@ -10,6 +10,7 @@ from typing import Optional
 
 import polars as pl
 
+from ..constants import DEFAULT_CURRENCY
 from ..entities import AssetType, Currency, EntryType
 from ..interfaces import CurrencyProvider
 
@@ -308,7 +309,7 @@ class PropertyRepository(BaseRepository, ABC):
         purchase_date: datetime,
         description: str = "",
         category: str = "Other",
-        currency: str = "EUR",
+        currency: str = DEFAULT_CURRENCY,
         entry_type: EntryType = EntryType.MANUAL,
     ) -> int:
         """Add a new property and return its id."""
@@ -323,7 +324,7 @@ class PropertyRepository(BaseRepository, ABC):
         purchase_date: datetime,
         description: str = "",
         category: str = "Other",
-        currency: str = "EUR",
+        currency: str = DEFAULT_CURRENCY,
     ) -> None:
         """Update an existing property by ID."""
         pass

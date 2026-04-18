@@ -3,6 +3,7 @@
 from datetime import datetime
 from typing import Optional
 
+from ..domain.constants import DEFAULT_CURRENCY
 from ..domain.repositories import PropertyRepository
 
 
@@ -19,7 +20,7 @@ class PropertyUseCases:
         purchase_date: Optional[datetime] = None,
         description: str = "",
         category: str = "Other",
-        currency: str = "EUR",
+        currency: str = DEFAULT_CURRENCY,
     ) -> dict:
         """Add a new property. Returns {'id': int}."""
         if purchase_date is None:
@@ -49,7 +50,7 @@ class PropertyUseCases:
         purchase_date: Optional[datetime] = None,
         description: str = "",
         category: str = "Other",
-        currency: str = "EUR",
+        currency: str = DEFAULT_CURRENCY,
     ) -> None:
         if purchase_date is None:
             purchase_date = datetime.now()

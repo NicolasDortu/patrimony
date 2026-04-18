@@ -37,7 +37,9 @@ class ConnectorHistoryRepositoryImpl(ConnectorHistoryRepository):
                 json.dumps(entry.asset_type_overrides)
                 if entry.asset_type_overrides
                 else None,
-                json.dumps(entry.new_accounts) if entry.new_accounts else None,
+                json.dumps(entry.new_cash_accounts)
+                if entry.new_cash_accounts
+                else None,
                 entry.imported,
                 entry.skipped,
                 json.dumps(entry.errors) if entry.errors else "[]",
@@ -108,7 +110,7 @@ class ConnectorHistoryRepositoryImpl(ConnectorHistoryRepository):
             column_mapping=json.loads(row[6]) if row[6] else {},
             delimiter=row[7] or ",",
             asset_type_overrides=json.loads(row[8]) if row[8] else {},
-            new_accounts=json.loads(row[9]) if row[9] else None,
+            new_cash_accounts=json.loads(row[9]) if row[9] else None,
             imported=row[10] or 0,
             skipped=row[11] or 0,
             errors=json.loads(row[12]) if row[12] else [],

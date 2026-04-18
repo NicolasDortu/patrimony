@@ -18,7 +18,7 @@ class TickerInfoRepositoryImpl(TickerInfoRepository):
 
     def get_by_ticker(self, ticker: str) -> TickerInfo | None:
         result = self._conn.execute(
-            "SELECT ticker, isin, name, asset_type, exchange, currency, quote_type, source, last_updated "
+            "SELECT ticker, isin, name, asset_type, exchange, currency, source, last_updated "
             "FROM ticker_info WHERE ticker = ?",
             [ticker.upper()],
         )
@@ -30,7 +30,7 @@ class TickerInfoRepositoryImpl(TickerInfoRepository):
 
     def get_by_isin(self, isin: str) -> TickerInfo | None:
         result = self._conn.execute(
-            "SELECT ticker, isin, name, asset_type, exchange, currency, quote_type, source, last_updated "
+            "SELECT ticker, isin, name, asset_type, exchange, currency, source, last_updated "
             "FROM ticker_info WHERE isin = ?",
             [isin.upper()],
         )
@@ -42,7 +42,7 @@ class TickerInfoRepositoryImpl(TickerInfoRepository):
 
     def get_by_name(self, name: str) -> TickerInfo | None:
         result = self._conn.execute(
-            "SELECT ticker, isin, name, asset_type, exchange, currency, quote_type, source, last_updated "
+            "SELECT ticker, isin, name, asset_type, exchange, currency, source, last_updated "
             "FROM ticker_info WHERE LOWER(name) = LOWER(?)",
             [name.strip()],
         )
@@ -58,7 +58,7 @@ class TickerInfoRepositoryImpl(TickerInfoRepository):
         upper = [i.upper() for i in isins]
         placeholders = ", ".join("?" for _ in upper)
         result = self._conn.execute(
-            f"SELECT ticker, isin, name, asset_type, exchange, currency, quote_type, source, last_updated "
+            f"SELECT ticker, isin, name, asset_type, exchange, currency, source, last_updated "
             f"FROM ticker_info WHERE isin IN ({placeholders})",
             upper,
         )
@@ -75,15 +75,14 @@ class TickerInfoRepositoryImpl(TickerInfoRepository):
     def upsert(self, info: TickerInfo) -> None:
         self._conn.execute(
             """
-            INSERT INTO ticker_info (ticker, isin, name, asset_type, exchange, currency, quote_type, source, last_updated)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO ticker_info (ticker, isin, name, asset_type, exchange, currency, source, last_updated)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT (ticker) DO UPDATE SET
                 isin = COALESCE(excluded.isin, ticker_info.isin),
                 name = COALESCE(excluded.name, ticker_info.name),
                 asset_type = COALESCE(excluded.asset_type, ticker_info.asset_type),
                 exchange = COALESCE(excluded.exchange, ticker_info.exchange),
                 currency = COALESCE(excluded.currency, ticker_info.currency),
-                quote_type = COALESCE(excluded.quote_type, ticker_info.quote_type),
                 source = excluded.source,
                 last_updated = excluded.last_updated
             """,
@@ -94,7 +93,6 @@ class TickerInfoRepositoryImpl(TickerInfoRepository):
                 info.asset_type,
                 info.exchange,
                 info.currency,
-                info.quote_type,
                 info.source,
                 info.last_updated or datetime.now().isoformat(),
             ],

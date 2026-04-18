@@ -7,7 +7,13 @@ from datetime import datetime, timedelta
 
 import polars as pl
 
-from ..constants import ASSET_TYPE_LABELS, MIN_CHART_DAYS, PERIOD_CONFIG
+from ..constants import (
+    ASSET_TYPE_LABELS,
+    DEFAULT_CURRENCY,
+    DEFAULT_PERIOD,
+    MIN_CHART_DAYS,
+    PERIOD_CONFIG,
+)
 from ..repositories import (
     PriceRepository,
     SecuritiesRepository,
@@ -19,7 +25,7 @@ from .timeline import (
     get_quantity_at_date,
     normalize_date,
 )
-from .price_sync_service import PriceSyncService
+from .price_service import PriceService
 
 logger = logging.getLogger(__name__)
 
@@ -33,7 +39,7 @@ class ChartService:
         cash_service: CashService,
         price_repo: PriceRepository,
         currency_service: CurrencyService,
-        price_sync: PriceSyncService,
+        price_sync: PriceService,
     ):
         self._securities_repo = securities_repo
         self._cash_service = cash_service
@@ -93,7 +99,10 @@ class ChartService:
         )
 
     def get_ticker_chart_data(
-        self, ticker: str, period: str = "1M", user_currency: str = "EUR"
+        self,
+        ticker: str,
+        period: str = DEFAULT_PERIOD,
+        user_currency: str = DEFAULT_CURRENCY,
     ) -> list[dict]:
         """Build time-series chart data for a single ticker.
 
@@ -144,11 +153,18 @@ class ChartService:
 
         ticker_data: dict[str, dict] = {}
         all_dates_set: set = set()
+        now = datetime.now()
 
         if df is not None and not df.is_empty():
             for t in df["ticker"].unique().to_list():
                 t_df = df.filter(pl.col("ticker") == t)
-                td = dict(zip(t_df["date"].to_list(), t_df["close_price"].to_list()))
+                td = {
+                    ts: p
+                    for ts, p in zip(
+                        t_df["date"].to_list(), t_df["close_price"].to_list()
+                    )
+                    if not hasattr(ts, "time") or ts.time() <= now.time()
+                }
                 ticker_data[t] = td
                 all_dates_set.update(td.keys())
 
