@@ -158,7 +158,7 @@
   "page.about.intro": "Patrimony est un gestionnaire de portefeuille gratuit et open source qui vous aide à suivre vos investissements et liquidités en un seul endroit. Il fonctionne entièrement sur votre machine — vos données financières ne quittent jamais votre ordinateur.",
   "page.about.features_title": "Ce que vous pouvez faire",
   "page.about.feature_track": "Suivez vos actions, ETF, cryptomonnaies, matières premières et comptes de liquidités avec des prix en temps réel.",
-  "page.about.feature_import": "Importez des positions et opérations depuis des fichiers CSV ou Excel.",
+  "page.about.feature_import": "Importez des positions et opérations depuis des fichiers CSV, Excel, ou depuis les courtiers et banques disponibles.",
   "page.about.feature_charts": "Visualisez l'évolution de votre patrimoine avec des graphiques interactifs et des répartitions d'allocation.",
   "page.about.feature_multi_currency": "Support multi-devises avec conversion automatique des taux de change.",
   "page.about.feature_i18n": "Disponible en anglais, français et espagnol.",

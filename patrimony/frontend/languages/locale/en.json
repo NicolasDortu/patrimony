@@ -162,7 +162,7 @@
   "page.about.intro": "Patrimony is a free, open-source portfolio tracker that helps you monitor your investments and cash holdings in one place. It runs entirely on your machine — your financial data never leaves your computer.",
   "page.about.features_title": "What you can do",
   "page.about.feature_track": "Track stocks, ETFs, crypto, commodities, and cash accounts with real-time prices.",
-  "page.about.feature_import": "Import positions and operations from CSV or Excel files.",
+  "page.about.feature_import": "Import positions and operations from CSV, Excel files, or from the available brokers and banks.",
   "page.about.feature_charts": "Visualize your wealth over time with interactive charts and allocation breakdowns.",
   "page.about.feature_multi_currency": "Multi-currency support with automatic exchange-rate conversion.",
   "page.about.feature_i18n": "Available in English, French, and Spanish.",

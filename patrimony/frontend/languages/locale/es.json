@@ -162,7 +162,7 @@
   "page.about.intro": "Patrimony es un gestor de portafolios gratuito y de código abierto que le ayuda a supervisar sus inversiones y cuentas de efectivo en un solo lugar. Funciona completamente en su máquina — sus datos financieros nunca salen de su ordenador.",
   "page.about.features_title": "Qué puede hacer",
   "page.about.feature_track": "Controle acciones, ETF, criptomonedas, materias primas y cuentas de efectivo con precios en tiempo real.",
-  "page.about.feature_import": "Importe posiciones y operaciones desde archivos CSV o Excel.",
+  "page.about.feature_import": "Importe posiciones y operaciones desde archivos CSV, Excel, o desde los corredores y bancos disponibles.",
   "page.about.feature_charts": "Visualice la evolución de su patrimonio con gráficos interactivos y desgloses de asignación.",
   "page.about.feature_multi_currency": "Soporte multidivisa con conversión automática de tipos de cambio.",
   "page.about.feature_i18n": "Disponible en inglés, francés y español.",

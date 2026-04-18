@@ -26,7 +26,7 @@ patrimony/
 │  │  ├─ database/        # DuckDB connection, DDL, reference data
 │  │  ├─ integrations/    # yfinance provider, Playwright connector, file reader
 │  │  └─ repositories/    # All repository implementations
-│  └─ presentation/       # DI container (dependency-injector)
+│  └─ application/        # Use cases + DI container (dependency-injector)
 ├─ frontend/              # Reflex UI layer
 │  ├─ components/         # Reusable components (card, loading, notification, …)
 │  ├─ config/             # File connector path store (JSON)
@@ -90,6 +90,24 @@ cargo tauri build
 ```
 
 The bundled application will be in `src-tauri/target/release/bundle/`.
+
+## Documentation
+
+Detailed architecture and API documentation lives in [`docs/`](docs/).
+
+| Document | Description |
+|---|---|
+| [docs/backend/backend.md](docs/backend/backend.md) | DDD architecture overview, layer rules, data flow examples |
+| [docs/backend/domain/domain.md](docs/backend/domain/domain.md) | Entities, constants, exceptions, interfaces |
+| [docs/backend/domain/repositories.md](docs/backend/domain/repositories.md) | Abstract repository contracts |
+| [docs/backend/domain/services.md](docs/backend/domain/services.md) | Domain services (portfolio, chart, securities, …) |
+| [docs/backend/domain/connectors.md](docs/backend/domain/connectors.md) | Import pipeline (file + web connector services) |
+| [docs/backend/applications.md](docs/backend/applications.md) | Use cases and DI container |
+| [docs/backend/infrastructure/infrastructure.md](docs/backend/infrastructure/infrastructure.md) | Repository implementations |
+| [docs/backend/infrastructure/database.md](docs/backend/infrastructure/database.md) | Full DuckDB schema reference |
+| [docs/backend/infrastructure/integrations.md](docs/backend/infrastructure/integrations.md) | yfinance provider, file parser |
+| [docs/backend/infrastructure/web_connector.md](docs/backend/infrastructure/web_connector.md) | Playwright broker connectors |
+| [docs/frontend/frontend.md](docs/frontend/frontend.md) | Frontend layer: services, states, views, components |
 
 ## License
 
