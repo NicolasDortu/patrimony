@@ -67,7 +67,7 @@ class PriceRepositoryImpl(PriceRepository):
     def store_price_history(
         self, ticker: str, df: pl.DataFrame, period: str = "1d"
     ) -> None:
-        """Insert new price history rows in bulk, ignoring duplicates."""
+        """Insert new price history rows in bulk"""
         if df.is_empty():
             return
         try:

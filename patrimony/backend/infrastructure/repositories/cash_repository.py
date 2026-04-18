@@ -1,8 +1,4 @@
-"""Repository implementation for cash accounts.
-
-Concrete implementation of CashRepository interface handling
-all database operations for cash accounts.
-"""
+"""Repository implementation for cash accounts."""
 
 from datetime import datetime
 import polars as pl
@@ -154,14 +150,14 @@ class CashOperationRepositoryImpl(CashOperationRepository):
 class CashRepositoryImpl(CashRepository):
     """Concrete implementation of CashRepository using DuckDB.
 
-    Delegates operation methods to an internal CashOperationRepositoryImpl.
+    Delegates operation methods to CashOperationRepositoryImpl.
     """
 
     def __init__(self, connection: DatabaseConnection):
         self._conn = connection
         self._operations = CashOperationRepositoryImpl(connection)
 
-    # ── Delegate operation methods to _operations ──
+    # ── Delegate operation methods to operations ──
     def add_operation_balance(self, *args, **kwargs):
         return self._operations.add_operation_balance(*args, **kwargs)
 

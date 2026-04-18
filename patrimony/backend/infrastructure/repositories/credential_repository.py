@@ -48,12 +48,13 @@ class CredentialRepositoryImpl(CredentialRepository):
         verification_hash = hashlib.sha256(fernet_key).digest()
 
         # Remove any existing master key (reset scenario)
-        self._conn.execute("DELETE FROM connector_master_key")
-        self._conn.execute("DELETE FROM connector_credentials")
-        self._conn.execute(
-            "INSERT INTO connector_master_key (id, salt, verification_hash) VALUES (1, ?, ?)",
-            [salt, verification_hash],
-        )
+        with self._conn.transaction():
+            self._conn.execute("DELETE FROM connector_master_key")
+            self._conn.execute("DELETE FROM connector_credentials")
+            self._conn.execute(
+                "INSERT INTO connector_master_key (id, salt, verification_hash) VALUES (1, ?, ?)",
+                [salt, verification_hash],
+            )
         return fernet_key
 
     def verify_master_password(self, password: str) -> bytes | None:
@@ -126,8 +127,9 @@ class CredentialRepositoryImpl(CredentialRepository):
         )
 
     def reset_master_password(self) -> None:
-        self._conn.execute("DELETE FROM connector_credentials")
-        self._conn.execute("DELETE FROM connector_master_key")
+        with self._conn.transaction():
+            self._conn.execute("DELETE FROM connector_credentials")
+            self._conn.execute("DELETE FROM connector_master_key")
 
     def list_stored_profiles(self) -> list[str]:
         rows = self._conn.execute(
