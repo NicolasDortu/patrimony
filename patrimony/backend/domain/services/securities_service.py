@@ -1,44 +1,29 @@
 """Domain service for securities-specific business logic.
 
-Handles price enrichment, currency conversion, and chart data
-for individual tickers.
+Handles price enrichment, currency conversion, and metrics for positions.
 """
 
-from datetime import datetime, timedelta
+import math
 from typing import Optional
 
 import polars as pl
 
-from ..constants import PERIOD_CONFIG
-from ..interfaces import MarketDataProvider
-from ..repositories import (
-    PriceRepository,
-    SecuritiesRepository,
-)
+from ..repositories import SecuritiesRepository
 from .currency_service import CurrencyService
-from .enrichment_utilities import (
-    apply_currency_conversion,
-    enrich_with_prices,
-    forward_fill_prices,
-)
 from .price_sync_service import PriceSyncService
 
 
 class SecuritiesService:
-    """Domain service for securities enrichment and per-ticker charts."""
+    """Domain service for securities enrichment."""
 
     def __init__(
         self,
         securities_repo: SecuritiesRepository,
-        price_repo: PriceRepository,
         currency_service: CurrencyService,
-        market_data: MarketDataProvider,
         price_sync: PriceSyncService,
     ):
         self._securities_repo = securities_repo
-        self._price_repo = price_repo
         self._currency_service = currency_service
-        self._market_data = market_data
         self._price_sync = price_sync
 
     def get_aggregated_positions(
@@ -49,92 +34,49 @@ class SecuritiesService:
         if df is None or df.is_empty():
             return None
 
-        df = enrich_with_prices(df, self._price_sync)
-        df = apply_currency_conversion(df, self._currency_service, user_currency)
+        df = self._enrich_with_prices(df)
+        df = self._currency_service.apply_conversion(df, user_currency)
         return df
 
-    def get_chart_data_ticker(
-        self, ticker: str, period: str = "1M", user_currency: str = "EUR"
-    ) -> list[dict]:
-        """Get time-series price data for a single ticker."""
-        config = PERIOD_CONFIG.get(period, PERIOD_CONFIG["1M"])
-        df = self._securities_repo.get_aggregated_positions(ticker)
-        if df is None or df.is_empty():
-            return []
+    def _enrich_with_prices(self, df: pl.DataFrame) -> pl.DataFrame:
+        """Add current_price (and total_value if applicable) columns."""
+        if df is None or df.is_empty() or "ticker" not in df.columns:
+            return df
 
-        is_intraday = period == "1D"
-        price_df = self._fetch_price_data(ticker, config, is_intraday)
+        tickers = df["ticker"].to_list()
+        bulk_prices = self._price_sync.get_current_prices(tickers)
+        prices = [bulk_prices.get(t, 0.0) or 0.0 for t in tickers]
 
-        rate = self._currency_service.get_rates_for_tickers(
-            [ticker], user_currency
-        ).get(ticker, 1.0)
-
-        date_fmt = (
-            "%H:%M" if is_intraday else ("%Y-%m" if config["days"] > 365 else "%d/%m")
-        )
-
-        rows = []
-        if price_df is not None and not price_df.is_empty():
-            prices_dict = {
-                row["date"]: row["close_price"]
-                for row in price_df.iter_rows(named=True)
-            }
-            sorted_dates = sorted(prices_dict.keys())
-            forward_fill_prices(prices_dict, sorted_dates)
-
-            for dt in sorted_dates:
-                price = prices_dict[dt]
-                if price is None or price <= 0:
-                    continue
-
-                date_str = dt.strftime(date_fmt) if hasattr(dt, "strftime") else str(dt)
-                rows.append(
-                    {
-                        "name": date_str,
-                        "price": round(price * df["total_quantity"][0] * rate, 2),
-                    }
+        df = df.with_columns(pl.Series("current_price", prices))
+        if "total_quantity" in df.columns:
+            df = df.with_columns(
+                (pl.col("current_price") * pl.col("total_quantity")).alias(
+                    "total_value"
                 )
-
-        # Add today's data point for non-intraday charts
-        if not is_intraday:
-            today_str = datetime.now().strftime(date_fmt)
-            if not rows or rows[-1]["name"] != today_str:
-                today_prices = self._price_sync.get_current_prices([ticker])
-                current_price = today_prices.get(ticker.upper())
-                if current_price and current_price > 0:
-                    rows.append(
-                        {
-                            "name": today_str,
-                            "price": round(
-                                current_price * df["total_quantity"][0] * rate, 2
-                            ),
-                        }
-                    )
-
-        return rows
-
-    # -- Internal helpers ----------------------------------------------------
-
-    def _fetch_price_data(
-        self, ticker: str, config: dict, is_intraday: bool
-    ) -> Optional[pl.DataFrame]:
-        if is_intraday:
-            return self._market_data.get_price_history(
-                ticker, interval=config["interval"], period=config["period"]
             )
-        start = datetime.now() - timedelta(days=config["days"])
-        earliest = self._securities_repo.get_earliest_purchase_date(ticker)
-        if earliest is not None:
-            earliest_dt = (
-                datetime.combine(earliest, datetime.min.time())
-                if not isinstance(earliest, datetime)
-                else earliest
-            )
-            if earliest_dt > start:
-                start = earliest_dt
-        end = datetime.now()
-        # Ensure at least a 2-day range so charts always have data
-        if (end - start).days < 2:
-            start = end - timedelta(days=2)
-        self._price_sync.sync_price_history([ticker], start)
-        return self._price_repo.get_price_history([ticker], start, end)
+        return df
+
+    def calculate_metrics(
+        self, user_currency: str = "EUR"
+    ) -> tuple[float, float, float]:
+        """Compute (total_invested, securities_value, return_pct)."""
+        df = self.get_aggregated_positions(user_currency)
+        if df is None or df.is_empty():
+            return 0.0, 0.0, 0.0
+
+        valid = df.filter(
+            pl.col("current_price").is_not_null()
+            & pl.col("total_quantity").is_not_null()
+            & (pl.col("total_quantity") > 0)
+        )
+        if valid.is_empty():
+            return 0.0, 0.0, 0.0
+
+        quantities = valid["total_quantity"].to_list()
+        buy_prices = valid["avg_price"].to_list()
+        current_prices = valid["current_price"].to_list()
+
+        invested = math.fsum(q * p for q, p in zip(quantities, buy_prices))
+        value = math.fsum(q * p for q, p in zip(quantities, current_prices))
+        return_pct = ((value - invested) / invested * 100) if invested > 0 else 0.0
+        return invested, value, return_pct

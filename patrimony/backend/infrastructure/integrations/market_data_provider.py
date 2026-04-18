@@ -13,7 +13,6 @@ import polars as pl
 import yfinance as yf
 from typing import Optional
 
-from ...domain.constants import MIN_API_REQUEST_INTERVAL_S
 from ...domain.interfaces import MarketDataProvider
 from ...domain.entities import TickerInfo
 
@@ -22,6 +21,9 @@ logger = logging.getLogger(__name__)
 
 _EMPTY_HISTORY = pl.DataFrame({"date": [], "close_price": []})
 _EMPTY_DIVIDENDS = pl.DataFrame({"date": [], "amount_per_share": []})
+
+# Minimum interval between consecutive API calls to avoid rate-limit bans.
+_MIN_REQUEST_INTERVAL_S: float = 0.55
 
 
 class YahooFinanceProvider(MarketDataProvider):
@@ -43,11 +45,11 @@ class YahooFinanceProvider(MarketDataProvider):
         """
         with self._lock:
             now = time.monotonic()
-            wait = self._last_call + MIN_API_REQUEST_INTERVAL_S - now
+            wait = self._last_call + _MIN_REQUEST_INTERVAL_S - now
             if wait > 0:
                 time.sleep(wait)
             self._last_call = time.monotonic()
-            self._api_was_called = True
+            self._provider_was_called = True
 
     @staticmethod
     def _parse_history_df(data) -> pl.DataFrame:

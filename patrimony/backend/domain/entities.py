@@ -1,8 +1,7 @@
+"""Domain entities related to core data structures and connectors."""
+
 from dataclasses import dataclass, field
 from enum import StrEnum
-from typing import Optional
-
-import polars as pl
 
 
 ### Domain entities representing core data structures in the application. ###
@@ -29,7 +28,7 @@ class EntryType(StrEnum):
 
 
 # Centralised currency metadata — (label, symbol) per code.
-_CURRENCY_INFO: dict[str, tuple[str, str]] = {
+_CURRENCY_DICT: dict[str, tuple[str, str]] = {
     "USD": ("USD - US Dollar", "$"),
     "EUR": ("EUR - Euro", "€"),
     "GBP": ("GBP - British Pound", "£"),
@@ -96,19 +95,19 @@ class Currency(StrEnum):
     @property
     def label(self) -> str:
         """Human-readable label for the currency."""
-        info = _CURRENCY_INFO.get(self.value)
+        info = _CURRENCY_DICT.get(self.value)
         return info[0] if info else self.value
 
     @property
     def symbols(self) -> str:
         """Symbol for the currency."""
-        info = _CURRENCY_INFO.get(self.value)
+        info = _CURRENCY_DICT.get(self.value)
         return info[1] if info else self.value
 
 
 @dataclass(slots=True)
 class TickerInfo:
-    """Enriched ticker metadata from yfinance or manual entry."""
+    """Enriched ticker metadata"""
 
     ticker: str
     isin: str | None = None
@@ -116,23 +115,23 @@ class TickerInfo:
     asset_type: str | None = None
     exchange: str | None = None
     currency: str | None = None
-    quote_type: str | None = None
+    quote_type: str | None = (
+        None  # TODO: virer le quotetype car c'est la même chose que asset_type mais pour yfinance
+    )
     source: str = ""
     last_updated: str | None = None
 
 
 @dataclass(slots=True)
 class PortfolioOverview:
-    """Aggregated portfolio data with metrics."""
+    """Aggregated portfolio metrics."""
 
-    securities_total: Optional[pl.DataFrame]
-    cash_entries: Optional[pl.DataFrame]
     total_value: float
     total_invested: float
     total_return: float
     securities_value: float
     cash_value: float
-    properties_value: float = 0.0
+    properties_value: float
 
 
 ### Entities related to web connector configuration and results. ###
@@ -140,8 +139,18 @@ class PortfolioOverview:
 class ConnectorProfile:
     """Data mapping configuration for a web connector.
 
-    Each broker plugin owns its own URL and navigation logic.
+    Each web connector plugin owns its own URL and navigation logic.
     The profile holds only the data-mapping and import settings.
+
+    Args:
+        id: Unique identifier for the connector profile.
+        name: User-friendly name for the connector configuration.
+        description: Optional description of the connector profile.
+        credential_fields: List of (field_name, field_type) tuples defining required credentials.
+        import_mode: "positions" to import quantity and price, "cash" to import only cash value.
+        new_accounts: Dictionary defining new cash accounts to be created during import.
+        column_mapping: Dictionary mapping source columns to target fields.
+        needs_matching: Boolean indicating if manual matching is required after import.
     """
 
     id: str
@@ -149,9 +158,7 @@ class ConnectorProfile:
     column_mapping: dict[str, str]
     import_mode: str = "positions"  # "positions" or "cash"
     description: str = ""
-    new_accounts: dict[str, dict] | None = (
-        None  # for cash import: acct -> {bank, currency}
-    )
+    new_accounts: dict[str, dict] | None = None
     credential_fields: list[tuple] | None = None
     needs_matching: bool = False
 

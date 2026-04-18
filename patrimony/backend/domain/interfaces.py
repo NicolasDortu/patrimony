@@ -55,16 +55,16 @@ class CurrencyProvider(ABC):
 class MarketDataProvider(PriceProvider, CurrencyProvider, ABC):
     """Interface for external market data providers.
 
-    Generic abstraction for market data providers (Yahoo Finance, Alpha Vantage, etc.)
+    Generic abstraction for market data providers (e.g., Yahoo Finance)
     Combines price and currency fetching capabilities with additional methods.
     """
 
-    _api_was_called: bool = False
+    _provider_was_called: bool = False
 
-    def check_api_was_called(self) -> bool:
+    def check_provider_was_called(self) -> bool:
         """Check and reset whether any API call was made since last check."""
-        result = self._api_was_called
-        self._api_was_called = False
+        result = self._provider_was_called
+        self._provider_was_called = False
         return result
 
     @abstractmethod

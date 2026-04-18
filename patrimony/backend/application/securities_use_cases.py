@@ -5,7 +5,12 @@ from typing import Optional
 
 from ..domain.entities import AssetType, EntryType
 from ..domain.repositories import SecuritiesRepository
-from ..domain.services import CurrencyService, PriceSyncService, SecuritiesService
+from ..domain.services import (
+    ChartService,
+    CurrencyService,
+    PriceSyncService,
+    SecuritiesService,
+)
 
 
 class SecuritiesUseCases:
@@ -15,11 +20,13 @@ class SecuritiesUseCases:
         self,
         securities_repo: SecuritiesRepository,
         securities_service: SecuritiesService,
+        chart_service: ChartService,
         price_sync: PriceSyncService,
         currency_service: CurrencyService,
     ):
         self._repo = securities_repo
         self._service = securities_service
+        self._chart_service = chart_service
         self._price_sync = price_sync
         self._currency_service = currency_service
 
@@ -97,7 +104,7 @@ class SecuritiesUseCases:
     def get_chart_data_ticker(
         self, ticker: str, period: str = "1M", user_currency: str = "EUR"
     ) -> list[dict]:
-        return self._service.get_chart_data_ticker(ticker, period, user_currency)
+        return self._chart_service.get_ticker_chart_data(ticker, period, user_currency)
 
     def get_current_prices(
         self, tickers: list[str], user_currency: str = "EUR"

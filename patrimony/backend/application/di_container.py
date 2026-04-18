@@ -11,11 +11,13 @@ from . import (
     WebConnectorUseCases,
 )
 from ..domain.services import (
+    CashService,
+    ChartService,
     CurrencyService,
     DividendSyncService,
-    PortfolioChartService,
     PortfolioService,
     PriceSyncService,
+    PropertyService,
     SecuritiesService,
 )
 from ..domain.services.connectors import FileConnectorService, WebConnectorService
@@ -143,34 +145,40 @@ class Container(containers.DeclarativeContainer):
         market_data=market_data_provider,
     )
 
-    portfolio_chart_service = providers.Singleton(
-        PortfolioChartService,
-        securities_repo=securities_repository,
+    cash_service = providers.Singleton(
+        CashService,
         cash_repo=cash_repository,
-        price_repo=price_repository,
         currency_service=currency_service,
-        market_data=market_data_provider,
-        price_sync=price_sync_service,
     )
 
-    portfolio_service = providers.Singleton(
-        PortfolioService,
+    property_service = providers.Singleton(
+        PropertyService,
+        property_repo=property_repository,
+        currency_service=currency_service,
+    )
+
+    chart_service = providers.Singleton(
+        ChartService,
         securities_repo=securities_repository,
-        cash_repo=cash_repository,
+        cash_service=cash_service,
         price_repo=price_repository,
         currency_service=currency_service,
-        chart_service=portfolio_chart_service,
-        property_repo=property_repository,
         price_sync=price_sync_service,
     )
 
     securities_service = providers.Singleton(
         SecuritiesService,
         securities_repo=securities_repository,
-        price_repo=price_repository,
         currency_service=currency_service,
-        market_data=market_data_provider,
         price_sync=price_sync_service,
+    )
+
+    portfolio_service = providers.Singleton(
+        PortfolioService,
+        securities_service=securities_service,
+        cash_service=cash_service,
+        property_service=property_service,
+        chart_service=chart_service,
     )
 
     connector_service = providers.Factory(
@@ -194,6 +202,7 @@ class Container(containers.DeclarativeContainer):
         SecuritiesUseCases,
         securities_repo=securities_repository,
         securities_service=securities_service,
+        chart_service=chart_service,
         price_sync=price_sync_service,
         currency_service=currency_service,
     )
@@ -211,6 +220,7 @@ class Container(containers.DeclarativeContainer):
     dividend_use_cases = providers.Singleton(
         DividendUseCases,
         dividend_repo=dividend_repository,
+        securities_repo=securities_repository,
         dividend_sync_service=dividend_sync_service,
     )
 

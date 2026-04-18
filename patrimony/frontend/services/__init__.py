@@ -28,7 +28,7 @@ from .event_services import EventLogService
 
 def was_market_data_fetched() -> bool:
     """Check and reset whether the market data API was called since last check."""
-    return container.market_data_provider().check_api_was_called()
+    return container.market_data_provider().check_provider_was_called()
 
 
 __all__ = [

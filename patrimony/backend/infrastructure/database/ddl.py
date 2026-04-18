@@ -107,6 +107,16 @@ CREATE_PRICE_HISTORY_TABLE = """
 );
 """
 
+CREATE_INTRADAY_PRICES_TABLE = """
+    CREATE TABLE IF NOT EXISTS intraday_prices (
+        ticker VARCHAR NOT NULL,
+        date TIMESTAMP NOT NULL,
+        close_price DOUBLE NOT NULL,
+        last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (ticker, date)
+);
+"""
+
 CREATE_TICKER_CURRENCY_TABLE = """
     CREATE TABLE IF NOT EXISTS ticker_currency (
         ticker VARCHAR PRIMARY KEY,
@@ -338,6 +348,7 @@ DDL_COMMANDS = [
     # 3. Market Data & Pricing
     CREATE_PRICE_CACHE_TABLE,
     CREATE_PRICE_HISTORY_TABLE,
+    CREATE_INTRADAY_PRICES_TABLE,
     CREATE_TICKER_CURRENCY_TABLE,
     CREATE_EXCHANGE_RATE_CACHE_TABLE,
     # 4. Reference Data

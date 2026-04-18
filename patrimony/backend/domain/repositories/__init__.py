@@ -12,7 +12,6 @@ from .asset_repositories import (
     DividendRepository,
     PriceRepository,
     PropertyRepository,
-    ReferenceRepository,
     SecuritiesRepository,
 )
 from .support_repositories import (
@@ -20,6 +19,7 @@ from .support_repositories import (
     CredentialRepository,
     EventLogRepository,
     ImportHashRepository,
+    ReferenceRepository,
     TickerInfoRepository,
 )
 

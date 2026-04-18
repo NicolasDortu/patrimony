@@ -98,6 +98,15 @@ class ImportHashRepository(ABC):
         pass
 
 
+class ReferenceRepository(ABC):
+    """Repository for securities reference data."""
+
+    @abstractmethod
+    def search(self, query: str, limit: int = 10) -> list[dict]:
+        """Search securities by ticker or name (case-insensitive)."""
+        pass
+
+
 class TickerInfoRepository(ABC):
     """Repository for enriched ticker metadata (ISIN lookups, asset type, etc.)."""
 

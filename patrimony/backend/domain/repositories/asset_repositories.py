@@ -216,6 +216,28 @@ class PriceRepository(ABC):
         """Return cached prices that are still fresh (within max_age_minutes)."""
         pass
 
+    @abstractmethod
+    def store_intraday_prices(self, ticker: str, df: pl.DataFrame) -> None:
+        """Replace stored intraday prices for a ticker with fresh data."""
+        pass
+
+    @abstractmethod
+    def get_intraday_prices(self, tickers: list[str]) -> pl.DataFrame:
+        """Get today's intraday price data for the given tickers."""
+        pass
+
+    @abstractmethod
+    def get_intraday_last_updated(self, ticker: str) -> Optional[datetime]:
+        """Return the most recent last_updated timestamp for a ticker's intraday data."""
+        pass
+
+    @abstractmethod
+    def get_latest_intraday_prices(
+        self, tickers: list[str], max_age_minutes: int = 15
+    ) -> dict[str, float]:
+        """Return the latest intraday close price per ticker if data is fresh."""
+        pass
+
 
 class CurrencyRepository(CurrencyProvider, ABC):
     """Repository for currency data (ticker currencies and exchange rates)."""
@@ -237,15 +259,6 @@ class CurrencyRepository(CurrencyProvider, ABC):
         self, from_currency: str, to_currency: str, rate: float
     ) -> None:
         """Cache an exchange rate."""
-        pass
-
-
-class ReferenceRepository(ABC):
-    """Repository for securities reference data."""
-
-    @abstractmethod
-    def search(self, query: str, limit: int = 10) -> list[dict]:
-        """Search securities by ticker or name (case-insensitive)."""
         pass
 
 

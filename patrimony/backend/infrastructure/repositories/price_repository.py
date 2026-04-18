@@ -141,3 +141,83 @@ class PriceRepositoryImpl(PriceRepository):
         ).fetchall()
 
         return {r[0]: r[1] for r in rows if r[1] is not None}
+
+    def store_intraday_prices(self, ticker: str, df: pl.DataFrame) -> None:
+        """Replace stored intraday prices for a ticker with fresh data."""
+        if df.is_empty():
+            return
+        upper = ticker.upper()
+        try:
+            insert_df = df.select(["date", "close_price"]).with_columns(
+                pl.lit(upper).alias("ticker"),
+            )
+            self._conn.connection.register("intraday_insert_df", insert_df)
+            try:
+                with self._conn.transaction():
+                    self._conn.execute(
+                        "DELETE FROM intraday_prices WHERE ticker = ?", [upper]
+                    )
+                    self._conn.execute(
+                        "INSERT INTO intraday_prices "
+                        "(ticker, date, close_price, last_updated) "
+                        "SELECT ticker, date, close_price, CURRENT_TIMESTAMP "
+                        "FROM intraday_insert_df",
+                    )
+            finally:
+                self._conn.connection.unregister("intraday_insert_df")
+        except Exception as e:
+            logger.warning("Error storing intraday prices for %s: %s", upper, e)
+
+    def get_intraday_prices(self, tickers: list[str]) -> pl.DataFrame:
+        """Get today's intraday price data for the given tickers."""
+        if not tickers:
+            return pl.DataFrame(
+                schema={
+                    "ticker": pl.Utf8,
+                    "date": pl.Datetime,
+                    "close_price": pl.Float64,
+                }
+            )
+        placeholders = ", ".join(["?"] * len(tickers))
+        return self._conn.execute(
+            f"""
+            SELECT ticker, date, close_price
+            FROM intraday_prices
+            WHERE ticker IN ({placeholders})
+            ORDER BY date
+            """,
+            [t.upper() for t in tickers],
+        ).pl()
+
+    def get_intraday_last_updated(self, ticker: str) -> "datetime | None":
+        """Return the most recent last_updated timestamp for a ticker's intraday data."""
+        result = self._conn.execute(
+            "SELECT MAX(last_updated) FROM intraday_prices WHERE ticker = ?",
+            [ticker.upper()],
+        ).fetchone()
+        return result[0] if result and result[0] else None
+
+    def get_latest_intraday_prices(
+        self, tickers: list[str], max_age_minutes: int = 15
+    ) -> dict[str, float]:
+        """Return the latest intraday close price per ticker if data is fresh."""
+        if not tickers:
+            return {}
+        upper_tickers = [t.upper() for t in tickers]
+        placeholders = ", ".join(["?"] * len(upper_tickers))
+        rows = self._conn.execute(
+            f"""
+            SELECT ticker, close_price
+            FROM intraday_prices
+            WHERE ticker IN ({placeholders})
+            AND last_updated > current_timestamp - INTERVAL '{max_age_minutes}' MINUTE
+            AND (ticker, date) IN (
+                SELECT ticker, MAX(date)
+                FROM intraday_prices
+                WHERE ticker IN ({placeholders})
+                GROUP BY ticker
+            )
+            """,
+            upper_tickers + upper_tickers,
+        ).fetchall()
+        return {r[0]: r[1] for r in rows if r[1] is not None and r[1] > 0}

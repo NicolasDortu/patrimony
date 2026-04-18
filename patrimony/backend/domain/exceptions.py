@@ -1,9 +1,4 @@
-"""Custom domain exceptions for the Patrimony application.
-
-Provides a hierarchy of business-specific exceptions so callers
-can distinguish between different failure modes without parsing
-error message strings.
-"""
+"""Custom domain exceptions for error handling and reporting."""
 
 
 class DomainError(Exception):
@@ -33,8 +28,8 @@ class AssetTypeResolutionError(ImportError):
     def __init__(self, ticker: str, row: int | None = None):
         self.ticker = ticker
         self.row = row
-        loc = f"Row {row}: " if row else ""
-        super().__init__(f"{loc}Unknown asset type for ticker '{ticker}'")
+        location = f"Row {row}: " if row else ""
+        super().__init__(f"{location}Unknown asset type for ticker '{ticker}'")
 
 
 class DateParsingError(ImportError):

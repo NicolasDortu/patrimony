@@ -3,8 +3,8 @@
 # Import all the pages.
 import reflex as rx
 
-from .backend.config.logging_config import setup_backend_logging
-from .frontend.config.logging_config import setup_frontend_logging
+from .backend.config import setup_backend_logging
+from .frontend.config import setup_frontend_logging
 from .frontend.styles import styles
 from .frontend.pages import *  # noqa: F403
 

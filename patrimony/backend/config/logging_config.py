@@ -1,8 +1,6 @@
 """Centralized logging configuration for the backend layer.
 
-Call ``setup_backend_logging()`` once at application startup (before any
-business logic runs) to configure a consistent format, level, and flush
-policy for every logger under the ``patrimony.backend`` namespace.
+It uses a custom stream handler that flushes after every record, ensuring that log messages appear immediately in Tauri's dev console.
 """
 
 import logging
@@ -10,6 +8,14 @@ import sys
 
 _LOG_FORMAT = "%(asctime)s | %(levelname)-8s | %(name)s | %(message)s"
 _DATE_FORMAT = "%Y-%m-%d %H:%M:%S"
+
+
+class _FlushingStreamHandler(logging.StreamHandler):
+    """An equivalent to `logging.StreamHandler` that flushes after every record."""
+
+    def emit(self, record: logging.LogRecord) -> None:
+        super().emit(record)
+        self.flush()
 
 
 def setup_backend_logging(level: int = logging.INFO) -> None:
@@ -22,24 +28,15 @@ def setup_backend_logging(level: int = logging.INFO) -> None:
     """
     backend_logger = logging.getLogger("patrimony.backend")
 
-    # Avoid adding duplicate handlers on hot-reload
+    # Avoid adding duplicate handlers
     if backend_logger.handlers:
         return
 
     backend_logger.setLevel(level)
 
-    handler = logging.StreamHandler(sys.stderr)
+    handler = _FlushingStreamHandler(sys.stderr)
     handler.setLevel(level)
     handler.setFormatter(logging.Formatter(_LOG_FORMAT, datefmt=_DATE_FORMAT))
-
-    # Flush after every record so output appears immediately in Tauri console
-    _orig_emit = handler.emit
-
-    def _flushing_emit(record: logging.LogRecord) -> None:
-        _orig_emit(record)
-        handler.flush()
-
-    handler.emit = _flushing_emit
 
     backend_logger.addHandler(handler)
     backend_logger.propagate = False

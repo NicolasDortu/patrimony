@@ -5,7 +5,12 @@ from typing import Literal
 
 import reflex as rx
 
-from ..services import DividendService, PortfolioService, was_market_data_fetched
+from ..services import (
+    DividendService,
+    PortfolioService,
+    SecuritiesService,
+    was_market_data_fetched,
+)
 from ..templates import ThemeState
 
 logger = logging.getLogger(__name__)
@@ -26,7 +31,6 @@ class PortfolioState(rx.State):
 
     # Raw data (stored as list[dict] from API)
     _stocks_total_data: list[dict] = []
-    _cash_data: list[dict] = []
     _chart_data: list[dict] = []
     _asset_colors: dict[str, str] = {}
     _dividends_data: list[dict] = []
@@ -319,22 +323,22 @@ class PortfolioState(rx.State):
                 at: getattr(theme_state, f"{at.lower()}_color", default)
                 for at, default in self._ASSET_COLOR_DEFAULTS.items()
             }
-            portfolio_data = PortfolioService.get_portfolio_overview(
-                theme_state.default_currency
-            )
+            currency = theme_state.default_currency
+            overview = PortfolioService.get_portfolio_overview(currency)
 
-            self._stocks_total_data = portfolio_data.securities_total
-            self._cash_data = portfolio_data.cash_entries
+            self._stocks_total_data = SecuritiesService.get_aggregated_positions(
+                currency
+            )
             self._owned_types = list(
                 {s.get("asset_type") for s in self._stocks_total_data}
             )
 
-            self.total_value = portfolio_data.total_value
-            self.total_invested = portfolio_data.total_invested
-            self.total_return = portfolio_data.total_return
-            self.stocks_value = portfolio_data.securities_value
-            self.cash_value = portfolio_data.cash_value
-            self.properties_value = portfolio_data.properties_value
+            self.total_value = overview.total_value
+            self.total_invested = overview.total_invested
+            self.total_return = overview.total_return
+            self.stocks_value = overview.securities_value
+            self.cash_value = overview.cash_value
+            self.properties_value = overview.properties_value
 
             await self._load_chart_data()
             DividendService.sync_dividends()
