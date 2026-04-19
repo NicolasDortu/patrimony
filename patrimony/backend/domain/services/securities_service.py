@@ -76,8 +76,14 @@ class SecuritiesService:
         quantities = valid["total_quantity"].to_list()
         buy_prices = valid["avg_price"].to_list()
         current_prices = valid["current_price"].to_list()
+        fees = (
+            valid["total_fees"].to_list()
+            if "total_fees" in valid.columns
+            else [0.0] * len(quantities)
+        )
 
-        invested = math.fsum(q * p for q, p in zip(quantities, buy_prices))
+        gross_invested = math.fsum(q * p for q, p in zip(quantities, buy_prices))
+        invested = gross_invested + math.fsum(f or 0.0 for f in fees)
         value = math.fsum(q * p for q, p in zip(quantities, current_prices))
         return_pct = ((value - invested) / invested * 100) if invested > 0 else 0.0
         return invested, value, return_pct

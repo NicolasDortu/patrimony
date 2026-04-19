@@ -142,6 +142,32 @@ class PriceRepositoryImpl(PriceRepository):
 
         return {r[0]: r[1] for r in rows if r[1] is not None}
 
+    def get_last_known_prices(self, tickers: list[str]) -> dict[str, float]:
+        """Return the most recent stored historical close price per ticker.
+
+        Only returns strictly positive prices.
+        """
+        if not tickers:
+            return {}
+        upper_tickers = [t.upper() for t in tickers]
+        placeholders = ", ".join(["?"] * len(upper_tickers))
+        rows = self._conn.execute(
+            f"""
+            SELECT ticker, close_price
+            FROM price_history
+            WHERE ticker IN ({placeholders})
+              AND close_price > 0
+              AND (ticker, date) IN (
+                  SELECT ticker, MAX(date)
+                  FROM price_history
+                  WHERE ticker IN ({placeholders}) AND close_price > 0
+                  GROUP BY ticker
+              )
+            """,
+            upper_tickers + upper_tickers,
+        ).fetchall()
+        return {r[0]: r[1] for r in rows if r[1] and r[1] > 0}
+
     def store_intraday_prices(self, ticker: str, df: pl.DataFrame) -> None:
         """Replace stored intraday prices for a ticker with fresh data."""
         if df.is_empty():

@@ -22,6 +22,16 @@ class MissingMappingError(ImportError):
         )
 
 
+class MissingColumnError(ImportError):
+    """target field mapped to a source column that doesn't exist in the file."""
+
+    def __init__(self, missing_columns: set[str]):
+        self.missing_columns = missing_columns
+        super().__init__(
+            f"Mapped columns not found in file: {', '.join(sorted(missing_columns))}"
+        )
+
+
 class AssetTypeResolutionError(ImportError):
     """Could not resolve the asset type for a ticker."""
 
@@ -96,3 +106,29 @@ class DividendSyncError(SyncError):
         if cause:
             msg += f": {cause}"
         super().__init__(msg)
+
+
+# ── Currency ───────────────────────────────────────────────────
+
+
+class CurrencyConversionError(DomainError):
+    """No usable exchange rate (fresh or stale) is available for a conversion."""
+
+    def __init__(
+        self, from_currency: str, to_currency: str, cause: Exception | None = None
+    ):
+        self.from_currency = from_currency
+        self.to_currency = to_currency
+        self.cause = cause
+        msg = f"No exchange rate available for {from_currency} -> {to_currency}"
+        if cause:
+            msg += f": {cause}"
+        super().__init__(msg)
+
+
+class TickerCurrencyUnknownError(DomainError):
+    """The native currency for a ticker could not be resolved."""
+
+    def __init__(self, ticker: str):
+        self.ticker = ticker
+        super().__init__(f"Could not resolve native currency for ticker '{ticker}'")

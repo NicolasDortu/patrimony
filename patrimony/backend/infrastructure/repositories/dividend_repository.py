@@ -38,9 +38,16 @@ class DividendRepositoryImpl(DividendRepository):
         ).pl()
 
     def get_total_amount(self) -> float:
-        """Return the total amount of all dividends."""
+        """Return the total amount of all dividends (raw, no currency conversion)."""
         result = self._conn.execute("SELECT COALESCE(SUM(amount), 0) FROM dividends")
         return result.fetchone()[0]
+
+    def get_totals_by_ticker(self) -> dict[str, float]:
+        """Return ``{ticker: total_amount}`` for all dividends in native currency."""
+        rows = self._conn.execute(
+            "SELECT ticker, COALESCE(SUM(amount), 0) FROM dividends GROUP BY ticker"
+        ).fetchall()
+        return {r[0]: float(r[1]) for r in rows if r[1]}
 
     def get_by_id(self, id: int) -> pl.DataFrame:
         """Get a dividend by ID."""

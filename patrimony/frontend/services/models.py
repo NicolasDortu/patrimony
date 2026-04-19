@@ -103,6 +103,7 @@ class SecurityTotal:
     current_price: float = 0.0
     total_value: float = 0.0
     asset_type: str = "STOCK"
+    total_fees: float = 0.0
 
 
 @dataclass(slots=True)

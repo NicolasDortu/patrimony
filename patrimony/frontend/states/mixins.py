@@ -89,10 +89,15 @@ class SearchSortMixin(rx.State, mixin=True):
     @rx.event
     def set_search_value(self, value: str) -> None:
         self.search_value = value
+        # Reset pagination so the user lands on page 1 of the new result set.
+        if hasattr(self, "offset"):
+            self.offset = 0
 
     @rx.event
     def set_sort_value(self, value: str) -> None:
         self.sort_value = value
+        if hasattr(self, "offset"):
+            self.offset = 0
 
     @rx.event
     def toggle_chart_view(self) -> None:

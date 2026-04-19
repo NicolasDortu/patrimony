@@ -43,6 +43,7 @@ class PortfolioState(rx.State):
     total_value: float = 0.0
     total_invested: float = 0.0
     total_return: float = 0.0
+    total_return_with_dividends: float = 0.0
     stocks_value: float = 0.0
     cash_value: float = 0.0
     properties_value: float = 0.0
@@ -336,6 +337,7 @@ class PortfolioState(rx.State):
             self.total_value = overview.total_value
             self.total_invested = overview.total_invested
             self.total_return = overview.total_return
+            self.total_return_with_dividends = overview.total_return_with_dividends
             self.stocks_value = overview.securities_value
             self.cash_value = overview.cash_value
             self.properties_value = overview.properties_value
@@ -343,7 +345,7 @@ class PortfolioState(rx.State):
             await self._load_chart_data()
             DividendService.sync_dividends()
             self._dividends_data = DividendService.get_all_dividends()
-            self._total_dividends = DividendService.get_total_amount()
+            self._total_dividends = overview.total_dividends
         except Exception as e:
             logger.error("Failed to load portfolio data: %s", e)
             yield rx.toast.error(

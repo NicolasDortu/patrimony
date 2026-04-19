@@ -11,7 +11,7 @@ from datetime import datetime
 import polars as pl
 
 from ...entities import AssetType, Currency, EntryType, TickerInfo
-from ...exceptions import MissingMappingError
+from ...exceptions import MissingColumnError, MissingMappingError
 from ...interfaces import MarketDataProvider
 from ...repositories import (
     CashRepository,
@@ -44,10 +44,13 @@ class FileConnectorService:
         securities_repo: SecuritiesRepository,
         cash_repo: CashRepository,
         reference_repo: ReferenceRepository,
-        hash_repo: ImportHashRepository | None = None,
+        hash_repo: ImportHashRepository,
         info_repo: TickerInfoRepository | None = None,
         market_data_provider: MarketDataProvider | None = None,
     ):
+        # ``hash_repo`` is required: without it, re-importing the same file
+        # would silently double every position. Deduplication is part of the
+        # import contract, not an optional optimisation.
         self._securities_repo = securities_repo
         self._cash_repo = cash_repo
         self._reference_repo = reference_repo
@@ -181,18 +184,18 @@ class FileConnectorService:
         if missing:
             raise MissingMappingError(missing)
 
-        rename_map = {
-            src: dst for src, dst in column_mapping.items() if src in df.columns
-        }
+        missing_cols = {src for src in column_mapping if src not in df.columns}
+        if missing_cols:
+            raise MissingColumnError(missing_cols)
+
+        rename_map = dict(column_mapping)
         mapped_df = df.select(list(rename_map.keys())).rename(rename_map)
 
         # Pre-compute hashes for deduplication
         row_hashes: dict[int, str] = {}
-        known_hashes: set[str] = set()
-        if self._hash_repo:
-            for i, row in enumerate(mapped_df.iter_rows(named=True)):
-                row_hashes[i] = position_hash(row, source=source)
-            known_hashes = self._hash_repo.existing_hashes(set(row_hashes.values()))
+        for i, row in enumerate(mapped_df.iter_rows(named=True)):
+            row_hashes[i] = position_hash(row, source=source)
+        known_hashes = self._hash_repo.existing_hashes(set(row_hashes.values()))
 
         imported = 0
         skipped = 0
@@ -208,6 +211,14 @@ class FileConnectorService:
             }
         )
         resolved_types = self.resolve_asset_types(all_tickers)
+
+        # Hash flush batch: bound the loss window if the process crashes mid-import.
+        _HASH_FLUSH_BATCH = 100
+
+        def _flush_hashes() -> None:
+            if new_hashes:
+                self._hash_repo.add_hashes(new_hashes, "positions")
+                new_hashes.clear()
 
         for i, row in enumerate(mapped_df.iter_rows(named=True), start=1):
             try:
@@ -271,13 +282,14 @@ class FileConnectorService:
                 imported += 1
                 if h:
                     new_hashes.append(h)
+                    if len(new_hashes) >= _HASH_FLUSH_BATCH:
+                        _flush_hashes()
 
             except Exception as e:
                 errors.append(f"Row {i}: {e}")
                 skipped += 1
 
-        if self._hash_repo and new_hashes:
-            self._hash_repo.add_hashes(new_hashes, "positions")
+        _flush_hashes()
 
         return ImportResult(
             success=imported > 0 or (skipped > 0 and not errors),
@@ -399,22 +411,29 @@ class FileConnectorService:
         if missing:
             raise MissingMappingError(missing)
 
-        rename_map = {
-            src: dst for src, dst in column_mapping.items() if src in df.columns
-        }
+        missing_cols = {src for src in column_mapping if src not in df.columns}
+        if missing_cols:
+            raise MissingColumnError(missing_cols)
+
+        rename_map = dict(column_mapping)
         mapped_df = df.select(list(rename_map.keys())).rename(rename_map)
 
         row_hashes: dict[int, str] = {}
-        known_hashes: set[str] = set()
-        if self._hash_repo:
-            for i, row in enumerate(mapped_df.iter_rows(named=True)):
-                row_hashes[i] = cash_hash(row, source=source)
-            known_hashes = self._hash_repo.existing_hashes(set(row_hashes.values()))
+        for i, row in enumerate(mapped_df.iter_rows(named=True)):
+            row_hashes[i] = cash_hash(row, source=source)
+        known_hashes = self._hash_repo.existing_hashes(set(row_hashes.values()))
 
         imported = 0
         skipped = 0
         errors: list[str] = []
         new_hashes: list[str] = []
+
+        _HASH_FLUSH_BATCH = 100
+
+        def _flush_hashes() -> None:
+            if new_hashes:
+                self._hash_repo.add_hashes(new_hashes, "cash")
+                new_hashes.clear()
 
         for i, row in enumerate(mapped_df.iter_rows(named=True), start=1):
             try:
@@ -448,13 +467,14 @@ class FileConnectorService:
                 imported += 1
                 if h:
                     new_hashes.append(h)
+                    if len(new_hashes) >= _HASH_FLUSH_BATCH:
+                        _flush_hashes()
 
             except Exception as e:
                 errors.append(f"Row {i}: {e}")
                 skipped += 1
 
-        if self._hash_repo and new_hashes:
-            self._hash_repo.add_hashes(new_hashes, "cash")
+        _flush_hashes()
 
         return ImportResult(
             success=imported > 0 or (skipped > 0 and not errors),

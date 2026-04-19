@@ -264,7 +264,7 @@ class ChartService:
 
             if cash_dates:
                 idx = bisect.bisect_right(cash_dates, normalize_date(dt)) - 1
-                cash = cash_values[idx] if idx >= 0 else 0.0
+                cash = cash_values[idx] if idx >= 0 else cash_values[0]
             else:
                 cash = current_cash
 

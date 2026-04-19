@@ -38,22 +38,36 @@ class PriceService:
         missing = [t for t in tickers if t not in prices]
         if missing:
             cached = self._price_repo.get_cached_prices(missing, max_age_minutes)
-            prices.update(cached)
+            prices.update({t: p for t, p in cached.items() if p and p > 0})
 
         # 3. Fetch remaining from API
         stale_tickers = [t for t in tickers if t not in prices]
         now = datetime.now()
+        unresolved: list[str] = []
         for ticker in stale_tickers:
             try:
                 price = self._market_data.get_current_price(ticker)
-                if price:
-                    self._price_repo.cache_price(ticker, price, now)
-                    prices[ticker] = price
-                else:
-                    self._price_repo.cache_price(ticker, 0.0, now)
             except Exception as e:
                 logger.warning("Error fetching price for %s: %s", ticker, e)
-                self._price_repo.cache_price(ticker, 0.0, now)
+                price = None
+            if price and price > 0:
+                self._price_repo.cache_price(ticker, price, now)
+                prices[ticker] = price
+            else:
+                unresolved.append(ticker)
+
+        # 4. Fall back to last known historical price (stale, but valid)
+        if unresolved:
+            fallback = self._price_repo.get_last_known_prices(unresolved)
+            for ticker, price in fallback.items():
+                if price and price > 0:
+                    prices[ticker] = price
+            still_missing = [t for t in unresolved if t not in fallback]
+            if still_missing:
+                logger.warning(
+                    "No live or historical price available for: %s",
+                    ", ".join(still_missing),
+                )
 
         return prices
 

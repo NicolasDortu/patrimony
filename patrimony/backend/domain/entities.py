@@ -129,6 +129,8 @@ class PortfolioOverview:
     securities_value: float
     cash_value: float
     properties_value: float
+    total_dividends: float = 0.0
+    total_return_with_dividends: float = 0.0
 
 
 ### Entities related to web connector configuration and results. ###

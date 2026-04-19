@@ -11,7 +11,7 @@ def portfolio_kpi_cards() -> rx.Component:
         stats_card(
             stat_name=t("kpi.total_portfolio"),
             value=PortfolioState.total_value,
-            return_pct=PortfolioState.total_return,
+            return_pct=PortfolioState.total_return_with_dividends,
             icon="wallet",
             currency_symbol=ThemeState.currency_symbol,
         ),

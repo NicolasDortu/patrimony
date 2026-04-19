@@ -267,6 +267,7 @@ CREATE_POSITIONS_TOTAL_VIEW = """
         agg.ticker,
         agg.total_quantity,
         agg.avg_price,
+        agg.total_fees,
         agg.asset_type,
         pc.current_price,
         agg.total_quantity * pc.current_price AS total_value
@@ -275,13 +276,15 @@ CREATE_POSITIONS_TOTAL_VIEW = """
             b.ticker,
             b.asset_type,
             b.buy_qty - COALESCE(s.sell_qty, 0) AS total_quantity,
-            b.total_cost / NULLIF(b.buy_qty, 0) AS avg_price
+            b.gross_cost / NULLIF(b.buy_qty, 0) AS avg_price,
+            b.total_fees
         FROM (
             SELECT
                 ticker,
                 MIN(asset_type) AS asset_type,
                 SUM(quantity) AS buy_qty,
-                SUM(price * quantity + fees) AS total_cost
+                SUM(price * quantity) AS gross_cost,
+                SUM(COALESCE(fees, 0)) AS total_fees
             FROM positions
             GROUP BY ticker
         ) b

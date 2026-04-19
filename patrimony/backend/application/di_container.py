@@ -143,6 +143,7 @@ class Container(containers.DeclarativeContainer):
         dividend_repo=dividend_repository,
         securities_repo=securities_repository,
         market_data=market_data_provider,
+        currency_service=currency_service,
     )
 
     cash_service = providers.Singleton(
@@ -179,6 +180,7 @@ class Container(containers.DeclarativeContainer):
         cash_service=cash_service,
         property_service=property_service,
         chart_service=chart_service,
+        dividend_service=dividend_sync_service,
     )
 
     connector_service = providers.Factory(

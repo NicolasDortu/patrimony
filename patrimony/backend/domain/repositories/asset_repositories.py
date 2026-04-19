@@ -218,6 +218,11 @@ class PriceRepository(ABC):
         pass
 
     @abstractmethod
+    def get_last_known_prices(self, tickers: list[str]) -> dict[str, float]:
+        """Return the most recent stored historical close price per ticker."""
+        pass
+
+    @abstractmethod
     def store_intraday_prices(self, ticker: str, df: pl.DataFrame) -> None:
         """Replace stored intraday prices for a ticker with fresh data."""
         pass
@@ -294,7 +299,16 @@ class DividendRepository(BaseRepository, ABC):
 
     @abstractmethod
     def get_total_amount(self) -> float:
-        """Return the total amount of all dividends."""
+        """Return the total amount of all dividends (raw, no currency conversion)."""
+        pass
+
+    @abstractmethod
+    def get_totals_by_ticker(self) -> dict[str, float]:
+        """Return ``{ticker: total_amount}`` for all dividends.
+
+        Amounts are in each ticker's native currency; callers are responsible
+        for currency conversion via ``CurrencyService``.
+        """
         pass
 
 

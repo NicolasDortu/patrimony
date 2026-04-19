@@ -4,11 +4,13 @@ Orchestrates asset services to provide portfolio overview and chart data.
 """
 
 import logging
+from typing import Optional
 
 from ..constants import DEFAULT_CURRENCY, DEFAULT_PERIOD
 from ..entities import PortfolioOverview
 from .cash_service import CashService
 from .chart_service import ChartService
+from .dividend_service import DividendService
 from .property_service import PropertyService
 from .securities_service import SecuritiesService
 
@@ -24,11 +26,13 @@ class PortfolioService:
         cash_service: CashService,
         property_service: PropertyService,
         chart_service: ChartService,
+        dividend_service: Optional[DividendService] = None,
     ):
         self._securities_service = securities_service
         self._cash_service = cash_service
         self._property_service = property_service
         self._chart_service = chart_service
+        self._dividend_service = dividend_service
 
     def get_overview(self, user_currency: str = DEFAULT_CURRENCY) -> PortfolioOverview:
         """Build aggregated portfolio metrics."""
@@ -38,6 +42,21 @@ class PortfolioService:
         cash_value = self._cash_service.get_total_balance(user_currency)
         properties_value = self._property_service.get_total_value(user_currency)
 
+        total_dividends = (
+            self._dividend_service.get_total_in_currency(user_currency)
+            if self._dividend_service is not None
+            else 0.0
+        )
+        total_return_with_dividends = (
+            (
+                (securities_value + total_dividends - total_invested)
+                / total_invested
+                * 100
+            )
+            if total_invested > 0
+            else 0.0
+        )
+
         return PortfolioOverview(
             total_value=securities_value + cash_value + properties_value,
             total_invested=total_invested,
@@ -45,6 +64,8 @@ class PortfolioService:
             securities_value=securities_value,
             cash_value=cash_value,
             properties_value=properties_value,
+            total_dividends=total_dividends,
+            total_return_with_dividends=total_return_with_dividends,
         )
 
     def get_chart_data(

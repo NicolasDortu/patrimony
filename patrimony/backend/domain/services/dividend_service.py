@@ -6,10 +6,16 @@ based on position quantities, and stores new dividends in the repository.
 
 import logging
 from datetime import datetime
+from typing import Optional
 
-from ..exceptions import DividendSyncError
+from ..exceptions import (
+    CurrencyConversionError,
+    DividendSyncError,
+    TickerCurrencyUnknownError,
+)
 from ..interfaces import MarketDataProvider
 from ..repositories import DividendRepository, SecuritiesRepository
+from .currency_service import CurrencyService
 from .timeline import (
     build_quantity_timeline,
     get_quantity_at_date,
@@ -27,10 +33,35 @@ class DividendService:
         dividend_repo: DividendRepository,
         securities_repo: SecuritiesRepository,
         market_data: MarketDataProvider,
+        currency_service: Optional[CurrencyService] = None,
     ):
         self._dividend_repo = dividend_repo
         self._securities_repo = securities_repo
         self._market_data = market_data
+        self._currency_service = currency_service
+
+    def get_total_in_currency(self, user_currency: str) -> float:
+        """Sum all dividends, converting each ticker's native currency."""
+        totals = self._dividend_repo.get_totals_by_ticker()
+        if not totals:
+            return 0.0
+        if self._currency_service is None:
+            return float(sum(totals.values()))
+
+        grand_total = 0.0
+        for ticker, amount in totals.items():
+            try:
+                native = self._currency_service.get_ticker_currency(ticker)
+                rate = self._currency_service.get_exchange_rate(native, user_currency)
+            except (TickerCurrencyUnknownError, CurrencyConversionError) as e:
+                logger.error(
+                    "Dividend conversion failed for %s: %s; counting at 1.0",
+                    ticker,
+                    e,
+                )
+                rate = 1.0
+            grand_total += amount * rate
+        return grand_total
 
     def sync_dividends(self, tickers: list[str]) -> dict:
         """Fetch and store dividends for the given tickers.
