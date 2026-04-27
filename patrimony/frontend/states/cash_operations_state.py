@@ -68,6 +68,11 @@ class CashOperationsState(SpreadsheetMixin, SearchSortMixin, PaginationMixin, rx
     def load_entries(self) -> None:
         """Load all operations for the current account."""
         operations = CashService.get_operations_by_account(self.account_number)
+        for op in operations:
+            d = op.get("operation_date")
+            if d is not None:
+                # Trim microseconds from "2026-04-18 12:11:05.107074".
+                op["operation_date"] = str(d).split(".", 1)[0]
         self.items = operations
         self.total_items = len(self.items)
 

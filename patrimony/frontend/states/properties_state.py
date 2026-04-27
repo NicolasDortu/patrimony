@@ -10,6 +10,8 @@ from ..utils import export_csv, get_pie_color, parse_form_date
 from .mixins import PaginationMixin, SearchSortMixin, apply_sort_and_search
 from .spreadsheet_mixin import SpreadsheetMixin
 
+# Default suggestions — users can also type any custom category, which
+# becomes its own bucket in the allocation chart automatically.
 PROPERTY_CATEGORIES = [
     "Real Estate",
     "Watch",
@@ -42,7 +44,7 @@ class PropertiesState(SpreadsheetMixin, SearchSortMixin, PaginationMixin, rx.Sta
         """Group property values by category for pie chart."""
         categories: dict[str, float] = {}
         for prop in self.items:
-            cat = prop.get("category", "Other") or "Other"
+            cat = prop.get("category") or "Uncategorized"
             categories[cat] = categories.get(cat, 0.0) + float(prop.get("value", 0))
         return [
             {"name": k, "value": round(v, 2), "fill": get_pie_color(i)}
@@ -84,7 +86,7 @@ class PropertiesState(SpreadsheetMixin, SearchSortMixin, PaginationMixin, rx.Sta
             value=float(form_data.get("value", 0)),
             purchase_date=purchase_date,
             description=form_data.get("description", ""),
-            category=form_data.get("category", "Other"),
+            category=form_data.get("category", "").strip() or "Uncategorized",
             currency=form_data.get("currency", "EUR"),
         )
         if result.success:
@@ -145,7 +147,7 @@ class PropertiesState(SpreadsheetMixin, SearchSortMixin, PaginationMixin, rx.Sta
             return "skip"
         description = str(row[1]).strip()
         value = float(row[2]) if row[2] != "" else 0.0
-        category = str(row[3]).strip() or "Other"
+        category = str(row[3]).strip() or "Uncategorized"
         currency = str(row[4]).strip() or "EUR"
         date_str = str(row[5]).strip()
         purchase_date = (

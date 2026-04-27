@@ -1,6 +1,6 @@
 """Frontend service for persistent event log."""
 
-from ...backend.application import container
+from ...backend import container
 from .models import df_to_dicts, operation_result, safe_query
 
 

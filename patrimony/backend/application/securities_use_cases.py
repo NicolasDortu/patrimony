@@ -1,17 +1,22 @@
 """Use cases for securities operations."""
 
+import logging
 from datetime import datetime
 from typing import Optional
 
 from ..domain.constants import DEFAULT_CURRENCY, DEFAULT_PERIOD
 from ..domain.entities import AssetType, EntryType
+from ..domain.interfaces import MarketDataProvider
 from ..domain.repositories import SecuritiesRepository
+from ..domain.repositories.support_repositories import TickerInfoRepository
 from ..domain.services import (
     ChartService,
     CurrencyService,
     PriceService,
     SecuritiesService,
 )
+
+logger = logging.getLogger(__name__)
 
 
 class SecuritiesUseCases:
@@ -24,12 +29,33 @@ class SecuritiesUseCases:
         chart_service: ChartService,
         price_sync: PriceService,
         currency_service: CurrencyService,
+        ticker_info_repo: TickerInfoRepository,
+        market_data: MarketDataProvider,
     ):
         self._repo = securities_repo
         self._service = securities_service
         self._chart_service = chart_service
         self._price_sync = price_sync
         self._currency_service = currency_service
+        self._info_repo = ticker_info_repo
+        self._market_data = market_data
+
+    def _enrich_ticker(self, ticker: str) -> None:
+        """Best-effort: fetch and store ticker metadata if not already known.
+
+        Failures are swallowed — the position is still saved, the user
+        just won't see a company name until the next refresh.
+        """
+        if not ticker:
+            return
+        try:
+            if self._info_repo.get_by_ticker(ticker):
+                return
+            info = self._market_data.resolve_ticker_info(ticker)
+            if info:
+                self._info_repo.upsert(info)
+        except Exception as e:
+            logger.warning("Could not enrich ticker info for %s: %s", ticker, e)
 
     def add_position(
         self,
@@ -44,6 +70,8 @@ class SecuritiesUseCases:
         """Add a new position. Returns {'id': int}."""
         if date is None:
             date = datetime.now()
+        # Normalize once at the application boundary; repos trust input.
+        ticker = ticker.strip().upper()
         position_id = self._repo.add_position(
             ticker=ticker,
             price=price,
@@ -53,6 +81,7 @@ class SecuritiesUseCases:
             date=date,
             fees=fees,
         )
+        self._enrich_ticker(ticker)
         return {"id": position_id}
 
     def update_position(
@@ -68,6 +97,7 @@ class SecuritiesUseCases:
     ) -> None:
         if date is None:
             date = datetime.now()
+        ticker = ticker.strip().upper()
         self._repo.update_position(
             id=id,
             ticker=ticker,
@@ -78,6 +108,7 @@ class SecuritiesUseCases:
             date=date,
             fees=fees,
         )
+        self._enrich_ticker(ticker)
 
     def delete_position(self, id: int) -> None:
         self._repo.delete(id)
@@ -102,7 +133,30 @@ class SecuritiesUseCases:
         self, user_currency: str = DEFAULT_CURRENCY
     ) -> list[dict]:
         df = self._service.get_aggregated_positions(user_currency)
-        return df.to_dicts() if df is not None else []
+        rows = df.to_dicts() if df is not None else []
+        # Backfill ticker metadata for rows missing a name (one yfinance
+        # call per ticker, cached forever after). Patch the result so
+        # the user sees the name without waiting for the next reload.
+        enriched_any = False
+        for row in rows:
+            if row.get("name"):
+                continue
+            ticker = row.get("ticker", "")
+            self._enrich_ticker(ticker)
+            info = self._info_repo.get_by_ticker(ticker) if ticker else None
+            if info:
+                row["name"] = info.name or ""
+                if not row.get("isin"):
+                    row["isin"] = info.isin or ""
+                if not row.get("display_ticker"):
+                    row["display_ticker"] = info.ticker or ticker
+                enriched_any = True
+        if enriched_any:
+            logger.info(
+                "Ticker info backfilled for %d position(s)",
+                sum(1 for r in rows if r.get("name")),
+            )
+        return rows
 
     def get_chart_data_ticker(
         self,

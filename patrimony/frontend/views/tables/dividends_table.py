@@ -10,8 +10,6 @@ from ...templates import ThemeState
 
 def _show_item(item: Dividend, index: int) -> rx.Component:
     return table_row(
-        rx.table.row_header_cell(item.id),
-        rx.table.cell(item.ticker),
         rx.table.cell(ThemeState.currency_symbol + f"{item.amount:.2f}"),
         rx.table.cell(item.date),
         index=index,
@@ -36,10 +34,8 @@ def dividends_table() -> rx.Component:
         rx.table.root(
             rx.table.header(
                 rx.table.row(
-                    header_cell("id", "hash"),
-                    header_cell("ticker", "notebook-pen"),
-                    header_cell("amount", "dollar-sign"),
-                    header_cell("date", "calendar"),
+                    header_cell("Amount", "dollar-sign"),
+                    header_cell("Date", "calendar"),
                 ),
             ),
             rx.table.body(

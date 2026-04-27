@@ -242,14 +242,45 @@ class CashRepositoryImpl(CashRepository):
         return result.fetchone()[0]
 
     def delete(self, account_number: str) -> None:
-        """Delete a cash account by account number. And also delete all related balance operations."""
+        """Delete a cash account by account number, after removing all related balance operations.
+        TODO: The operations doesn't work in a single transaction due to FK constraints. This could lead to some issue if one transaction is deleted an not the other.
+        """
         with self._conn.transaction():
             self._conn.execute(
                 "DELETE FROM balance_operations WHERE account_number = ?",
                 [account_number],
             )
+        with self._conn.transaction():
             self._conn.execute(
                 "DELETE FROM cash WHERE account_number = ?", [account_number]
+            )
+
+    def rename_account(self, old_account_number: str, new_account_number: str) -> None:
+        """Atomically rename an account, cascading to balance_operations.
+
+        DuckDB doesn't support deferred FKs, so we update the child rows
+        first (pointing them at the new key, which doesn't exist yet)
+        then the parent. Wrapping in a transaction makes the temporary
+        FK violation invisible to other readers.
+        """
+        if old_account_number == new_account_number:
+            return
+        with self._conn.transaction():
+            # Insert the new parent first so the FK target exists.
+            self._conn.execute(
+                """
+                INSERT INTO cash (bank, account_number, currency, last_updated, entry_type)
+                SELECT bank, ?, currency, last_updated, entry_type
+                FROM cash WHERE account_number = ?
+                """,
+                [new_account_number, old_account_number],
+            )
+            self._conn.execute(
+                "UPDATE balance_operations SET account_number = ? WHERE account_number = ?",
+                [new_account_number, old_account_number],
+            )
+            self._conn.execute(
+                "DELETE FROM cash WHERE account_number = ?", [old_account_number]
             )
 
     def get_all(self) -> pl.DataFrame:

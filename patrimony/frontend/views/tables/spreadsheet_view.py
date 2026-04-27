@@ -40,25 +40,58 @@ _DARK_THEME = rx.data_editor_theme(
 )
 
 
+def _icon_btn(icon: str, label: str, on_click, **kwargs) -> rx.Component:
+    """Square icon-only button with a tooltip."""
+    return rx.tooltip(
+        rx.icon_button(rx.icon(icon, size=18), on_click=on_click, size="2", **kwargs),
+        content=label,
+    )
+
+
+_DISPATCH_DELETE_JS = """
+(() => {
+  const canvas = document.querySelector('canvas[data-testid="data-grid-canvas"]');
+  if (!canvas) return;
+  canvas.focus();
+  const evt = new KeyboardEvent('keydown', {
+    key: 'Delete', code: 'Delete', keyCode: 46, which: 46, bubbles: true,
+  });
+  canvas.dispatchEvent(evt);
+})();
+"""
+
+
 def _spreadsheet_toolbar(state_cls) -> rx.Component:
-    """Toolbar with save and discard buttons (shown only in spreadsheet mode)."""
+    """Toolbar shown only while in spreadsheet mode."""
     return rx.cond(
         state_cls.spreadsheet_mode,
         rx.hstack(
-            rx.button(
-                rx.icon("save", size=16),
+            _icon_btn(
+                "save",
                 t("spreadsheet.save"),
-                size="2",
+                state_cls.save_spreadsheet_changes,
                 color_scheme="green",
                 disabled=~state_cls.has_unsaved_changes,
-                on_click=state_cls.save_spreadsheet_changes,
+            ),
+            _icon_btn(
+                "plus",
+                t("spreadsheet.add_row"),
+                state_cls.on_spreadsheet_row_appended,
+                variant="soft",
+            ),
+            _icon_btn(
+                "trash-2",
+                t("spreadsheet.delete_selected"),
+                rx.call_script(_DISPATCH_DELETE_JS),
+                color_scheme="red",
+                variant="soft",
             ),
             rx.button(
                 rx.icon("x", size=16),
                 t("spreadsheet.discard"),
                 size="2",
                 variant="outline",
-                color_scheme="red",
+                color_scheme="gray",
                 on_click=state_cls.discard_spreadsheet_changes,
             ),
             spacing="2",
@@ -68,27 +101,36 @@ def _spreadsheet_toolbar(state_cls) -> rx.Component:
 
 
 def spreadsheet_grid(state_cls) -> rx.Component:
-    """Editable data grid powered by Glide Data Grid."""
-    return rx.data_editor(
-        columns=state_cls.spreadsheet_columns,
-        data=state_cls.spreadsheet_data,
-        rows=state_cls.spreadsheet_row_count,
-        on_cell_edited=state_cls.on_spreadsheet_cell_edited,
-        on_row_appended=state_cls.on_spreadsheet_row_appended,
-        on_delete=state_cls.on_spreadsheet_delete,
-        theme=rx.color_mode_cond(_LIGHT_THEME, _DARK_THEME),
-        row_markers="checkbox-visible",
-        row_select="multi",
-        smooth_scroll_x=True,
-        smooth_scroll_y=True,
-        column_select="none",
+    """Editable data grid powered by Glide Data Grid.
+
+    Edits live in state until the user hits Save:
+      - new rows: "Add row" toolbar button
+      - deletes: tick row markers, then press the Delete key
+    """
+    return rx.box(
+        rx.data_editor(
+            columns=state_cls.spreadsheet_columns,
+            data=state_cls.spreadsheet_data,
+            rows=state_cls.spreadsheet_row_count,
+            on_cell_edited=state_cls.on_spreadsheet_cell_edited,
+            on_delete=state_cls.on_spreadsheet_delete,
+            theme=rx.color_mode_cond(_LIGHT_THEME, _DARK_THEME),
+            row_markers="checkbox-visible",
+            row_select="multi",
+            smooth_scroll_x=True,
+            smooth_scroll_y=True,
+            column_select="none",
+            width="100%",
+            height="100%",
+        ),
         width="100%",
-        height="65vh",
+        height="75vh",
+        min_height="500px",
     )
 
 
 def spreadsheet_toggle_button(state_cls) -> rx.Component:
-    """Toggle button for switching between table and spreadsheet mode."""
+    """Toggle between table and spreadsheet mode."""
     return rx.button(
         rx.cond(
             state_cls.spreadsheet_mode,
@@ -103,11 +145,7 @@ def spreadsheet_toggle_button(state_cls) -> rx.Component:
 
 
 def spreadsheet_or_table(state_cls, table_component: rx.Component) -> rx.Component:
-    """Conditionally render spreadsheet grid or the regular table view.
-
-    Includes contextual save/discard controls when in spreadsheet mode.
-    Place spreadsheet_toggle_button() separately in your page's action bar.
-    """
+    """Render the spreadsheet grid or the regular table, with a toolbar."""
     return rx.vstack(
         _spreadsheet_toolbar(state_cls),
         rx.cond(

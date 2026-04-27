@@ -115,6 +115,7 @@
   "label.price": "Prix",
   "label.fees": "Frais",
   "label.ticker": "Ticker",
+  "label.asset_type": "Type d'actif",
   "label.title": "Titre",
   "label.category": "Catégorie",
   "label.search": "Rechercher...",
@@ -171,6 +172,8 @@
   "spreadsheet.toggle": "Basculer en mode tableur",
   "spreadsheet.save": "Enregistrer",
   "spreadsheet.discard": "Annuler",
+  "spreadsheet.add_row": "Ajouter une ligne",
+  "spreadsheet.delete_selected": "Supprimer la sélection (Suppr)",
 
   "nav.properties": "Biens",
   "page.properties.title": "Vos biens",

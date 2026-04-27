@@ -35,6 +35,7 @@ def _positions_tab() -> rx.Component:
         spreadsheet_or_table(TableStateDetails, main_table()),
         spacing="4",
         width="100%",
+        padding_top="1rem",
     )
 
 
@@ -58,6 +59,7 @@ def _dividends_tab() -> rx.Component:
         align="start",
         spacing="4",
         width="100%",
+        padding_top="1rem",
     )
 
 

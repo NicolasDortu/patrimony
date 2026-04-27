@@ -173,6 +173,15 @@ class CashRepository(BaseRepository, CashOperationRepository, ABC):
         pass
 
     @abstractmethod
+    def rename_account(self, old_account_number: str, new_account_number: str) -> None:
+        """Rename a cash account, cascading to all referencing balance_operations.
+
+        Both updates run in a single transaction so the foreign-key
+        relationship is never broken.
+        """
+        pass
+
+    @abstractmethod
     def get_balance(self, account_number: str) -> float:
         """Get the current balance of a cash account."""
         pass

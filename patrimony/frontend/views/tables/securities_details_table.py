@@ -10,10 +10,9 @@ from ...templates import ThemeState
 
 def _show_item(item: SecurityPosition, index: int) -> rx.Component:
     return table_row(
-        rx.table.row_header_cell(item.id),
-        rx.table.cell(item.ticker),
         rx.table.cell(ThemeState.currency_symbol + f"{item.price:.2f}"),
         rx.table.cell(item.quantity),
+        rx.table.cell(ThemeState.currency_symbol + f"{item.fees:.2f}"),
         rx.table.cell(item.date),
         index=index,
     )
@@ -23,18 +22,17 @@ def main_table() -> rx.Component:
     return rx.box(
         table_toolbar(
             TableStateDetails,
-            ["id", "ticker", "price", "quantity", "date"],
+            ["price", "quantity", "fees", "date"],
             add_button=open_add_position_dialog(TableStateDetails.add_stock),
-            default_sort_placeholder="Sort By: id",
+            default_sort_placeholder="Sort By: date",
         ),
         rx.table.root(
             rx.table.header(
                 rx.table.row(
-                    header_cell("id", "user"),
-                    header_cell("ticker", "notebook-pen"),
-                    header_cell("price", "dollar-sign"),
-                    header_cell("quantity", "notebook-pen"),
-                    header_cell("date", "calendar"),
+                    header_cell("Price", "dollar-sign"),
+                    header_cell("Quantity", "notebook-pen"),
+                    header_cell("Fees", "receipt"),
+                    header_cell("Date", "calendar"),
                 ),
             ),
             rx.table.body(

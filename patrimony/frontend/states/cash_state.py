@@ -186,6 +186,12 @@ class CashTableState(SpreadsheetMixin, SearchSortMixin, PaginationMixin, rx.Stat
                 last_updated=datetime.now(),
             )
         else:
+            # If the user changed the primary key, rename first (cascades
+            # to balance_operations) — otherwise the subsequent UPDATE's
+            # WHERE clause would target a non-existent row and silently
+            # do nothing.
+            if account_number != rid:
+                CashService.rename_account(rid, account_number)
             CashService.update_cash(
                 bank=bank,
                 account_number=account_number,

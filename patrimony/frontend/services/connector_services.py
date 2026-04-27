@@ -3,8 +3,7 @@
 from collections.abc import Callable
 import logging
 
-from ...backend.application import container
-from ...backend.application.file_import_use_cases import build_import_message
+from ...backend import container, build_import_message
 from ..config.file_connector_config import file_connector_paths
 from .models import OperationResult, operation_result, safe_query
 

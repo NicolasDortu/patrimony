@@ -1,6 +1,6 @@
 from dependency_injector import containers, providers
 
-from . import (
+from .application import (
     CashUseCases,
     ConnectorHistoryUseCases,
     DividendUseCases,
@@ -10,7 +10,7 @@ from . import (
     SecuritiesUseCases,
     WebConnectorUseCases,
 )
-from ..domain.services import (
+from .domain.services import (
     CashService,
     ChartService,
     CurrencyService,
@@ -20,14 +20,14 @@ from ..domain.services import (
     PropertyService,
     SecuritiesService,
 )
-from ..domain.services.connectors import FileConnectorService, WebConnectorService
-from ..infrastructure import (
+from .domain.services.connectors import FileConnectorService, WebConnectorService
+from .infrastructure import (
     DatabaseConnection,
     YahooFinanceProvider,
     ExcelCsvConnector,
     SITE_CONNECTORS,
 )
-from ..infrastructure.repositories import (
+from .infrastructure.repositories import (
     CashRepositoryImpl,
     SecuritiesRepositoryImpl,
     PriceRepositoryImpl,
@@ -207,6 +207,8 @@ class Container(containers.DeclarativeContainer):
         chart_service=chart_service,
         price_sync=price_sync_service,
         currency_service=currency_service,
+        ticker_info_repo=ticker_info_repository,
+        market_data=market_data_provider,
     )
 
     portfolio_use_cases = providers.Singleton(

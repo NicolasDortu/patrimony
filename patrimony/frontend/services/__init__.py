@@ -4,8 +4,7 @@ This package is the ONLY frontend module that accesses the backend.
 States and components should only import from this package, never directly from backend.
 """
 
-from ...backend.domain.entities import AssetType, Currency, EntryType
-from ...backend.application.di_container import container
+from ...backend import container, AssetType, Currency, EntryType
 
 from .models import OperationResult, Property, SecurityPosition, SecurityTotal
 from .cash_services import CashService

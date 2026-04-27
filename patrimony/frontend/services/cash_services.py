@@ -4,8 +4,7 @@ import logging
 from datetime import datetime
 from typing import Optional
 
-from ...backend.domain.entities import Currency, EntryType
-from ...backend.application import container
+from ...backend import container, Currency, EntryType
 from .models import operation_result, safe_query
 
 logger = logging.getLogger(__name__)
@@ -56,6 +55,15 @@ class CashService:
     )
     def delete_cash(id: int):
         container.cash_use_cases().delete_cash(id)
+
+    @staticmethod
+    @operation_result(
+        failure="Failed to rename account", success="Account renamed successfully"
+    )
+    def rename_account(old_account_number: str, new_account_number: str):
+        container.cash_use_cases().rename_account(
+            old_account_number, new_account_number
+        )
 
     @staticmethod
     @safe_query([])

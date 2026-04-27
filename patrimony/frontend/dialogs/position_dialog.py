@@ -44,75 +44,107 @@ def open_add_position_dialog(on_submit: callable) -> rx.Component:
             rx.form(
                 rx.flex(
                     # Ticker search with autocomplete
-                    rx.box(
-                        rx.input(
-                            placeholder="Search ticker or name (e.g., AAPL or Apple)",
-                            value=TableStateTotal.ticker_search,
-                            on_change=TableStateTotal.search_ticker,
-                            name="ticker",
-                            required=True,
-                        ),
-                        rx.cond(
-                            TableStateTotal.show_suggestions,
-                            rx.card(
-                                rx.foreach(
-                                    TableStateTotal.ticker_suggestions,
-                                    _suggestion_item,
-                                ),
-                                position="absolute",
-                                z_index="10",
-                                width="100%",
-                                max_height="200px",
-                                overflow_y="auto",
+                    rx.vstack(
+                        rx.text(t("label.ticker"), size="1", weight="medium"),
+                        rx.box(
+                            rx.input(
+                                placeholder="AAPL or Apple",
+                                value=TableStateTotal.ticker_search,
+                                on_change=TableStateTotal.search_ticker,
+                                name="ticker",
+                                required=True,
                             ),
+                            rx.cond(
+                                TableStateTotal.show_suggestions,
+                                rx.card(
+                                    rx.foreach(
+                                        TableStateTotal.ticker_suggestions,
+                                        _suggestion_item,
+                                    ),
+                                    position="absolute",
+                                    z_index="10",
+                                    width="100%",
+                                    max_height="200px",
+                                    overflow_y="auto",
+                                ),
+                            ),
+                            position="relative",
+                            width="100%",
                         ),
-                        position="relative",
+                        spacing="1",
+                        align="stretch",
                         width="100%",
                     ),
-                    rx.select(
-                        ["STOCK", "ETF", "CRYPTO", "COMMODITY"],
-                        value=TableStateTotal.selected_asset_type,
-                        on_change=TableStateTotal.set_selected_asset_type,
-                        name="asset_type",
+                    rx.vstack(
+                        rx.text(t("label.asset_type"), size="1", weight="medium"),
+                        rx.select(
+                            ["STOCK", "ETF", "CRYPTO", "COMMODITY"],
+                            value=TableStateTotal.selected_asset_type,
+                            on_change=TableStateTotal.set_selected_asset_type,
+                            name="asset_type",
+                        ),
+                        spacing="1",
+                        align="stretch",
+                        width="100%",
                     ),
-                    rx.input(
-                        placeholder=t("label.price"),
-                        name="price",
-                        type="number",
-                        min="0.01",
-                        step="0.01",
-                        required=True,
+                    rx.vstack(
+                        rx.text(t("label.price"), size="1", weight="medium"),
+                        rx.input(
+                            placeholder=t("label.price"),
+                            name="price",
+                            type="number",
+                            min="0.01",
+                            step="0.01",
+                            required=True,
+                        ),
+                        spacing="1",
+                        align="stretch",
+                        width="100%",
                     ),
-                    rx.input(
-                        placeholder=t("label.quantity"),
-                        name="quantity",
-                        type="number",
-                        min="0.0001",
-                        step="0.0001",
-                        required=True,
+                    rx.vstack(
+                        rx.text(t("label.quantity"), size="1", weight="medium"),
+                        rx.input(
+                            placeholder=t("label.quantity"),
+                            name="quantity",
+                            type="number",
+                            min="0.0001",
+                            step="0.0001",
+                            required=True,
+                        ),
+                        spacing="1",
+                        align="stretch",
+                        width="100%",
                     ),
-                    rx.input(
-                        placeholder=t("label.fees"),
-                        name="fees",
-                        type="number",
-                        min="0",
-                        step="0.01",
+                    rx.vstack(
+                        rx.text(t("label.fees"), size="1", weight="medium"),
+                        rx.input(
+                            placeholder=t("label.fees"),
+                            name="fees",
+                            type="number",
+                            min="0",
+                            step="0.01",
+                        ),
+                        spacing="1",
+                        align="stretch",
+                        width="100%",
                     ),
-                    rx.text(
-                        t("label.purchase_date"),
-                        size="2",
-                        weight="bold",
-                    ),
-                    rx.input(
-                        type="date",
-                        name="date",
-                        default_value=date.today().isoformat(),
-                        max=date.today().isoformat(),
+                    rx.vstack(
+                        rx.text(t("label.purchase_date"), size="1", weight="medium"),
+                        rx.input(
+                            type="date",
+                            name="date",
+                            default_value=date.today().isoformat(),
+                            max=date.today().isoformat(),
+                        ),
+                        spacing="1",
+                        align="stretch",
+                        width="100%",
                     ),
                     rx.flex(
                         rx.dialog.close(
                             rx.button(
                                 t("btn.cancel"),
+                                type="button",
                                 variant="soft",
                                 color_scheme="gray",
                                 on_click=TableStateTotal.clear_ticker_search,

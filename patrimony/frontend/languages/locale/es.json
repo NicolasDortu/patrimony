@@ -119,6 +119,7 @@
   "label.price": "Precio",
   "label.fees": "Comisiones",
   "label.ticker": "Ticker",
+  "label.asset_type": "Tipo de activo",
   "label.title": "Título",
   "label.category": "Categoría",
   "label.search": "Buscar...",
@@ -175,6 +176,8 @@
   "spreadsheet.toggle": "Alternar modo hoja de c\u00e1lculo",
   "spreadsheet.save": "Guardar cambios",
   "spreadsheet.discard": "Descartar",
+  "spreadsheet.add_row": "Añadir fila",
+  "spreadsheet.delete_selected": "Eliminar selección (Supr)",
 
   "nav.properties": "Propiedades",
   "page.properties.title": "Sus propiedades",

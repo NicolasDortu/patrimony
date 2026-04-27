@@ -5,7 +5,7 @@ import reflex as rx
 from ..components.card import card
 from ..components.loading import loading_spinner
 from ..components.notification import notification
-from ..templates import template, t
+from ..templates import template, t, ThemeState
 from ..states.portfolio_state import PortfolioState
 from ..states.notification_state import NotificationState
 from ..views.charts.wealth_chart import wealth_chart
@@ -76,7 +76,7 @@ def _dashboard() -> rx.Component:
         rx.flex(
             rx.heading(t("page.overview.title"), size="5", white_space="nowrap"),
             rx.flex(
-                notification("message-square-text", "plum"),
+                notification("message-square-text", ThemeState.accent_color),
                 spacing="4",
                 width="100%",
                 wrap="nowrap",

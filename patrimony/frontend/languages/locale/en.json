@@ -81,7 +81,7 @@
   "dialog.delete_cash.title": "Delete Cash Entry",
   "dialog.delete_cash.desc": "Are you sure you want to delete this cash entry? This action cannot be undone.",
 
-  "dialog.add_position.title": "Add New Position",
+  "dialog.add_position.title": "Add Position",
   "dialog.add_position.desc": "Search by ticker or company name.",
   "dialog.add_position.submit": "Add Position",
 
@@ -119,6 +119,7 @@
   "label.price": "Price",
   "label.fees": "Fees",
   "label.ticker": "Ticker",
+  "label.asset_type": "Asset Type",
   "label.title": "Title",
   "label.category": "Category",
   "label.search": "Search here...",
@@ -175,6 +176,8 @@
   "spreadsheet.toggle": "Toggle spreadsheet mode",
   "spreadsheet.save": "Save changes",
   "spreadsheet.discard": "Discard",
+  "spreadsheet.add_row": "Add row",
+  "spreadsheet.delete_selected": "Delete selected (Del)",
 
   "nav.properties": "Properties",
   "page.properties.title": "Your Properties",

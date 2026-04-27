@@ -56,6 +56,9 @@ class CashUseCases:
             last_updated=last_updated,
         )
 
+    def rename_account(self, old_account_number: str, new_account_number: str) -> None:
+        self._repo.rename_account(old_account_number, new_account_number)
+
     def delete_cash(self, id: int) -> None:
         self._repo.delete(id)
 

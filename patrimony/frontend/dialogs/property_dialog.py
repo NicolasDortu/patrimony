@@ -2,7 +2,6 @@ import reflex as rx
 
 from ..components.dialog_factory import DialogField, build_add_dialog
 from ..services import Currency
-from ..states.properties_state import PROPERTY_CATEGORIES
 
 
 _PROPERTY_FIELDS = [
@@ -19,9 +18,6 @@ _PROPERTY_FIELDS = [
     DialogField(
         name="category",
         placeholder_key="label.category",
-        field_type="select",
-        options=PROPERTY_CATEGORIES,
-        default_value="Other",
     ),
     DialogField(
         name="currency",

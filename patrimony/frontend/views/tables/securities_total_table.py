@@ -9,8 +9,25 @@ from ...templates import ThemeState
 
 
 def _show_item(item: SecurityTotal, index: int) -> rx.Component:
+    # Show the company name as the primary label and ticker as the
+    # subtitle. Fall back to ticker as the primary if name is unknown.
     return table_row(
-        rx.table.cell(item.ticker),
+        rx.table.cell(
+            rx.vstack(
+                rx.cond(
+                    item.name != "",
+                    rx.text(item.name, weight="medium"),
+                    rx.text(item.display_ticker, weight="medium"),
+                ),
+                rx.cond(
+                    item.name != "",
+                    rx.text(item.display_ticker, size="1", color_scheme="gray"),
+                    rx.fragment(),
+                ),
+                spacing="0",
+                align="start",
+            )
+        ),
         rx.table.cell(item.total_quantity),
         rx.table.cell(ThemeState.currency_symbol + f"{item.current_price:.2f}"),
         rx.table.cell(ThemeState.currency_symbol + f"{item.total_value:.2f}"),
@@ -36,10 +53,10 @@ def main_table() -> rx.Component:
         rx.table.root(
             rx.table.header(
                 rx.table.row(
-                    header_cell("ticker", "building"),
-                    header_cell("total_quantity", "notebook-pen"),
-                    header_cell("current_price", "dollar-sign"),
-                    header_cell("total_value", "wallet"),
+                    header_cell("Company", "building"),
+                    header_cell("Quantity", "notebook-pen"),
+                    header_cell("Current Price", "dollar-sign"),
+                    header_cell("Total Value", "wallet"),
                     header_cell("", "chart_no_axes_combined"),
                 ),
             ),

@@ -265,6 +265,9 @@ CREATE_POSITIONS_TOTAL_VIEW = """
     CREATE OR REPLACE VIEW positions_total AS
     SELECT
         agg.ticker,
+        COALESCE(ti_isin.ticker, ti.ticker, agg.ticker) AS display_ticker,
+        COALESCE(ti.name, ti_isin.name, '') AS name,
+        COALESCE(ti.isin, ti_isin.isin, '') AS isin,
         agg.total_quantity,
         agg.avg_price,
         agg.total_fees,
@@ -295,6 +298,8 @@ CREATE_POSITIONS_TOTAL_VIEW = """
         ) s ON b.ticker = s.ticker
     ) agg
     LEFT JOIN price_cache pc ON agg.ticker = pc.ticker
+    LEFT JOIN ticker_info ti ON agg.ticker = ti.ticker
+    LEFT JOIN ticker_info ti_isin ON agg.ticker = ti_isin.isin
 """
 
 # Latest balance per cash account.

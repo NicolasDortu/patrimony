@@ -1,4 +1,8 @@
-"""Repository implementations for securities."""
+"""Repository implementations for securities.
+
+Tickers are normalized to upper-case at the application layer
+(``securities_use_cases``); repos trust the input.
+"""
 
 from datetime import datetime
 import polars as pl
@@ -33,7 +37,7 @@ class SecuritiesRepositoryImpl(SecuritiesRepository):
             RETURNING id
             """,
             [
-                ticker.upper(),
+                ticker,
                 price,
                 quantity,
                 fees,
@@ -64,7 +68,7 @@ class SecuritiesRepositoryImpl(SecuritiesRepository):
             WHERE id = ?
             """,
             [
-                ticker.upper(),
+                ticker,
                 price,
                 quantity,
                 fees,
@@ -78,14 +82,14 @@ class SecuritiesRepositoryImpl(SecuritiesRepository):
     def get_by_ticker(self, ticker: str) -> pl.DataFrame:
         """Get all positions for a specific ticker."""
         return self._conn.execute(
-            "SELECT * FROM positions WHERE ticker = ?", [ticker.upper()]
+            "SELECT * FROM positions WHERE ticker = ?", [ticker]
         ).pl()
 
     def get_aggregated_positions(self, ticker: str | None = None) -> pl.DataFrame:
         """Get aggregated positions from the positions_total view, optionally filtered by ticker."""
         if ticker:
             return self._conn.execute(
-                "SELECT * FROM positions_total WHERE ticker = ?", [ticker.upper()]
+                "SELECT * FROM positions_total WHERE ticker = ?", [ticker]
             ).pl()
         return self._conn.execute("SELECT * FROM positions_total").pl()
 
@@ -106,7 +110,7 @@ class SecuritiesRepositoryImpl(SecuritiesRepository):
         if ticker:
             row = self._conn.execute(
                 "SELECT MIN(date) AS min_date FROM positions WHERE ticker = ?",
-                [ticker.upper()],
+                [ticker],
             ).fetchone()
         else:
             row = self._conn.execute(

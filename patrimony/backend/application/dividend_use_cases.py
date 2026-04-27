@@ -37,14 +37,14 @@ class DividendUseCases:
         if date is None:
             date = datetime.now()
         dividend_id = self._repo.add_dividend(
-            ticker=ticker,
+            ticker=ticker.strip().upper(),
             amount=amount,
             date=date,
         )
         return {"id": dividend_id}
 
     def get_dividends_by_ticker(self, ticker: str) -> list[dict]:
-        df = self._repo.get_by_ticker(ticker)
+        df = self._repo.get_by_ticker(ticker.strip().upper())
         return df.to_dicts() if df is not None else []
 
     def get_all_dividends(self) -> list[dict]:
@@ -68,7 +68,7 @@ class DividendUseCases:
             date = datetime.now()
         self._repo.update_dividend(
             id=id,
-            ticker=ticker,
+            ticker=ticker.strip().upper(),
             amount=amount,
             date=date,
         )

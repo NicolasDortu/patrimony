@@ -6,7 +6,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Optional
 
-from ...backend.domain.entities import AssetType, EntryType
+from ...backend import AssetType, EntryType
 
 logger = logging.getLogger(__name__)
 
@@ -98,6 +98,9 @@ class SecurityTotal:
     """Frontend model for aggregated security positions."""
 
     ticker: str = ""
+    display_ticker: str = ""
+    name: str = ""
+    isin: str = ""
     total_quantity: float = 0.0
     avg_price: float = 0.0
     current_price: float = 0.0

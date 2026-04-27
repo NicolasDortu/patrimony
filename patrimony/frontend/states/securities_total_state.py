@@ -251,8 +251,11 @@ class TableStateTotal(SpreadsheetMixin, SearchSortMixin, PaginationMixin, rx.Sta
 
     @rx.var
     def spreadsheet_columns(self) -> list[dict]:
+        # Ticker is the canonical key for a position and changing it would
+        # orphan its price/dividend cache, so make it read-only here. Use the
+        # Add Position dialog (with autocomplete) to create new rows.
         return [
-            {"title": "Ticker", "type": "str"},
+            {"title": "Ticker", "type": "str", "editable": False},
             {"title": "Price", "type": "float"},
             {"title": "Quantity", "type": "float"},
             {"title": "Fees", "type": "float"},
@@ -261,50 +264,63 @@ class TableStateTotal(SpreadsheetMixin, SearchSortMixin, PaginationMixin, rx.Sta
         ]
 
     @rx.event
+    def on_spreadsheet_row_appended(self):
+        # New rows need a ticker resolved against the reference table; that
+        # flow lives in the Add Position dialog.
+        return rx.toast.info(
+            "Use the Add Position button to add new securities.",
+            position="top-center",
+        )
+
+    @rx.event
     def on_spreadsheet_cell_edited(self, pos: tuple[int, int], cell: dict) -> None:
         """Override mixin to add ticker auto-resolve and asset type validation."""
-        col, row = pos
-        if row < 0 or row >= len(self._spreadsheet_data):
+        if self._consume_post_delete_blank():
             return
-        if col < 0 or col >= len(self._spreadsheet_data[row]):
+        col, row_idx = pos
+        target = self._row_at_visible_index(row_idx)
+        if target is None or not (0 <= col < len(target["data"])):
             return
 
         value = cell.get("data", "")
-        new_data = [r[:] for r in self._spreadsheet_data]
+        invalid_asset_type = False
 
-        if col == 0:
-            # Ticker column — auto-resolve asset type from reference table
-            ticker = str(value).strip().upper()
-            new_data[row][col] = ticker
-            if ticker:
-                results = SecuritiesReferenceService.search(ticker, limit=1)
-                if results and results[0].get("ticker", "").upper() == ticker:
-                    new_data[row][4] = results[0].get("asset_type", "STOCK").upper()
-        elif col == 4:
-            # Asset type column — validate and auto-correct
-            raw = str(value).strip().upper()
-            matched = None
-            for at in self._VALID_ASSET_TYPES:
-                if at == raw:
-                    matched = at
-                    break
-            if matched is None:
-                for at in self._VALID_ASSET_TYPES:
-                    if at.startswith(raw):
-                        matched = at
-                        break
-            new_data[row][col] = matched if matched else new_data[row][col]
-            if matched is None:
-                self._spreadsheet_data = new_data
-                return rx.toast.info(
-                    f"Valid types: {', '.join(self._VALID_ASSET_TYPES)}",
-                    position="top-center",
+        def mutate(r):
+            nonlocal invalid_asset_type
+            if col == 0:
+                # Ticker column — auto-resolve asset type from reference table.
+                ticker = str(value).strip().upper()
+                r["data"][col] = ticker
+                if ticker:
+                    results = SecuritiesReferenceService.search(ticker, limit=1)
+                    if results and results[0].get("ticker", "").upper() == ticker:
+                        r["data"][4] = results[0].get("asset_type", "STOCK").upper()
+            elif col == 4:
+                # Asset type column — validate (exact, then prefix match).
+                raw = str(value).strip().upper()
+                matched = next(
+                    (at for at in self._VALID_ASSET_TYPES if at == raw),
+                    None,
+                ) or next(
+                    (at for at in self._VALID_ASSET_TYPES if at.startswith(raw)),
+                    None,
                 )
-        else:
-            new_data[row][col] = value
+                if matched:
+                    r["data"][col] = matched
+                else:
+                    invalid_asset_type = True
+            else:
+                r["data"][col] = value
+            if r["state"] == "clean" and r["data"] != r["original"]:
+                r["state"] = "dirty"
 
-        self._spreadsheet_data = new_data
-        self._has_edits = True
+        self._replace_row(target["uuid"], mutate)
+
+        if invalid_asset_type:
+            return rx.toast.info(
+                f"Valid types: {', '.join(self._VALID_ASSET_TYPES)}",
+                position="top-center",
+            )
 
     def _load_spreadsheet_rows(self) -> tuple[list[list], list]:
         positions = SecuritiesService.get_all_positions()

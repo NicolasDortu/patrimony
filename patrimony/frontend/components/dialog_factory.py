@@ -18,6 +18,9 @@ class DialogField:
     Attributes:
         name: Form field name (maps to ``form_data[name]``).
         placeholder_key: Translation key for the placeholder text.
+        label_key: Optional translation key for a small label rendered
+            above the input. Use this whenever the placeholder alone
+            isn't enough context for the user.
         field_type: HTML input type (``text``, ``number``, ``date``, ``select``).
         required: Whether the field is required.
         options: For ``select`` fields — list of option values.
@@ -28,6 +31,7 @@ class DialogField:
 
     name: str
     placeholder_key: str
+    label_key: str | None = None
     field_type: str = "text"
     required: bool = False
     options: list[str] | None = None
@@ -36,8 +40,8 @@ class DialogField:
     step: str | None = None
 
 
-def _build_field(field: DialogField) -> rx.Component:
-    """Build a single form field component from its descriptor."""
+def _build_input(field: DialogField) -> rx.Component:
+    """Build only the input element (no label)."""
     if field.field_type == "select" and field.options:
         kwargs = {
             "placeholder": t(field.placeholder_key),
@@ -63,6 +67,18 @@ def _build_field(field: DialogField) -> rx.Component:
     if field.step:
         kwargs["step"] = field.step
     return rx.input(**kwargs)
+
+
+def _build_field(field: DialogField) -> rx.Component:
+    """Build a labelled form field. Falls back to a bare input when no label."""
+    label_text = field.label_key or field.placeholder_key
+    return rx.vstack(
+        rx.text(t(label_text), size="1", weight="medium"),
+        _build_input(field),
+        spacing="1",
+        align="stretch",
+        width="100%",
+    )
 
 
 def build_add_dialog(
@@ -101,6 +117,7 @@ def build_add_dialog(
                         rx.dialog.close(
                             rx.button(
                                 t("btn.cancel"),
+                                type="button",
                                 variant="soft",
                                 color_scheme="gray",
                             ),

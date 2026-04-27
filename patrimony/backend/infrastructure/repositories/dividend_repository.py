@@ -1,4 +1,8 @@
-"""Repository implementation for dividends."""
+"""Repository implementation for dividends.
+
+Tickers are normalized to upper-case at the application layer
+(``dividend_use_cases``); repos trust the input.
+"""
 
 from datetime import datetime
 import polars as pl
@@ -26,7 +30,7 @@ class DividendRepositoryImpl(DividendRepository):
             VALUES (?, ?, ?)
             RETURNING id
             """,
-            [ticker.upper(), amount, date],
+            [ticker, amount, date],
         )
         return result.fetchone()[0]
 
@@ -34,7 +38,7 @@ class DividendRepositoryImpl(DividendRepository):
         """Get all dividends for a specific ticker."""
         return self._conn.execute(
             "SELECT * FROM dividends WHERE ticker = ? ORDER BY date DESC",
-            [ticker.upper()],
+            [ticker],
         ).pl()
 
     def get_total_amount(self) -> float:
@@ -75,5 +79,5 @@ class DividendRepositoryImpl(DividendRepository):
             SET ticker = ?, amount = ?, date = ?
             WHERE id = ?
             """,
-            [ticker.upper(), amount, date, id],
+            [ticker, amount, date, id],
         )

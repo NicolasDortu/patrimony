@@ -8,7 +8,6 @@ from .property_use_cases import PropertyUseCases
 from .file_import_use_cases import FileImportUseCases
 from .web_connector_use_cases import WebConnectorUseCases
 from .connector_history_use_cases import ConnectorHistoryUseCases
-from .di_container import container
 
 __all__ = [
     "SecuritiesUseCases",
@@ -19,5 +18,4 @@ __all__ = [
     "FileImportUseCases",
     "WebConnectorUseCases",
     "ConnectorHistoryUseCases",
-    "container",
 ]
