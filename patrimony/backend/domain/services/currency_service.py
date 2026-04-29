@@ -1,7 +1,7 @@
 """Domain service for currency resolution and exchange rate conversion."""
 
 import logging
-from typing import Optional
+import time
 
 import polars as pl
 
@@ -13,6 +13,9 @@ logger = logging.getLogger(__name__)
 
 # ~30 days of staleness as a fallback when the live FX provider is unreachable.
 _STALE_FX_MAX_AGE_MINUTES = 60 * 24 * 30
+# In-process FX cache TTL — short enough that user sees fresh rates after a
+# refresh, long enough to avoid hammering the repo on a single page render.
+_PROCESS_CACHE_TTL_S = 15 * 60
 
 
 class CurrencyService:
@@ -25,11 +28,19 @@ class CurrencyService:
     ):
         self._currency_repo = currency_repo
         self._market_data = market_data_provider
+        # (from, to) -> (rate, monotonic_timestamp)
+        self._rate_cache: dict[tuple[str, str], tuple[float, float]] = {}
+        # ticker -> currency (immutable per ticker, no TTL needed)
+        self._ticker_currency_cache: dict[str, str] = {}
 
     def get_ticker_currency(self, ticker: str) -> str:
         """Resolve the native currency of a ticker."""
+        if ticker in self._ticker_currency_cache:
+            return self._ticker_currency_cache[ticker]
+
         cached = self._currency_repo.get_ticker_currency(ticker)
         if cached:
+            self._ticker_currency_cache[ticker] = cached
             return cached
 
         try:
@@ -40,6 +51,7 @@ class CurrencyService:
 
         if currency:
             self._currency_repo.set_ticker_currency(ticker, currency)
+            self._ticker_currency_cache[ticker] = currency
             return currency
 
         raise TickerCurrencyUnknownError(ticker)
@@ -49,15 +61,24 @@ class CurrencyService:
 
         Resolution order:
             1. Identity (same currency).
-            2. Fresh cache (< default repo TTL).
-            3. Live provider (cache on success).
-            4. Stale cache (up to ~30 days)
+            2. In-process cache (< _PROCESS_CACHE_TTL_S).
+            3. Fresh repo cache (< default repo TTL).
+            4. Live provider (cache on success).
+            5. Stale repo cache (up to ~30 days).
         """
         if from_currency == to_currency:
             return 1.0
 
+        key = (from_currency, to_currency)
+        cached_entry = self._rate_cache.get(key)
+        if cached_entry is not None:
+            rate, ts = cached_entry
+            if time.monotonic() - ts < _PROCESS_CACHE_TTL_S:
+                return rate
+
         cached = self._currency_repo.get_exchange_rate(from_currency, to_currency)
         if cached is not None and cached > 0:
+            self._rate_cache[key] = (cached, time.monotonic())
             return cached
 
         try:
@@ -73,6 +94,7 @@ class CurrencyService:
 
         if rate and rate > 0:
             self._currency_repo.set_exchange_rate(from_currency, to_currency, rate)
+            self._rate_cache[key] = (rate, time.monotonic())
             return rate
 
         stale = self._currency_repo.get_exchange_rate(
@@ -144,12 +166,12 @@ class CurrencyService:
 
     def sum_with_conversion(
         self,
-        df: Optional[pl.DataFrame],
+        df: pl.DataFrame,
         value_col: str,
         target_currency: str,
     ) -> float:
         """Sum a DataFrame column, converting each row's currency to target_currency."""
-        if df is None or df.is_empty():
+        if df.is_empty():
             return 0.0
         if "currency" not in df.columns:
             return float(df[value_col].sum())

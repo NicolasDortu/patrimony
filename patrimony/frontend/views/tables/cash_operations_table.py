@@ -4,6 +4,7 @@ from .common import header_cell, table_row, table_toolbar
 from .pagination import pagination_view
 from ...states.cash_operations_state import CashOperationsState
 from ...dialogs.cash_operation_dialog import open_add_operation_dialog
+from ...templates import t
 
 
 def _show_item(item: dict, index: int) -> rx.Component:
@@ -30,20 +31,24 @@ def cash_operations_table() -> rx.Component:
     return rx.box(
         table_toolbar(
             CashOperationsState,
-            ["title", "amount", "balance", "operation_date"],
+            [
+                (t("label.title"), "title"),
+                (t("label.amount"), "amount"),
+                (t("label.balance"), "balance"),
+                (t("label.date"), "operation_date"),
+            ],
             add_button=open_add_operation_dialog(CashOperationsState.add_operation),
-            default_sort_placeholder="Sort By: operation_date",
         ),
         rx.table.root(
             rx.table.header(
                 rx.table.row(
-                    header_cell("ID", "hash"),
-                    header_cell("Title", "text"),
-                    header_cell("Amount", "dollar-sign"),
-                    header_cell("Balance", "wallet"),
-                    header_cell("Category", "folder"),
-                    header_cell("Date", "calendar"),
-                    header_cell("Entry Type", "tag"),
+                    header_cell(t("label.id"), "hash"),
+                    header_cell(t("label.title"), "text"),
+                    header_cell(t("label.amount"), "dollar-sign"),
+                    header_cell(t("label.balance"), "wallet"),
+                    header_cell(t("label.category"), "folder"),
+                    header_cell(t("label.date"), "calendar"),
+                    header_cell(t("label.entry_type"), "tag"),
                 ),
             ),
             rx.table.body(

@@ -4,6 +4,7 @@ from .common import header_cell, table_row, table_toolbar
 from .pagination import pagination_view
 from ...states.cash_state import CashTableState
 from ...dialogs.cash_dialog import open_add_cash_dialog
+from ...templates import t
 
 
 def _show_item(item: dict, index: int) -> rx.Component:
@@ -30,17 +31,21 @@ def cash_table() -> rx.Component:
     return rx.box(
         table_toolbar(
             CashTableState,
-            ["bank", "account_number", "currency", "balance"],
+            [
+                (t("label.bank_name"), "bank"),
+                (t("label.account_number"), "account_number"),
+                (t("label.currency"), "currency"),
+                (t("label.balance"), "balance"),
+            ],
             add_button=open_add_cash_dialog(CashTableState.add_cash_entry),
-            default_sort_placeholder="Sort By: bank",
         ),
         rx.table.root(
             rx.table.header(
                 rx.table.row(
-                    header_cell("bank", "landmark"),
-                    header_cell("account_number", "hash"),
-                    header_cell("currency", "badge-euro"),
-                    header_cell("balance", "wallet"),
+                    header_cell(t("label.bank_name"), "landmark"),
+                    header_cell(t("label.account_number"), "hash"),
+                    header_cell(t("label.currency"), "badge-euro"),
+                    header_cell(t("label.balance"), "wallet"),
                     header_cell("", "eye"),
                 ),
             ),

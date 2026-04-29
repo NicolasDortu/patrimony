@@ -48,7 +48,9 @@ class PriceService:
             try:
                 price = self._market_data.get_current_price(ticker)
             except Exception as e:
-                logger.warning("Error fetching price for %s: %s", ticker, e)
+                logger.warning(
+                    "Error fetching price for %s: %s", ticker, e, exc_info=True
+                )
                 price = None
             if price and price > 0:
                 self._price_repo.cache_price(ticker, price, now)

@@ -76,25 +76,6 @@ class ConnectorHistoryRepositoryImpl(ConnectorHistoryRepository):
         ).fetchall()
         return [self._row_to_entry(row) for row in rows]
 
-    def get_latest_by_source(
-        self, connector_type: str, source_identifier: str
-    ) -> ConnectorHistoryEntry | None:
-        row = self._conn.execute(
-            """
-            SELECT id, connector_type, profile_id, source_name, source_path,
-                   import_mode, column_mapping, delimiter,
-                   asset_type_overrides,
-                   new_accounts,
-                   imported, skipped, errors, status, created_at
-            FROM connector_history
-            WHERE connector_type = ? AND (profile_id = ? OR source_path = ?)
-            ORDER BY created_at DESC
-            LIMIT 1
-            """,
-            [connector_type, source_identifier, source_identifier],
-        ).fetchone()
-        return self._row_to_entry(row) if row else None
-
     def delete(self, entry_id: int) -> None:
         self._conn.execute("DELETE FROM connector_history WHERE id = ?", [entry_id])
 

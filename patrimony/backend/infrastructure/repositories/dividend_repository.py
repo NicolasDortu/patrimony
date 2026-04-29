@@ -22,17 +22,15 @@ class DividendRepositoryImpl(DividendRepository):
         ticker: str,
         amount: float,
         date: datetime,
-    ) -> int:
+    ) -> None:
         """Add a new dividend to the database."""
-        result = self._conn.execute(
+        self._conn.execute(
             """
             INSERT INTO dividends (ticker, amount, date)
             VALUES (?, ?, ?)
-            RETURNING id
             """,
             [ticker, amount, date],
         )
-        return result.fetchone()[0]
 
     def get_by_ticker(self, ticker: str) -> pl.DataFrame:
         """Get all dividends for a specific ticker."""

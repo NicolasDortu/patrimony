@@ -2,7 +2,7 @@
 
 Split into two modules by concern:
 - asset_repositories: securities, cash, prices, currencies, dividends, properties
-- support_repositories: connectors, credentials, import tracking, event log
+- support_repositories: connectors, credentials, references, import tracking, event log
 """
 
 from .asset_repositories import (

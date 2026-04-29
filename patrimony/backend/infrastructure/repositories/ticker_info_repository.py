@@ -16,34 +16,27 @@ class TickerInfoRepositoryImpl(TickerInfoRepository):
     def __init__(self, connection: DatabaseConnection):
         self._conn = connection
 
-    def get_by_ticker(self, ticker: str) -> TickerInfo | None:
+    def get_by_ticker(self, tickers: list[str]) -> dict[str, TickerInfo]:
+        if not tickers:
+            return {}
+        upper = [t.upper() for t in tickers if t]
+        if not upper:
+            return {}
+        placeholders = ", ".join("?" for _ in upper)
         result = self._conn.execute(
-            "SELECT ticker, isin, name, asset_type, exchange, currency, source, last_updated "
-            "FROM ticker_info WHERE ticker = ?",
-            [ticker.upper()],
+            f"SELECT * FROM ticker_info WHERE ticker IN ({placeholders})",
+            upper,
         )
         df = result.pl()
         if df.is_empty():
-            return None
-        row = df.row(0, named=True)
-        return TickerInfo(**row)
-
-    def get_by_isin(self, isin: str) -> TickerInfo | None:
-        result = self._conn.execute(
-            "SELECT ticker, isin, name, asset_type, exchange, currency, source, last_updated "
-            "FROM ticker_info WHERE isin = ?",
-            [isin.upper()],
-        )
-        df = result.pl()
-        if df.is_empty():
-            return None
-        row = df.row(0, named=True)
-        return TickerInfo(**row)
+            return {}
+        return {
+            row["ticker"].upper(): TickerInfo(**row) for row in df.iter_rows(named=True)
+        }
 
     def get_by_name(self, name: str) -> TickerInfo | None:
         result = self._conn.execute(
-            "SELECT ticker, isin, name, asset_type, exchange, currency, source, last_updated "
-            "FROM ticker_info WHERE LOWER(name) = LOWER(?)",
+            "SELECT * FROM ticker_info WHERE LOWER(name) = LOWER(?)",
             [name.strip()],
         )
         df = result.pl()
@@ -52,14 +45,13 @@ class TickerInfoRepositoryImpl(TickerInfoRepository):
         row = df.row(0, named=True)
         return TickerInfo(**row)
 
-    def get_batch_by_isin(self, isins: list[str]) -> dict[str, TickerInfo]:
+    def get_by_isin(self, isins: list[str]) -> dict[str, TickerInfo]:
         if not isins:
             return {}
         upper = [i.upper() for i in isins]
         placeholders = ", ".join("?" for _ in upper)
         result = self._conn.execute(
-            f"SELECT ticker, isin, name, asset_type, exchange, currency, source, last_updated "
-            f"FROM ticker_info WHERE isin IN ({placeholders})",
+            f"SELECT * FROM ticker_info WHERE isin IN ({placeholders})",
             upper,
         )
         df = result.pl()

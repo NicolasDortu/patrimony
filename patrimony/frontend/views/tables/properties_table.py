@@ -4,6 +4,7 @@ from .common import header_cell, table_row, table_toolbar
 from .pagination import pagination_view
 from ...states.properties_state import PropertiesState
 from ...dialogs.property_dialog import open_add_property_dialog
+from ...templates import t
 
 
 def _show_item(item: dict, index: int) -> rx.Component:
@@ -22,19 +23,24 @@ def properties_table() -> rx.Component:
     return rx.box(
         table_toolbar(
             PropertiesState,
-            ["name", "value", "category", "currency", "purchase_date"],
+            [
+                (t("label.name"), "name"),
+                (t("label.value"), "value"),
+                (t("label.category"), "category"),
+                (t("label.currency"), "currency"),
+                (t("label.purchase_date"), "purchase_date"),
+            ],
             add_button=open_add_property_dialog(PropertiesState.add_property),
-            default_sort_placeholder="Sort By: name",
         ),
         rx.table.root(
             rx.table.header(
                 rx.table.row(
-                    header_cell("name", "tag"),
-                    header_cell("description", "text"),
-                    header_cell("value", "dollar-sign"),
-                    header_cell("category", "folder"),
-                    header_cell("currency", "coins"),
-                    header_cell("purchase_date", "calendar"),
+                    header_cell(t("label.name"), "tag"),
+                    header_cell(t("label.description"), "text"),
+                    header_cell(t("label.value"), "dollar-sign"),
+                    header_cell(t("label.category"), "folder"),
+                    header_cell(t("label.currency"), "coins"),
+                    header_cell(t("label.purchase_date"), "calendar"),
                 ),
             ),
             rx.table.body(

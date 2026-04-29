@@ -2,7 +2,6 @@
 
 import logging
 from datetime import datetime
-from typing import Optional
 
 from ..domain.repositories import DividendRepository, SecuritiesRepository
 from ..domain.services import DividendService
@@ -31,25 +30,24 @@ class DividendUseCases:
         self,
         ticker: str,
         amount: float,
-        date: Optional[datetime] = None,
-    ) -> dict:
-        """Add a new dividend. Returns {'id': int}."""
+        date: datetime | None = None,
+    ) -> None:
+        """Add a new dividend."""
         if date is None:
             date = datetime.now()
-        dividend_id = self._repo.add_dividend(
+        self._repo.add_dividend(
             ticker=ticker.strip().upper(),
             amount=amount,
             date=date,
         )
-        return {"id": dividend_id}
 
     def get_dividends_by_ticker(self, ticker: str) -> list[dict]:
         df = self._repo.get_by_ticker(ticker.strip().upper())
-        return df.to_dicts() if df is not None else []
+        return df.to_dicts()
 
     def get_all_dividends(self) -> list[dict]:
         df = self._repo.get_all()
-        return df.to_dicts() if df is not None else []
+        return df.to_dicts()
 
     def get_total_amount(self) -> float:
         return self._repo.get_total_amount()
@@ -62,7 +60,7 @@ class DividendUseCases:
         id: int,
         ticker: str,
         amount: float,
-        date: Optional[datetime] = None,
+        date: datetime | None = None,
     ) -> None:
         if date is None:
             date = datetime.now()
@@ -83,9 +81,7 @@ class DividendUseCases:
         """
         if tickers is None:
             df = self._securities_repo.get_aggregated_positions()
-            tickers = (
-                df["ticker"].to_list() if df is not None and not df.is_empty() else []
-            )
+            tickers = df["ticker"].to_list() if not df.is_empty() else []
         tickers = self._filter_recently_synced(tickers)
         if not tickers:
             return {"imported": 0, "skipped": 0, "errors": []}

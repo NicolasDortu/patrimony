@@ -130,9 +130,3 @@ class CredentialRepositoryImpl(CredentialRepository):
         with self._conn.transaction():
             self._conn.execute("DELETE FROM connector_credentials")
             self._conn.execute("DELETE FROM connector_master_key")
-
-    def list_stored_profiles(self) -> list[str]:
-        rows = self._conn.execute(
-            "SELECT DISTINCT profile_id FROM connector_credentials"
-        ).fetchall()
-        return [row[0] for row in rows]

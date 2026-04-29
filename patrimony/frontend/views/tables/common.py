@@ -1,7 +1,9 @@
 import reflex as rx
 
+from ...templates import t
 
-def header_cell(text: str, icon: str) -> rx.Component:
+
+def header_cell(text, icon: str) -> rx.Component:
     return rx.table.column_header_cell(
         rx.hstack(
             rx.icon(icon, size=18),
@@ -32,12 +34,12 @@ def table_row(*cells: rx.Component, index: int) -> rx.Component:
 
 def table_toolbar(
     state,
-    sort_fields: list[str],
+    sort_fields: list,
     *,
     add_button: rx.Component | None = None,
     extra_left: list[rx.Component] | None = None,
-    default_sort_placeholder: str = "Sort By",
-    search_placeholder: str = "Search here...",
+    default_sort_placeholder=None,
+    search_placeholder=None,
 ) -> rx.Component:
     """Reusable toolbar for data tables.
 
@@ -45,6 +47,11 @@ def table_toolbar(
     and a right section (sort toggle, sort select, search input).
     """
     from .spreadsheet_view import spreadsheet_toggle_button
+
+    if default_sort_placeholder is None:
+        default_sort_placeholder = t("label.sort_by")
+    if search_placeholder is None:
+        search_placeholder = t("label.search")
 
     left_items: list[rx.Component] = []
     if add_button is not None:
@@ -87,9 +94,16 @@ def table_toolbar(
                     on_click=state.toggle_sort,
                 ),
             ),
-            rx.select(
-                sort_fields,
-                placeholder=default_sort_placeholder,
+            rx.select.root(
+                rx.select.trigger(
+                    placeholder=default_sort_placeholder, variant="surface"
+                ),
+                rx.select.content(
+                    *[
+                        rx.select.item(label, value=value)
+                        for label, value in sort_fields
+                    ],
+                ),
                 size="3",
                 on_change=state.set_sort_value,
             ),

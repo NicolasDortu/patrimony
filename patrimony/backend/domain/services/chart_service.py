@@ -20,12 +20,10 @@ from ..repositories import (
 )
 from .cash_service import CashService
 from .currency_service import CurrencyService
-from .timeline import (
-    build_quantity_timeline,
-    get_quantity_at_date,
-    normalize_date,
-)
+from .date_utils import normalize_date
+from .property_service import PropertyService
 from .price_service import PriceService
+from .securities_service import SecuritiesService
 
 logger = logging.getLogger(__name__)
 
@@ -36,13 +34,17 @@ class ChartService:
     def __init__(
         self,
         securities_repo: SecuritiesRepository,
+        securities_service: SecuritiesService,
         cash_service: CashService,
+        property_service: PropertyService,
         price_repo: PriceRepository,
         currency_service: CurrencyService,
         price_sync: PriceService,
     ):
         self._securities_repo = securities_repo
+        self._securities_service = securities_service
         self._cash_service = cash_service
+        self._property_service = property_service
         self._price_repo = price_repo
         self._currency_service = currency_service
         self._price_sync = price_sync
@@ -54,8 +56,6 @@ class ChartService:
         period: str,
         user_currency: str,
         securities: dict[str, dict],
-        current_cash: float,
-        properties_value: float,
     ) -> list[dict]:
         """Build time-series chart data for the entire portfolio.
 
@@ -66,7 +66,8 @@ class ChartService:
         tickers = list(securities.keys())
 
         cash_timeline = self._cash_service.get_balance_timeline(user_currency)
-        quantity_timeline = build_quantity_timeline(self._securities_repo)
+        property_timeline = self._property_service.get_value_timeline(user_currency)
+        quantity_timeline = self._securities_service.build_quantity_timeline()
 
         if securities:
             rates = self._currency_service.get_rates_for_tickers(tickers, user_currency)
@@ -77,7 +78,9 @@ class ChartService:
         else:
             rates, ticker_data, all_dates = {}, {}, []
 
-        all_dates = self._fill_date_gaps(all_dates, cash_timeline, config)
+        all_dates = self._fill_date_gaps(
+            all_dates, cash_timeline, property_timeline, config
+        )
         if not is_intraday and tickers:
             all_dates = self._price_sync.inject_today_prices(
                 ticker_data, tickers, all_dates
@@ -91,11 +94,10 @@ class ChartService:
             ticker_data=ticker_data,
             all_dates=all_dates,
             cash_timeline=cash_timeline,
-            current_cash=current_cash,
+            property_timeline=property_timeline,
             date_fmt=config["format"],
             rates=rates,
             quantity_timeline=quantity_timeline,
-            properties_value=properties_value,
         )
 
     def get_ticker_chart_data(
@@ -112,7 +114,7 @@ class ChartService:
         is_intraday = period == "1D"
 
         df = self._securities_repo.get_aggregated_positions(ticker)
-        if df is None or df.is_empty():
+        if df.is_empty():
             return []
 
         quantity = df["total_quantity"][0]
@@ -212,20 +214,67 @@ class ChartService:
     # == Date helpers ========================================================
 
     @staticmethod
-    def _fill_date_gaps(all_dates: list, cash_timeline: dict, config: dict) -> list:
-        """Ensure date list covers cash-only portfolios."""
-        if not all_dates and cash_timeline:
-            start_date = (datetime.now() - timedelta(days=config["days"])).date()
-            all_dates = sorted(
-                {
-                    normalize_date(d)
-                    for d in cash_timeline
-                    if normalize_date(d) >= start_date
-                }
-            )
-        return all_dates
+    def _fill_date_gaps(
+        all_dates: list,
+        cash_timeline: dict,
+        property_timeline: dict,
+        config: dict,
+    ) -> list:
+        """Ensure date list covers cash- or property-only portfolios."""
+        if all_dates:
+            return all_dates
+        if not cash_timeline and not property_timeline:
+            return []
+        start_date = (datetime.now() - timedelta(days=config["days"])).date()
+        candidate_dates = list(cash_timeline.keys()) + list(property_timeline.keys())
+        return sorted(
+            {
+                normalize_date(d)
+                for d in candidate_dates
+                if normalize_date(d) >= start_date
+            }
+        )
 
     # == Portfolio chart row assembly ========================================
+
+    @staticmethod
+    def _sorted_timeline(
+        timeline: dict,
+    ) -> tuple[list, list[float]]:
+        """Return (sorted_dates, parallel_values) for bisect lookup."""
+        if not timeline:
+            return [], []
+        items = sorted(
+            ((normalize_date(d), v) for d, v in timeline.items()),
+            key=lambda x: x[0],
+        )
+        return [d for d, _ in items], [v for _, v in items]
+
+    @staticmethod
+    def _value_at_date(sorted_dates: list, sorted_values: list[float], dt) -> float:
+        """Step-function lookup: most recent value with date <= dt; 0 if none yet."""
+        if not sorted_dates:
+            return 0.0
+        idx = bisect.bisect_right(sorted_dates, normalize_date(dt)) - 1
+        return sorted_values[idx] if idx >= 0 else 0.0
+
+    @staticmethod
+    def _asset_values_at_date(
+        securities: dict[str, dict],
+        ticker_data: dict[str, dict],
+        rates: dict[str, float],
+        quantity_timeline: dict[str, list[tuple]],
+        dt,
+    ) -> dict[str, float]:
+        asset_values = {v: 0.0 for v in ASSET_TYPE_LABELS.values()}
+        for ticker, info in securities.items():
+            price = ticker_data.get(ticker, {}).get(dt)
+            if price is None or math.isnan(price) or price <= 0:
+                continue
+            qty = SecuritiesService.get_quantity_at_date(quantity_timeline, ticker, dt)
+            label = ASSET_TYPE_LABELS.get(info.get("asset_type", "STOCK"), "Stocks")
+            asset_values[label] += qty * price * rates.get(ticker, 1.0)
+        return asset_values
 
     @staticmethod
     def _build_portfolio_rows(
@@ -233,48 +282,28 @@ class ChartService:
         ticker_data: dict[str, dict],
         all_dates: list,
         cash_timeline: dict,
-        current_cash: float,
+        property_timeline: dict,
         date_fmt: str,
         rates: dict[str, float],
         quantity_timeline: dict[str, list[tuple]],
-        properties_value: float = 0.0,
     ) -> list[dict]:
-        # Pre-sort cash timeline for bisect lookup
-        if cash_timeline:
-            sorted_items = sorted(
-                ((normalize_date(d), v) for d, v in cash_timeline.items()),
-                key=lambda x: x[0],
-            )
-            cash_dates = [item[0] for item in sorted_items]
-            cash_values = [item[1] for item in sorted_items]
-        else:
-            cash_dates, cash_values = [], []
+        cash_dates, cash_values = ChartService._sorted_timeline(cash_timeline)
+        prop_dates, prop_values = ChartService._sorted_timeline(property_timeline)
 
         rows = []
         for dt in all_dates:
-            asset_values = {v: 0.0 for v in ASSET_TYPE_LABELS.values()}
-            for ticker, info in securities.items():
-                price = ticker_data.get(ticker, {}).get(dt)
-                if price is None or math.isnan(price) or price <= 0:
-                    price = 0
-                rate = rates.get(ticker, 1.0)
-                qty = get_quantity_at_date(quantity_timeline, ticker, dt)
-                label = ASSET_TYPE_LABELS.get(info.get("asset_type", "STOCK"), "Stocks")
-                asset_values[label] += qty * price * rate
-
-            if cash_dates:
-                idx = bisect.bisect_right(cash_dates, normalize_date(dt)) - 1
-                cash = cash_values[idx] if idx >= 0 else cash_values[0]
-            else:
-                cash = current_cash
-
+            asset_values = ChartService._asset_values_at_date(
+                securities, ticker_data, rates, quantity_timeline, dt
+            )
+            cash = ChartService._value_at_date(cash_dates, cash_values, dt)
+            properties = ChartService._value_at_date(prop_dates, prop_values, dt)
             securities_total = sum(asset_values.values())
             date_str = dt.strftime(date_fmt) if hasattr(dt, "strftime") else str(dt)
 
             row = {"Date": date_str}
             row.update({k: round(v, 2) for k, v in asset_values.items()})
-            row["Properties"] = round(properties_value, 2)
+            row["Properties"] = round(properties, 2)
             row["Cash"] = round(cash, 2)
-            row["Total"] = round(securities_total + cash + properties_value, 2)
+            row["Total"] = round(securities_total + cash + properties, 2)
             rows.append(row)
         return rows

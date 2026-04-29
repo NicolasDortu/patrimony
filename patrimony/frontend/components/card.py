@@ -1,6 +1,7 @@
 import reflex as rx
 
 from ..styles import styles
+from ..templates import t
 
 
 def card(*children, **props) -> rx.Component:
@@ -81,7 +82,7 @@ def stats_card(
                     align="center",
                 ),
                 rx.text(
-                    "total return",
+                    t("label.total_return"),
                     size="2",
                     color=rx.color("gray", 10),
                 ),

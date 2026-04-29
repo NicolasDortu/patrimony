@@ -16,7 +16,12 @@ logger = logging.getLogger(__name__)
 class DatabaseError(Exception):
     """Raised when a database operation fails."""
 
-    def __init__(self, message: str, query: str = None, original: Exception = None):
+    def __init__(
+        self,
+        message: str,
+        query: str | None = None,
+        original: Exception | None = None,
+    ):
         self.query = query
         self.original = original
         super().__init__(message)
@@ -25,7 +30,7 @@ class DatabaseError(Exception):
 class DatabaseConnection:
     """Duckdb instantiation and connection management."""
 
-    def __init__(self, db_path: Path = None) -> None:
+    def __init__(self, db_path: Path | None = None) -> None:
         self.db_path = db_path if db_path else _get_db_path()
         self.conn = duckdb.connect(str(self.db_path))
         self.init_db()
@@ -58,7 +63,7 @@ class DatabaseConnection:
         logger.info("Loaded %d securities into reference table", len(df))
 
     def execute(
-        self, query: str, parameters: list[Any] = None
+        self, query: str, parameters: list[Any] | None = None
     ) -> duckdb.DuckDBPyConnection:
         """Execute a query and return the result.
 
@@ -116,6 +121,18 @@ class DatabaseConnection:
             self.execute("ROLLBACK")
             logger.error("Transaction failed: %s", e)
             raise DatabaseError(message=f"Transaction failed: {e}", original=e) from e
+
+    @contextmanager
+    def register_df(self, name: str, df: pl.DataFrame):
+        """Register a Polars DataFrame as a DuckDB virtual table for the duration of the block.
+
+        Always unregisters on exit (even on exception) to avoid leaking the alias.
+        """
+        self.conn.register(name, df)
+        try:
+            yield
+        finally:
+            self.conn.unregister(name)
 
     @property
     def connection(self) -> duckdb.DuckDBPyConnection:

@@ -1,7 +1,5 @@
 """State management for cash operations (deposits/expenses per account)."""
 
-from datetime import datetime
-
 import reflex as rx
 
 from ..services import CashService, EntryType
@@ -10,11 +8,19 @@ from .aggregation_helpers import (
     aggregate_expenses_by_category,
     aggregate_monthly_income_expense,
 )
-from .mixins import PaginationMixin, SearchSortMixin, apply_sort_and_search
+from .mixins import (
+    AddDialogMixin,
+    PaginationMixin,
+    SearchSortMixin,
+    apply_sort_and_search,
+)
+from .spreadsheet_helpers import cell_float, cell_iso_datetime, cell_str, fmt_date_cell
 from .spreadsheet_mixin import SpreadsheetMixin
 
 
-class CashOperationsState(SpreadsheetMixin, SearchSortMixin, PaginationMixin, rx.State):
+class CashOperationsState(
+    SpreadsheetMixin, SearchSortMixin, PaginationMixin, AddDialogMixin, rx.State
+):
     """State for cash operations table (per-account view)."""
 
     items: list[dict] = []
@@ -100,6 +106,7 @@ class CashOperationsState(SpreadsheetMixin, SearchSortMixin, PaginationMixin, rx
 
         if result.success:
             self.load_entries()
+            self.add_dialog_open = False
             return rx.toast.success(result.message, position="top-center")
         else:
             return rx.toast.error(result.message, position="top-center")
@@ -142,11 +149,11 @@ class CashOperationsState(SpreadsheetMixin, SearchSortMixin, PaginationMixin, rx
     @rx.var
     def spreadsheet_columns(self) -> list[dict]:
         return [
-            {"title": "Title", "type": "str"},
-            {"title": "Amount", "type": "float"},
-            {"title": "Date", "type": "str"},
-            {"title": "Category", "type": "str"},
-            {"title": "Balance", "type": "float", "editable": False},
+            {"title": "Title", "type": "str", "grow": 1},
+            {"title": "Amount", "type": "float", "grow": 1},
+            {"title": "Date", "type": "str", "grow": 1},
+            {"title": "Category", "type": "str", "grow": 1},
+            {"title": "Balance", "type": "float", "editable": False, "grow": 1},
         ]
 
     def _load_spreadsheet_rows(self) -> tuple[list[list], list]:
@@ -155,7 +162,7 @@ class CashOperationsState(SpreadsheetMixin, SearchSortMixin, PaginationMixin, rx
             [
                 op.get("title", ""),
                 op.get("amount", 0.0),
-                str(op.get("operation_date", ""))[:10],
+                fmt_date_cell(op.get("operation_date", "")),
                 op.get("category", "Uncategorized"),
                 op.get("balance", 0.0),
             ]
@@ -165,13 +172,10 @@ class CashOperationsState(SpreadsheetMixin, SearchSortMixin, PaginationMixin, rx
         return data, ids
 
     def _save_spreadsheet_row(self, row, index, rid, is_new):
-        title = str(row[0]).strip() or "Operation"
-        amount = float(row[1]) if row[1] != "" else 0.0
-        date_str = str(row[2]).strip()
-        category = str(row[3]).strip() or "Uncategorized"
-        operation_date = (
-            datetime.fromisoformat(date_str) if date_str else datetime.now()
-        )
+        title = cell_str(row[0], default="Operation")
+        amount = cell_float(row[1])
+        category = cell_str(row[3], default="Uncategorized")
+        operation_date = cell_iso_datetime(row[2])
         if is_new:
             if amount == 0.0 and title == "Operation":
                 return "skip"

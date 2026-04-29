@@ -60,15 +60,50 @@ class WebConnectorService:
             if on_status:
                 on_status(msg)
 
-        # 1. Resolve site connector
+        site = self._resolve_site(site_id)
+        _log(f"Loaded profile: {site.profile.name}")
+
+        df = self._fetch_data(site, credentials, _log, on_user_input, headless)
+        # Re-read profile after fetch — connectors may update dynamic
+        # properties (e.g. Revolut discovers accounts during scraping).
+        profile = site.profile
+
+        # Rename columns to positional names so column_mapping is language-independent.
+        df = df.rename({old: f"col_{i}" for i, old in enumerate(df.columns)})
+
+        try:
+            _log("Importing data...")
+            if profile.needs_matching:
+                _log("Positions require name-to-ticker matching.")
+                return WebConnectorResult(
+                    success=True,
+                    needs_matching=True,
+                    unmatched_positions=self._build_unmatched_list(df, profile),
+                    status_log=status_log,
+                )
+            return self._import_data(df, profile, _log, status_log)
+        except Exception as e:
+            _log(f"Import failed: {e}")
+            return WebConnectorResult(
+                success=False,
+                errors=[f"Import failed: {e}"],
+                status_log=status_log,
+            )
+
+    def _resolve_site(self, site_id: str) -> SiteConnector:
         site = self._sites.get(site_id)
         if not site:
             raise ConnectorNotFoundError(site_id)
+        return site
 
-        profile = site.profile
-        _log(f"Loaded profile: {profile.name}")
-
-        # 2. Fetch data from the external source
+    def _fetch_data(
+        self,
+        site: SiteConnector,
+        credentials: dict[str, str],
+        _log: Callable[[str], None],
+        on_user_input: Callable[[str, str], str] | None,
+        headless: bool,
+    ) -> pl.DataFrame:
         try:
             _log("Fetching data...")
             df = site.fetch_data(
@@ -78,120 +113,83 @@ class WebConnectorService:
                 headless=headless,
             )
             _log(f"Fetched {len(df)} rows")
+            return df
         except Exception as e:
             _log(f"Data fetch failed: {e}")
-            raise DataFetchError(site_id, cause=e) from e
+            raise DataFetchError(site.profile.site_id, cause=e) from e
 
-        # Re-read profile after fetch — connectors may update dynamic
-        # properties (e.g. Revolut discovers accounts during scraping).
-        profile = site.profile
+    def _build_unmatched_list(
+        self, df: pl.DataFrame, profile: ConnectorProfile
+    ) -> list[dict]:
+        """Resolve names from the file to (ticker, currency) suggestions."""
+        cols_by_target = {tgt: src for src, tgt in profile.column_mapping.items()}
+        name_col = cols_by_target.get("name")
+        currency_col = cols_by_target.get("currency")
+        qty_col = cols_by_target.get("quantity", "")
+        price_col = cols_by_target.get("price", "")
+        ref_repo = self._connector_service._reference_repo
 
-        # 3. Import using existing pipeline with auto-applied column mapping
-        try:
-            _log("Importing data...")
-            entry_type = EntryType.WEB
+        unmatched: list[dict] = []
+        if not name_col or name_col not in df.columns:
+            return unmatched
 
-            # Rename columns to positional names (col_0, col_1, ...)
-            # so the profile's column_mapping is language-independent
-            positional_names = {old: f"col_{i}" for i, old in enumerate(df.columns)}
-            df = df.rename(positional_names)
-
-            # If the profile requires matching (name→ticker), return data
-            # to the frontend for user-assisted mapping instead of importing.
-            if profile.needs_matching:
-                _log("Positions require name-to-ticker matching.")
-                name_col = None
-                currency_col = None
-                for src, tgt in profile.column_mapping.items():
-                    if tgt == "name":
-                        name_col = src
-                    elif tgt == "currency":
-                        currency_col = src
-
-                qty_col = next(
-                    (k for k, v in profile.column_mapping.items() if v == "quantity"),
-                    "",
-                )
-                price_col = next(
-                    (k for k, v in profile.column_mapping.items() if v == "price"),
-                    "",
-                )
-
-                ref_repo = self._connector_service._reference_repo
-
-                unmatched: list[dict] = []
-                if name_col and name_col in df.columns:
-                    for row in df.iter_rows(named=True):
-                        pos_name = str(row.get(name_col, "")).strip()
-                        if not pos_name:
-                            continue
-
-                        # Try pre-filling from ticker_info by name
-                        existing = self._connector_service.find_ticker_by_name(pos_name)
-
-                        ticker = existing.ticker if existing else ""
-                        currency = existing.currency if existing else ""
-
-                        # Fall back to reference table fuzzy search
-                        if not ticker and ref_repo:
-                            matches = ref_repo.search(pos_name, limit=1)
-                            if matches:
-                                ticker = matches[0]["ticker"]
-
-                        # Use scraped currency column if available
-                        if not currency and currency_col:
-                            currency = str(row.get(currency_col, "")).strip()
-
-                        unmatched.append(
-                            {
-                                "name": pos_name,
-                                "ticker": ticker,
-                                "currency": currency,
-                                "quantity": row.get(qty_col, ""),
-                                "value": row.get(price_col, ""),
-                            }
-                        )
-
-                return WebConnectorResult(
-                    success=True,
-                    needs_matching=True,
-                    unmatched_positions=unmatched,
-                    status_log=status_log,
-                )
-
-            if profile.import_mode == "cash":
-                result = self._connector_service.import_cash_operations(
-                    df=df,
-                    column_mapping=profile.column_mapping,
-                    entry_type=entry_type,
-                    new_accounts=profile.new_accounts,
-                    source=profile.name,
-                )
-            else:
-                result = self._import_positions(df, profile, entry_type, _log)
-
-            if result.success:
-                _log(
-                    f"Import complete: {result.imported} imported, "
-                    f"{result.skipped} skipped"
-                )
-            else:
-                _log(f"Import failed: {'; '.join(result.errors)}")
-
-            return WebConnectorResult(
-                success=result.success,
-                imported=result.imported,
-                skipped=result.skipped,
-                errors=result.errors,
-                status_log=status_log,
+        for row in df.iter_rows(named=True):
+            pos_name = str(row.get(name_col, "")).strip()
+            if not pos_name:
+                continue
+            existing = self._connector_service.find_ticker_by_name(pos_name)
+            ticker = existing.ticker if existing else ""
+            currency = existing.currency if existing else ""
+            if not ticker and ref_repo:
+                matches = ref_repo.search(pos_name, limit=1)
+                if matches:
+                    ticker = matches[0]["ticker"]
+            if not currency and currency_col:
+                currency = str(row.get(currency_col, "")).strip()
+            unmatched.append(
+                {
+                    "name": pos_name,
+                    "ticker": ticker,
+                    "currency": currency,
+                    "quantity": row.get(qty_col, ""),
+                    "value": row.get(price_col, ""),
+                }
             )
-        except Exception as e:
-            _log(f"Import failed: {e}")
-            return WebConnectorResult(
-                success=False,
-                errors=[f"Import failed: {e}"],
-                status_log=status_log,
+        return unmatched
+
+    def _import_data(
+        self,
+        df: pl.DataFrame,
+        profile: ConnectorProfile,
+        _log: Callable[[str], None],
+        status_log: list[str],
+    ) -> WebConnectorResult:
+        entry_type = EntryType.WEB
+        if profile.import_mode == "cash":
+            result = self._connector_service.import_cash_operations(
+                df=df,
+                column_mapping=profile.column_mapping,
+                entry_type=entry_type,
+                new_accounts=profile.new_accounts,
             )
+        else:
+            result = self._import_positions(df, profile, entry_type, _log)
+
+        if result.success:
+            _log(
+                f"Import complete: {result.imported} imported, "
+                f"{result.skipped} skipped"
+            )
+        else:
+            _log(f"Import failed: {'; '.join(result.errors)}")
+
+        return WebConnectorResult(
+            success=result.success,
+            imported=result.imported,
+            skipped=result.skipped,
+            errors=result.errors,
+            status_log=status_log,
+        )
 
     def _import_positions(
         self,
@@ -237,7 +235,7 @@ class WebConnectorService:
                     )
 
         # Detect and handle cash rows before position import
-        cash_rows, df = self._connector_service.detect_cash_rows(
+        cash_rows, df = self._connector_service.split_cash_and_positions(
             df, profile.column_mapping
         )
         if cash_rows:
@@ -250,7 +248,6 @@ class WebConnectorService:
             df=df,
             column_mapping=profile.column_mapping,
             entry_type=entry_type,
-            source=profile.name,
         )
 
     def import_matched_positions(
@@ -322,7 +319,6 @@ class WebConnectorService:
             df=df,
             column_mapping=column_mapping,
             entry_type=EntryType.WEB,
-            source="WEB_MATCH",
         )
 
         return WebConnectorResult(

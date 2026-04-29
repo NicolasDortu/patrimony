@@ -24,7 +24,16 @@ def _header() -> rx.Component:
             variant="surface",
             color_scheme="grass",
         ),
+        rx.spacer(),
+        rx.button(
+            rx.icon("arrow-left", size=18),
+            t("securities.back"),
+            size="2",
+            variant="soft",
+            on_click=rx.redirect("/securities"),
+        ),
         align="center",
+        spacing="3",
         width="100%",
     )
 
@@ -41,22 +50,8 @@ def _positions_tab() -> rx.Component:
 
 def _dividends_tab() -> rx.Component:
     """Dividends tab content."""
-    return rx.hstack(
-        rx.vstack(
-            spreadsheet_or_table(DividendsState, dividends_table()),
-            spacing="4",
-            flex="1",
-        ),
-        rx.text(
-            t("label.total"),
-            ": ",
-            ThemeState.currency_symbol,
-            f"{DividendsState.total_dividends:.2f}",
-            size="3",
-            weight="bold",
-            white_space="nowrap",
-        ),
-        align="start",
+    return rx.vstack(
+        spreadsheet_or_table(DividendsState, dividends_table()),
         spacing="4",
         width="100%",
         padding_top="1rem",

@@ -3,8 +3,6 @@ import logging
 
 import reflex as rx
 
-from datetime import datetime
-
 from ..services import (
     DividendService,
     SecuritiesService,
@@ -17,6 +15,8 @@ from ..templates import ThemeState
 from ..utils import export_csv
 from .dividends_state import DividendsState
 from .mixins import PaginationMixin, SearchSortMixin, apply_sort_and_search
+from .securities_total_state import TableStateTotal
+from .spreadsheet_helpers import cell_date, cell_float, fmt_date_cell
 from .spreadsheet_mixin import SpreadsheetMixin
 
 logger = logging.getLogger(__name__)
@@ -104,7 +104,7 @@ class TableStateDetails(SpreadsheetMixin, SearchSortMixin, PaginationMixin, rx.S
         self.load_entries()
 
     @rx.event
-    def add_stock(self, form_data: dict) -> None:
+    async def add_stock(self, form_data: dict) -> None:
         """Add a new stock position from form data."""
         result = SecuritiesService.add_position(
             ticker=form_data.get("ticker", "").upper(),
@@ -117,6 +117,8 @@ class TableStateDetails(SpreadsheetMixin, SearchSortMixin, PaginationMixin, rx.S
 
         if result.success:
             self.load_entries()
+            total_state = await self.get_state(TableStateTotal)
+            total_state.add_dialog_open = False
             return rx.toast.success(result.message, position="top-center")
         else:
             return rx.toast.error(result.message, position="top-center")
@@ -167,10 +169,10 @@ class TableStateDetails(SpreadsheetMixin, SearchSortMixin, PaginationMixin, rx.S
     @rx.var
     def spreadsheet_columns(self) -> list[dict]:
         return [
-            {"title": "Price", "type": "float"},
-            {"title": "Quantity", "type": "float"},
-            {"title": "Fees", "type": "float"},
-            {"title": "Date", "type": "str"},
+            {"title": "Price", "type": "float", "grow": 1},
+            {"title": "Quantity", "type": "float", "grow": 1},
+            {"title": "Fees", "type": "float", "grow": 1},
+            {"title": "Date", "type": "str", "grow": 1},
         ]
 
     def _load_spreadsheet_rows(self) -> tuple[list[list], list]:
@@ -180,7 +182,7 @@ class TableStateDetails(SpreadsheetMixin, SearchSortMixin, PaginationMixin, rx.S
                 p.get("price", 0.0),
                 p.get("quantity", 1.0),
                 p.get("fees", 0.0),
-                str(p.get("date", ""))[:10],
+                fmt_date_cell(p.get("date", "")),
             ]
             for p in positions
         ]
@@ -188,11 +190,10 @@ class TableStateDetails(SpreadsheetMixin, SearchSortMixin, PaginationMixin, rx.S
         return data, ids
 
     def _save_spreadsheet_row(self, row, index, rid, is_new):
-        price = float(row[0]) if row[0] != "" else 0.0
-        quantity = float(row[1]) if row[1] != "" else 1.0
-        fees = float(row[2]) if row[2] != "" else 0.0
-        date_str = str(row[3]).strip()
-        date = datetime.strptime(date_str, "%Y-%m-%d") if date_str else datetime.now()
+        price = cell_float(row[0])
+        quantity = cell_float(row[1], default=1.0)
+        fees = cell_float(row[2])
+        date = cell_date(row[3])
         if is_new:
             if price == 0.0 and quantity == 0.0:
                 return "skip"

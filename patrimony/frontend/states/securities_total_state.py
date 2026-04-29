@@ -2,8 +2,6 @@ from typing import Union
 
 import reflex as rx
 
-from datetime import datetime
-
 from ..services import (
     SecuritiesService,
     SecuritiesReferenceService,
@@ -14,11 +12,19 @@ from ..services import (
 )
 from ..templates import ThemeState
 from ..utils import export_csv, parse_form_date
-from .mixins import PaginationMixin, SearchSortMixin, apply_sort_and_search
+from .mixins import (
+    AddDialogMixin,
+    PaginationMixin,
+    SearchSortMixin,
+    apply_sort_and_search,
+)
+from .spreadsheet_helpers import cell_date, cell_float, cell_str, fmt_date_cell
 from .spreadsheet_mixin import SpreadsheetMixin
 
 
-class TableStateTotal(SpreadsheetMixin, SearchSortMixin, PaginationMixin, rx.State):
+class TableStateTotal(
+    SpreadsheetMixin, SearchSortMixin, PaginationMixin, AddDialogMixin, rx.State
+):
     """The state class."""
 
     items: list[SecurityTotal] = []
@@ -50,8 +56,16 @@ class TableStateTotal(SpreadsheetMixin, SearchSortMixin, PaginationMixin, rx.Sta
         return filters
 
     @rx.var
-    def asset_type_allocation(self) -> list[dict]:
+    async def asset_type_allocation(self) -> list[dict]:
         """Group positions by asset type for pie chart with colors from settings."""
+        theme = await self.get_state(ThemeState)
+        tr = theme.translations
+        labels = {
+            "STOCK": tr.get("asset_type.stocks", "Stocks"),
+            "ETF": tr.get("asset_type.etfs", "ETFs"),
+            "CRYPTO": tr.get("asset_type.crypto", "Crypto"),
+            "COMMODITY": tr.get("asset_type.commodity", "Commodity"),
+        }
         groups: dict[str, float] = {}
         for item in self.items:
             at = item.asset_type or "STOCK"
@@ -59,7 +73,7 @@ class TableStateTotal(SpreadsheetMixin, SearchSortMixin, PaginationMixin, rx.Sta
             groups[at] = groups.get(at, 0.0) + val
         return [
             {
-                "name": k,
+                "name": labels.get(k, k),
                 "value": round(v, 2),
                 "fill": self._asset_colors.get(k, "var(--gray-9)"),
             }
@@ -171,7 +185,12 @@ class TableStateTotal(SpreadsheetMixin, SearchSortMixin, PaginationMixin, rx.Sta
         self.selected_asset_type = value
 
     @rx.event
-    def clear_ticker_search(self) -> None:
+    def set_add_dialog_open(self, value: bool) -> None:
+        self.add_dialog_open = value
+        if not value:
+            self._reset_ticker_search()
+
+    def _reset_ticker_search(self) -> None:
         self.ticker_search = ""
         self._ticker_suggestions = []
         self.show_suggestions = False
@@ -200,13 +219,11 @@ class TableStateTotal(SpreadsheetMixin, SearchSortMixin, PaginationMixin, rx.Sta
             else 0.0,
         )
 
-        self.ticker_search = ""
-        self._ticker_suggestions = []
-        self.show_suggestions = False
-        self.selected_asset_type = "STOCK"
+        self._reset_ticker_search()
 
         if result.success:
             await self.load_entries()
+            self.add_dialog_open = False
             return rx.toast.success(result.message, position="top-center")
         else:
             return rx.toast.error(result.message, position="top-center")
@@ -254,13 +271,15 @@ class TableStateTotal(SpreadsheetMixin, SearchSortMixin, PaginationMixin, rx.Sta
         # Ticker is the canonical key for a position and changing it would
         # orphan its price/dividend cache, so make it read-only here. Use the
         # Add Position dialog (with autocomplete) to create new rows.
+        # ``grow`` lets Glide stretch every column to fill the wrapper width
+        # (which itself is 100% of the page, matching the regular table).
         return [
-            {"title": "Ticker", "type": "str", "editable": False},
-            {"title": "Price", "type": "float"},
-            {"title": "Quantity", "type": "float"},
-            {"title": "Fees", "type": "float"},
-            {"title": "Asset Type", "type": "str"},
-            {"title": "Date", "type": "str"},
+            {"title": "Ticker", "type": "str", "editable": False, "grow": 1},
+            {"title": "Price", "type": "float", "grow": 1},
+            {"title": "Quantity", "type": "float", "grow": 1},
+            {"title": "Fees", "type": "float", "grow": 1},
+            {"title": "Asset Type", "type": "str", "grow": 1},
+            {"title": "Date", "type": "str", "grow": 1},
         ]
 
     @rx.event
@@ -331,7 +350,7 @@ class TableStateTotal(SpreadsheetMixin, SearchSortMixin, PaginationMixin, rx.Sta
                 p.get("quantity", 1.0),
                 p.get("fees", 0.0),
                 p.get("asset_type", "STOCK"),
-                str(p.get("date", ""))[:10],
+                fmt_date_cell(p.get("date", "")),
             ]
             for p in positions
         ]
@@ -339,15 +358,14 @@ class TableStateTotal(SpreadsheetMixin, SearchSortMixin, PaginationMixin, rx.Sta
         return data, ids
 
     def _save_spreadsheet_row(self, row, index, rid, is_new):
-        ticker = str(row[0]).strip().upper()
+        ticker = cell_str(row[0], upper=True)
         if is_new and not ticker:
             return "skip"
-        price = float(row[1]) if row[1] != "" else 0.0
-        quantity = float(row[2]) if row[2] != "" else 1.0
-        fees = float(row[3]) if row[3] != "" else 0.0
-        asset_type_str = str(row[4]).strip().upper() or "STOCK"
-        date_str = str(row[5]).strip()
-        date = datetime.strptime(date_str, "%Y-%m-%d") if date_str else datetime.now()
+        price = cell_float(row[1])
+        quantity = cell_float(row[2], default=1.0)
+        fees = cell_float(row[3])
+        asset_type_str = cell_str(row[4], default="STOCK", upper=True)
+        date = cell_date(row[5])
         if is_new:
             SecuritiesService.add_position(
                 ticker=ticker,

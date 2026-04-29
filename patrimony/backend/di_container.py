@@ -138,10 +138,18 @@ class Container(containers.DeclarativeContainer):
         market_data=market_data_provider,
     )
 
+    securities_service = providers.Singleton(
+        SecuritiesService,
+        securities_repo=securities_repository,
+        currency_service=currency_service,
+        price_sync=price_sync_service,
+    )
+
     dividend_sync_service = providers.Singleton(
         DividendService,
         dividend_repo=dividend_repository,
         securities_repo=securities_repository,
+        securities_service=securities_service,
         market_data=market_data_provider,
         currency_service=currency_service,
     )
@@ -161,15 +169,10 @@ class Container(containers.DeclarativeContainer):
     chart_service = providers.Singleton(
         ChartService,
         securities_repo=securities_repository,
+        securities_service=securities_service,
         cash_service=cash_service,
+        property_service=property_service,
         price_repo=price_repository,
-        currency_service=currency_service,
-        price_sync=price_sync_service,
-    )
-
-    securities_service = providers.Singleton(
-        SecuritiesService,
-        securities_repo=securities_repository,
         currency_service=currency_service,
         price_sync=price_sync_service,
     )
@@ -183,17 +186,18 @@ class Container(containers.DeclarativeContainer):
         dividend_service=dividend_sync_service,
     )
 
-    connector_service = providers.Factory(
+    connector_service = providers.Singleton(
         FileConnectorService,
         securities_repo=securities_repository,
         cash_repo=cash_repository,
         reference_repo=reference_repository,
         hash_repo=import_hash_repository,
+        unit_of_work=database,
         info_repo=ticker_info_repository,
         market_data_provider=market_data_provider,
     )
 
-    web_connector_service = providers.Factory(
+    web_connector_service = providers.Singleton(
         WebConnectorService,
         site_connectors=site_connectors,
         connector_service=connector_service,

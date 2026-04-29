@@ -61,4 +61,5 @@ def securities() -> rx.Component:
         ),
         spacing="5",
         width="100%",
+        on_unmount=TableStateTotal.set_chart_view(False),
     )

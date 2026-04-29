@@ -25,12 +25,11 @@ class PropertyRepositoryImpl(PropertyRepository):
         category: str = "Other",
         currency: str = DEFAULT_CURRENCY,
         entry_type: EntryType = EntryType.MANUAL,
-    ) -> int:
-        result = self._conn.execute(
+    ) -> None:
+        self._conn.execute(
             """
             INSERT INTO properties (name, description, value, purchase_date, category, currency, entry_type)
             VALUES (?, ?, ?, ?, ?, ?, ?)
-            RETURNING id
             """,
             [
                 name,
@@ -42,7 +41,6 @@ class PropertyRepositoryImpl(PropertyRepository):
                 entry_type.value,
             ],
         )
-        return result.fetchone()[0]
 
     def update_property(
         self,

@@ -102,3 +102,17 @@ class SearchSortMixin(rx.State, mixin=True):
     @rx.event
     def toggle_chart_view(self) -> None:
         self.chart_view = not self.chart_view
+
+    @rx.event
+    def set_chart_view(self, value: bool) -> None:
+        self.chart_view = value
+
+
+class AddDialogMixin(rx.State, mixin=True):
+    """Mixin providing controlled open state for an "add entity" dialog."""
+
+    add_dialog_open: bool = False
+
+    @rx.event
+    def set_add_dialog_open(self, value: bool) -> None:
+        self.add_dialog_open = value

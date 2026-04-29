@@ -1,7 +1,6 @@
 """Use cases for cash operations."""
 
 from datetime import datetime
-from typing import Optional
 
 from ..domain.entities import Currency, EntryType
 from ..domain.repositories import CashRepository
@@ -19,12 +18,12 @@ class CashUseCases:
         account_number: str,
         currency: Currency,
         balance: float,
-        last_updated: Optional[datetime] = None,
-    ) -> dict:
-        """Add a new cash account with optional initial balance. Returns {'id': str}."""
+        last_updated: datetime | None = None,
+    ) -> None:
+        """Add a new cash account with optional initial balance."""
         if last_updated is None:
             last_updated = datetime.now()
-        cash_id = self._repo.add_cash(
+        self._repo.add_cash(
             bank=bank,
             account_number=account_number,
             currency=currency,
@@ -38,14 +37,13 @@ class CashUseCases:
                 operation_date=last_updated,
                 entry_type=EntryType.MANUAL,
             )
-        return {"id": cash_id}
 
     def update_cash(
         self,
         bank: str,
         account_number: str,
         currency: Currency,
-        last_updated: Optional[datetime] = None,
+        last_updated: datetime | None = None,
     ) -> None:
         if last_updated is None:
             last_updated = datetime.now()
@@ -64,7 +62,7 @@ class CashUseCases:
 
     def get_all_cash(self) -> list[dict]:
         df = self._repo.get_all()
-        return df.to_dicts() if df is not None else []
+        return df.to_dicts()
 
     def add_operation_balance(
         self,
@@ -74,9 +72,9 @@ class CashUseCases:
         operation_date: datetime,
         entry_type: EntryType = EntryType.MANUAL,
         category: str = "Uncategorized",
-    ) -> dict:
-        """Record a cash operation. Returns {'id': int}."""
-        op_id = self._repo.add_operation_balance(
+    ) -> None:
+        """Record a cash operation."""
+        self._repo.add_operation_balance(
             account_number=account_number,
             amount=amount,
             title=title,
@@ -84,15 +82,14 @@ class CashUseCases:
             entry_type=entry_type,
             category=category,
         )
-        return {"id": op_id}
 
     def get_operations_by_account(self, account_number: str) -> list[dict]:
         df = self._repo.get_operations_by_account(account_number)
-        return df.to_dicts() if df is not None else []
+        return df.to_dicts()
 
     def get_all_operations(self) -> list[dict]:
         df = self._repo.get_all_operations()
-        return df.to_dicts() if df is not None else []
+        return df.to_dicts()
 
     def update_operation_by_id(
         self,

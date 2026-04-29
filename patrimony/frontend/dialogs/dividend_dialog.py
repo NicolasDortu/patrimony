@@ -1,6 +1,7 @@
 import reflex as rx
 
 from ..components.dialog_factory import DialogField, build_add_dialog
+from ..states.dividends_state import DividendsState
 
 
 _DIVIDEND_FIELDS = [
@@ -24,4 +25,6 @@ def open_add_dividend_dialog(on_submit: callable) -> rx.Component:
         submit_key="dialog.add_dividend.submit",
         fields=_DIVIDEND_FIELDS,
         on_submit=on_submit,
+        open_var=DividendsState.add_dialog_open,
+        set_open=DividendsState.set_add_dialog_open,
     )

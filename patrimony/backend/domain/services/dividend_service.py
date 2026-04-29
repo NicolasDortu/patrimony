@@ -6,7 +6,6 @@ based on position quantities, and stores new dividends in the repository.
 
 import logging
 from datetime import datetime
-from typing import Optional
 
 from ..exceptions import (
     CurrencyConversionError,
@@ -16,11 +15,8 @@ from ..exceptions import (
 from ..interfaces import MarketDataProvider
 from ..repositories import DividendRepository, SecuritiesRepository
 from .currency_service import CurrencyService
-from .timeline import (
-    build_quantity_timeline,
-    get_quantity_at_date,
-    normalize_date,
-)
+from .date_utils import normalize_date
+from .securities_service import SecuritiesService
 
 logger = logging.getLogger(__name__)
 
@@ -32,11 +28,13 @@ class DividendService:
         self,
         dividend_repo: DividendRepository,
         securities_repo: SecuritiesRepository,
+        securities_service: SecuritiesService,
         market_data: MarketDataProvider,
-        currency_service: Optional[CurrencyService] = None,
+        currency_service: CurrencyService | None = None,
     ):
         self._dividend_repo = dividend_repo
         self._securities_repo = securities_repo
+        self._securities_service = securities_service
         self._market_data = market_data
         self._currency_service = currency_service
 
@@ -71,7 +69,7 @@ class DividendService:
         if not tickers:
             return {"imported": 0, "skipped": 0, "errors": []}
 
-        quantity_timeline = build_quantity_timeline(self._securities_repo)
+        quantity_timeline = self._securities_service.build_quantity_timeline()
         imported = 0
         skipped = 0
         errors: list[str] = []
@@ -94,6 +92,8 @@ class DividendService:
     ) -> dict:
         """Sync dividends for a single ticker."""
         earliest = self._securities_repo.get_earliest_purchase_date(ticker)
+        if earliest is None:
+            return {"imported": 0, "skipped": 0}
 
         div_df = self._market_data.get_dividend_history(
             ticker, start_date=earliest, end_date=datetime.now()
@@ -103,7 +103,7 @@ class DividendService:
 
         existing_df = self._dividend_repo.get_by_ticker(ticker)
         existing_dates: set = set()
-        if existing_df is not None and not existing_df.is_empty():
+        if not existing_df.is_empty():
             existing_dates = {normalize_date(d) for d in existing_df["date"].to_list()}
 
         imported = 0
@@ -116,7 +116,9 @@ class DividendService:
                 skipped += 1
                 continue
 
-            qty = get_quantity_at_date(quantity_timeline, ticker, div_date)
+            qty = SecuritiesService.get_quantity_at_date(
+                quantity_timeline, ticker, div_date
+            )
             if qty <= 0:
                 skipped += 1
                 continue

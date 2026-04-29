@@ -2,6 +2,7 @@ import reflex as rx
 
 from ..components.dialog_factory import DialogField, build_add_dialog
 from ..services import Currency
+from ..states.cash_state import CashTableState
 
 
 _CASH_FIELDS = [
@@ -36,4 +37,6 @@ def open_add_cash_dialog(on_submit: callable) -> rx.Component:
         submit_key="dialog.add_cash.submit",
         fields=_CASH_FIELDS,
         on_submit=on_submit,
+        open_var=CashTableState.add_dialog_open,
+        set_open=CashTableState.set_add_dialog_open,
     )

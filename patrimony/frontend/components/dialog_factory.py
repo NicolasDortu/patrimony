@@ -88,6 +88,8 @@ def build_add_dialog(
     submit_key: str,
     fields: list[DialogField],
     on_submit: callable,
+    open_var: rx.Var[bool],
+    set_open: callable,
 ) -> rx.Component:
     """Build a standard add-entity dialog with trigger button, form, and action buttons.
 
@@ -97,6 +99,8 @@ def build_add_dialog(
         submit_key: Translation key for the submit button label.
         fields: Ordered list of ``DialogField`` descriptors.
         on_submit: Event handler receiving ``form_data`` dict on submit.
+        open_var: Reactive boolean controlling dialog visibility.
+        set_open: Event handler ``set_open(bool)`` toggling ``open_var``.
     """
     return rx.dialog.root(
         rx.dialog.trigger(
@@ -114,17 +118,14 @@ def build_add_dialog(
                 rx.flex(
                     *[_build_field(f) for f in fields],
                     rx.flex(
-                        rx.dialog.close(
-                            rx.button(
-                                t("btn.cancel"),
-                                type="button",
-                                variant="soft",
-                                color_scheme="gray",
-                            ),
+                        rx.button(
+                            t("btn.cancel"),
+                            type="button",
+                            variant="soft",
+                            color_scheme="gray",
+                            on_click=set_open(False),
                         ),
-                        rx.dialog.close(
-                            rx.button(t(submit_key), type="submit"),
-                        ),
+                        rx.button(t(submit_key), type="submit"),
                         spacing="3",
                         justify="end",
                     ),
@@ -136,4 +137,6 @@ def build_add_dialog(
             ),
             max_width="450px",
         ),
+        open=open_var,
+        on_open_change=set_open,
     )

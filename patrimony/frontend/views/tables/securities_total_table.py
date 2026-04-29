@@ -5,7 +5,7 @@ from .pagination import pagination_view
 from ...states.securities_total_state import TableStateTotal
 from ...services import SecurityTotal
 from ...dialogs import open_add_position_dialog
-from ...templates import ThemeState
+from ...templates import ThemeState, t
 
 
 def _show_item(item: SecurityTotal, index: int) -> rx.Component:
@@ -46,17 +46,21 @@ def main_table() -> rx.Component:
     return rx.box(
         table_toolbar(
             TableStateTotal,
-            ["ticker", "total_quantity", "current_price", "total_value"],
+            [
+                (t("label.company"), "ticker"),
+                (t("label.quantity"), "total_quantity"),
+                (t("label.current_price"), "current_price"),
+                (t("label.total_value"), "total_value"),
+            ],
             add_button=open_add_position_dialog(TableStateTotal.add_stock),
-            default_sort_placeholder="Sort By: ticker",
         ),
         rx.table.root(
             rx.table.header(
                 rx.table.row(
-                    header_cell("Company", "building"),
-                    header_cell("Quantity", "notebook-pen"),
-                    header_cell("Current Price", "dollar-sign"),
-                    header_cell("Total Value", "wallet"),
+                    header_cell(t("label.company"), "building"),
+                    header_cell(t("label.quantity"), "notebook-pen"),
+                    header_cell(t("label.current_price"), "dollar-sign"),
+                    header_cell(t("label.total_value"), "wallet"),
                     header_cell("", "chart_no_axes_combined"),
                 ),
             ),

@@ -110,6 +110,15 @@
   "btn.table_view": "Table View",
 
   "label.bank_name": "Bank Name",
+  "label.id": "ID",
+  "label.entry_type": "Entry Type",
+  "label.company": "Company",
+  "label.current_price": "Current Price",
+  "label.total_value": "Total Value",
+  "label.total_return": "total return",
+  "label.income": "Income",
+  "label.expense": "Expense",
+  "label.ticker_placeholder": "AAPL or Apple",
   "label.account_number": "Account Number",
   "label.currency": "Currency",
   "label.balance": "Balance",
@@ -158,6 +167,7 @@
 
   "cash_ops.title_prefix": "Operations for account",
   "cash_ops.back": "Back to Cash",
+  "securities.back": "Back to Securities",
 
   "page.about.title": "About Patrimony",
   "page.about.intro": "Patrimony is a free, open-source portfolio tracker that helps you monitor your investments and cash holdings in one place. It runs entirely on your machine — your financial data never leaves your computer.",

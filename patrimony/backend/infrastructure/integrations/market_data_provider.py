@@ -11,7 +11,6 @@ from datetime import datetime
 
 import polars as pl
 import yfinance as yf
-from typing import Optional
 
 from ...domain.interfaces import MarketDataProvider
 from ...domain.entities import TickerInfo
@@ -56,6 +55,9 @@ class YahooFinanceProvider(MarketDataProvider):
         """Convert a yfinance pandas history DataFrame into a polars DataFrame.
 
         Returns a DataFrame with columns: date, close_price.
+
+        Raises:
+            ValueError: When the expected date / close columns are missing.
         """
         data = data.reset_index()
         if "Datetime" in data.columns:
@@ -63,12 +65,20 @@ class YahooFinanceProvider(MarketDataProvider):
         elif "Date" in data.columns:
             date_col = "Date"
         else:
-            date_col = data.columns[0]
+            raise ValueError(
+                "yfinance history is missing a 'Date'/'Datetime' column; "
+                f"got columns={list(data.columns)!r}"
+            )
+        if "Close" not in data.columns:
+            raise ValueError(
+                "yfinance history is missing the 'Close' column; "
+                f"got columns={list(data.columns)!r}"
+            )
 
         data = data.rename(columns={date_col: "date", "Close": "close_price"})
         return pl.from_pandas(data[["date", "close_price"]])
 
-    def get_current_price(self, ticker: str) -> Optional[float]:
+    def get_current_price(self, ticker: str) -> float | None:
         """Fetch current price from Yahoo Finance."""
         try:
             self._throttle()
@@ -146,7 +156,7 @@ class YahooFinanceProvider(MarketDataProvider):
             logger.warning("Error fetching dividends for %s: %s", ticker, e)
         return _EMPTY_DIVIDENDS.clone()
 
-    def get_ticker_currency(self, ticker: str) -> Optional[str]:
+    def get_ticker_currency(self, ticker: str) -> str | None:
         """Fetch the native trading currency of a ticker from Yahoo Finance."""
         try:
             self._throttle()
@@ -157,9 +167,7 @@ class YahooFinanceProvider(MarketDataProvider):
             logger.warning("Error fetching currency for %s: %s", ticker, e)
             return None
 
-    def get_exchange_rate(
-        self, from_currency: str, to_currency: str
-    ) -> Optional[float]:
+    def get_exchange_rate(self, from_currency: str, to_currency: str) -> float | None:
         """Fetch exchange rate using yfinance's {FROM}{TO}=X ticker format."""
         rate_ticker = f"{from_currency.upper()}{to_currency.upper()}=X"
         return self.get_current_price(rate_ticker)

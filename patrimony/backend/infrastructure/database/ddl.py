@@ -161,7 +161,6 @@ CREATE_TICKER_INFO_TABLE = """
         asset_type VARCHAR,
         exchange VARCHAR,
         currency VARCHAR,
-        quote_type VARCHAR,
         source VARCHAR DEFAULT 'yfinance',
         last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
@@ -333,12 +332,24 @@ BUILD_INDEXES = """
 REBUILD_INDEXES = """
     DROP INDEX IF EXISTS idx_positions_ticker;
     CREATE INDEX idx_positions_ticker ON positions (ticker);
+
     DROP INDEX IF EXISTS idx_positions_closed_ticker;
     CREATE INDEX idx_positions_closed_ticker ON positions_closed (ticker);
+
     DROP INDEX IF EXISTS idx_dividends_ticker;
     CREATE INDEX idx_dividends_ticker ON dividends (ticker);
+
+    DROP INDEX IF EXISTS idx_dividends_ticker_date;
+    CREATE INDEX idx_dividends_ticker_date ON dividends (ticker, date);
+
     DROP INDEX IF EXISTS idx_balance_ops_accountnumber;
     CREATE INDEX idx_balance_ops_accountnumber ON balance_operations (account_number);
+
+    DROP INDEX IF EXISTS idx_balance_ops_account_date;
+    CREATE INDEX idx_balance_ops_account_date ON balance_operations (account_number, operation_date);
+
+    DROP INDEX IF EXISTS idx_price_history_ticker_date;
+    CREATE INDEX idx_price_history_ticker_date ON price_history (ticker, date);
 """
 
 # =============================================================================

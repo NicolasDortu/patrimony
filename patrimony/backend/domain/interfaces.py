@@ -6,11 +6,19 @@ from external sources (market data APIs, exchange rate services, etc.).
 
 from abc import ABC, abstractmethod
 from collections.abc import Callable
+from contextlib import AbstractContextManager
 from datetime import datetime
+from typing import Protocol
 
 import polars as pl
 
 from .entities import ConnectorProfile, TickerInfo
+
+
+class UnitOfWork(Protocol):
+    """Provides transactional scope for grouping repository writes."""
+
+    def transaction(self) -> AbstractContextManager[None]: ...
 
 
 class PriceProvider(ABC):
@@ -106,7 +114,11 @@ class FileConnector(ABC):
 
     @abstractmethod
     def read_file(
-        self, file_bytes: bytes, filename: str, delimiter: str = ","
+        self,
+        file_bytes: bytes,
+        filename: str,
+        delimiter: str = ",",
+        encoding: str = "utf8",
     ) -> pl.DataFrame:
         """Parse an uploaded file into a raw DataFrame.
 
@@ -114,6 +126,7 @@ class FileConnector(ABC):
             file_bytes: Raw bytes of the uploaded file.
             filename: Original filename (used to detect format).
             delimiter: CSV delimiter character (ignored for Excel).
+            encoding: Text encoding for CSV files (ignored for Excel).
 
         Returns:
             A polars DataFrame with the raw file contents.

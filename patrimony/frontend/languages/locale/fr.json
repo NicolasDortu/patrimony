@@ -106,6 +106,15 @@
   "btn.table_view": "Vue tableau",
 
   "label.bank_name": "Nom de la banque",
+  "label.id": "ID",
+  "label.entry_type": "Type d'entrée",
+  "label.company": "Entreprise",
+  "label.current_price": "Prix actuel",
+  "label.total_value": "Valeur totale",
+  "label.total_return": "rendement total",
+  "label.income": "Revenus",
+  "label.expense": "Dépenses",
+  "label.ticker_placeholder": "AAPL ou Apple",
   "label.account_number": "Numéro de compte",
   "label.currency": "Devise",
   "label.balance": "Solde",
@@ -154,6 +163,7 @@
 
   "cash_ops.title_prefix": "Opérations du compte",
   "cash_ops.back": "Retour aux liquidités",
+  "securities.back": "Retour aux titres",
 
   "page.about.title": "À propos de Patrimony",
   "page.about.intro": "Patrimony est un gestionnaire de portefeuille gratuit et open source qui vous aide à suivre vos investissements et liquidités en un seul endroit. Il fonctionne entièrement sur votre machine — vos données financières ne quittent jamais votre ordinateur.",

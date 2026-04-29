@@ -60,10 +60,7 @@ class TradeRepublicConnector(PlaywrightSiteConnector):
         on_status: Callable[[str], None] | None,
         on_user_input: Callable[[str, str], str] | None = None,
     ) -> pl.DataFrame:
-        def _log(msg: str) -> None:
-            logger.info(msg)
-            if on_status:
-                on_status(msg)
+        _log = self.make_logger(on_status)
 
         country = credentials.get("$country$", "Belgium")
         phone = credentials.get("$phone$", "")

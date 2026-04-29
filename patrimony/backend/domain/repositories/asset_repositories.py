@@ -6,7 +6,6 @@ dividends, and physical properties.
 
 from abc import ABC, abstractmethod
 from datetime import datetime
-from typing import Optional
 
 import polars as pl
 
@@ -19,17 +18,17 @@ class BaseRepository(ABC):
     """Base asset repository interface methods."""
 
     @abstractmethod
-    def get_all(self) -> Optional[pl.DataFrame]:
+    def get_all(self) -> pl.DataFrame:
         """Get all entities."""
         pass
 
     @abstractmethod
-    def get_by_id(self, id: int) -> Optional[pl.DataFrame]:
+    def get_by_id(self, id: int | str) -> pl.DataFrame:
         """Retrieve entity by ID."""
         pass
 
     @abstractmethod
-    def delete(self, id: int) -> None:
+    def delete(self, id: int | str) -> None:
         """Delete entity by ID."""
         pass
 
@@ -70,20 +69,21 @@ class SecuritiesRepository(BaseRepository, ABC):
         pass
 
     @abstractmethod
-    def get_by_ticker(self, ticker: str) -> Optional[pl.DataFrame]:
+    def get_by_ticker(self, ticker: str) -> pl.DataFrame:
         """Get all positions for a specific ticker."""
         pass
 
     @abstractmethod
-    def get_aggregated_positions(
-        self, ticker: str | None = None
-    ) -> Optional[pl.DataFrame]:
+    def get_aggregated_positions(self, ticker: str | None = None) -> pl.DataFrame:
         """Get aggregated positions, optionally filtered by a single ticker."""
         pass
 
     @abstractmethod
     def get_earliest_purchase_date(self, ticker: str | None = None) -> datetime | None:
-        """Return the earliest purchase date, optionally filtered by ticker."""
+        """Return the earliest purchase date, optionally filtered by ticker.
+
+        This is useful for determining how far back to fetch historical price data.
+        """
         pass
 
 
@@ -99,17 +99,17 @@ class CashOperationRepository(ABC):
         operation_date: datetime,
         entry_type: EntryType = EntryType.MANUAL,
         category: str = "Uncategorized",
-    ) -> int:
-        """Record a cash operation on the balance and return the operation ID."""
+    ) -> None:
+        """Record a cash operation on the balance."""
         pass
 
     @abstractmethod
-    def get_operations_by_account(self, account_number: str) -> Optional[pl.DataFrame]:
+    def get_operations_by_account(self, account_number: str) -> pl.DataFrame:
         """Get all balance operations for a specific account."""
         pass
 
     @abstractmethod
-    def get_all_operations(self) -> Optional[pl.DataFrame]:
+    def get_all_operations(self) -> pl.DataFrame:
         """Get all balance operations."""
         pass
 
@@ -121,7 +121,7 @@ class CashOperationRepository(ABC):
         title: str,
         operation_date: datetime,
         entry_type: EntryType,
-        category: str = "Uncategorized",
+        category: str,
     ) -> None:
         """Update a balance operation by ID."""
         pass
@@ -132,7 +132,7 @@ class CashOperationRepository(ABC):
         pass
 
     @abstractmethod
-    def get_cash_balance_history(self) -> Optional[pl.DataFrame]:
+    def get_cash_balance_history(self) -> pl.DataFrame:
         """Get cash balance history over time for all accounts by summing the operations."""
         pass
 
@@ -140,8 +140,7 @@ class CashOperationRepository(ABC):
     def recalculate_balances(self, account_number: str) -> None:
         """Recalculate ranks and running balances for all operations of an account.
 
-        Orders operations by operation_date ASC, id ASC, then assigns
-        sequential ranks and recomputes the cumulative balance.
+        This is useful after modifying or deleting past operations, to ensure subsequent balances are correct.
         """
         pass
 
@@ -157,8 +156,8 @@ class CashRepository(BaseRepository, CashOperationRepository, ABC):
         currency: Currency,
         last_updated: datetime,
         entry_type: EntryType = EntryType.MANUAL,
-    ) -> str:
-        """Add a new cash account and return its account number."""
+    ) -> None:
+        """Add a new cash account."""
         pass
 
     @abstractmethod
@@ -210,7 +209,7 @@ class PriceRepository(ABC):
     @abstractmethod
     def get_stored_date_range(
         self, ticker: str, period: str = "1d"
-    ) -> tuple[Optional[datetime], Optional[datetime]]:
+    ) -> tuple[datetime | None, datetime | None]:
         """Return (min_date, max_date) of stored price history for a ticker."""
         pass
 
@@ -233,7 +232,7 @@ class PriceRepository(ABC):
 
     @abstractmethod
     def store_intraday_prices(self, ticker: str, df: pl.DataFrame) -> None:
-        """Replace stored intraday prices for a ticker with fresh data."""
+        """Insert or replace stored intraday prices for a ticker with fresh data."""
         pass
 
     @abstractmethod
@@ -242,7 +241,7 @@ class PriceRepository(ABC):
         pass
 
     @abstractmethod
-    def get_intraday_last_updated(self, ticker: str) -> Optional[datetime]:
+    def get_intraday_last_updated(self, ticker: str) -> datetime | None:
         """Return the most recent last_updated timestamp for a ticker's intraday data."""
         pass
 
@@ -286,8 +285,8 @@ class DividendRepository(BaseRepository, ABC):
         ticker: str,
         amount: float,
         date: datetime,
-    ) -> int:
-        """Add a new dividend and return its id."""
+    ) -> None:
+        """Add a new dividend."""
         pass
 
     @abstractmethod
@@ -302,7 +301,7 @@ class DividendRepository(BaseRepository, ABC):
         pass
 
     @abstractmethod
-    def get_by_ticker(self, ticker: str) -> Optional[pl.DataFrame]:
+    def get_by_ticker(self, ticker: str) -> pl.DataFrame:
         """Get all dividends for a specific ticker."""
         pass
 
@@ -334,8 +333,8 @@ class PropertyRepository(BaseRepository, ABC):
         category: str = "Other",
         currency: str = DEFAULT_CURRENCY,
         entry_type: EntryType = EntryType.MANUAL,
-    ) -> int:
-        """Add a new property and return its id."""
+    ) -> None:
+        """Add a new property."""
         pass
 
     @abstractmethod

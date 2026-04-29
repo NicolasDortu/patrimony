@@ -2,6 +2,7 @@ import reflex as rx
 
 from ..components.dialog_factory import DialogField, build_add_dialog
 from ..services import Currency
+from ..states.properties_state import PropertiesState
 
 
 _PROPERTY_FIELDS = [
@@ -40,4 +41,6 @@ def open_add_property_dialog(on_submit: callable) -> rx.Component:
         submit_key="dialog.add_property.submit",
         fields=_PROPERTY_FIELDS,
         on_submit=on_submit,
+        open_var=PropertiesState.add_dialog_open,
+        set_open=PropertiesState.set_add_dialog_open,
     )

@@ -106,6 +106,13 @@ def spreadsheet_grid(state_cls) -> rx.Component:
     Edits live in state until the user hits Save:
       - new rows: "Add row" toolbar button
       - deletes: tick row markers, then press the Delete key
+
+    Sizing notes:
+      * ``min_width=0`` + ``overflow=hidden`` on the wrapper stops Glide's
+        canvas from pushing the parent flex container wider than the page
+        (which would push toolbar buttons off-screen).
+      * Fixed height roughly matches a paginated table so toggling doesn't
+        cause a visible layout jump.
     """
     return rx.box(
         rx.data_editor(
@@ -123,9 +130,17 @@ def spreadsheet_grid(state_cls) -> rx.Component:
             width="100%",
             height="100%",
         ),
+        # The ``spreadsheet-wrapper`` class is targeted by assets/styles.css
+        # to (a) force Glide's internal scrollers to width:100%, (b) push
+        # ``min-width: 0`` up to every ancestor via the ``:has()`` selector
+        # so the canvas can never make the page wider than the viewport,
+        # and (c) mask the unavoidable measure-then-grow reflow with a
+        # short fade-in so the user never sees columns expanding.
+        class_name="spreadsheet-wrapper",
         width="100%",
-        height="75vh",
-        min_height="500px",
+        min_width="0",
+        overflow="hidden",
+        height="540px",
     )
 
 
@@ -155,4 +170,8 @@ def spreadsheet_or_table(state_cls, table_component: rx.Component) -> rx.Compone
         ),
         spacing="3",
         width="100%",
+        # Without min_width=0 a flex child defaults to its intrinsic content
+        # width — Glide's canvas would then push this vstack (and the page
+        # header above it) wider than the viewport, causing horizontal scroll.
+        min_width="0",
     )

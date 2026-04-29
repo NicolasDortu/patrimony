@@ -11,13 +11,21 @@ from .aggregation_helpers import (
     aggregate_expenses_by_category,
     aggregate_monthly_income_expense,
 )
-from .mixins import PaginationMixin, SearchSortMixin, apply_sort_and_search
+from .mixins import (
+    AddDialogMixin,
+    PaginationMixin,
+    SearchSortMixin,
+    apply_sort_and_search,
+)
+from .spreadsheet_helpers import cell_currency, cell_str
 from .spreadsheet_mixin import SpreadsheetMixin
 
 logger = logging.getLogger(__name__)
 
 
-class CashTableState(SpreadsheetMixin, SearchSortMixin, PaginationMixin, rx.State):
+class CashTableState(
+    SpreadsheetMixin, SearchSortMixin, PaginationMixin, AddDialogMixin, rx.State
+):
     """State for the cash table."""
 
     items: list[dict] = []
@@ -77,6 +85,7 @@ class CashTableState(SpreadsheetMixin, SearchSortMixin, PaginationMixin, rx.Stat
 
         if result.success:
             self.load_entries()
+            self.add_dialog_open = False
             return rx.toast.success(result.message, position="top-center")
         else:
             return rx.toast.error(result.message, position="top-center")
@@ -147,10 +156,10 @@ class CashTableState(SpreadsheetMixin, SearchSortMixin, PaginationMixin, rx.Stat
     @rx.var
     def spreadsheet_columns(self) -> list[dict]:
         return [
-            {"title": "Bank", "type": "str"},
-            {"title": "Account Number", "type": "str"},
-            {"title": "Currency", "type": "str"},
-            {"title": "Balance", "type": "float", "editable": False},
+            {"title": "Bank", "type": "str", "grow": 1},
+            {"title": "Account Number", "type": "str", "grow": 1},
+            {"title": "Currency", "type": "str", "grow": 1},
+            {"title": "Balance", "type": "float", "editable": False, "grow": 1},
         ]
 
     def _load_spreadsheet_rows(self) -> tuple[list[list], list]:
@@ -168,15 +177,11 @@ class CashTableState(SpreadsheetMixin, SearchSortMixin, PaginationMixin, rx.Stat
         return data, ids
 
     def _save_spreadsheet_row(self, row, index, rid, is_new):
-        bank = str(row[0]).strip()
-        account_number = str(row[1]).strip()
-        currency_str = str(row[2]).strip().upper() or "EUR"
+        bank = cell_str(row[0])
+        account_number = cell_str(row[1])
         if not account_number:
             return "skip"
-        try:
-            currency = Currency[currency_str]
-        except KeyError:
-            currency = Currency.EUR
+        currency = cell_currency(row[2])
         if is_new:
             CashService.add_cash(
                 bank=bank,

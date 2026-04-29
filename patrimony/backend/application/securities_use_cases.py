@@ -2,7 +2,6 @@
 
 import logging
 from datetime import datetime
-from typing import Optional
 
 from ..domain.constants import DEFAULT_CURRENCY, DEFAULT_PERIOD
 from ..domain.entities import AssetType, EntryType
@@ -49,13 +48,15 @@ class SecuritiesUseCases:
         if not ticker:
             return
         try:
-            if self._info_repo.get_by_ticker(ticker):
+            if self._info_repo.get_by_ticker([ticker]):
                 return
             info = self._market_data.resolve_ticker_info(ticker)
             if info:
                 self._info_repo.upsert(info)
         except Exception as e:
-            logger.warning("Could not enrich ticker info for %s: %s", ticker, e)
+            logger.warning(
+                "Could not enrich ticker info for %s: %s", ticker, e, exc_info=True
+            )
 
     def add_position(
         self,
@@ -64,7 +65,7 @@ class SecuritiesUseCases:
         quantity: float,
         entry_type: EntryType,
         asset_type: AssetType,
-        date: Optional[datetime] = None,
+        date: datetime | None = None,
         fees: float = 0.0,
     ) -> dict:
         """Add a new position. Returns {'id': int}."""
@@ -92,7 +93,7 @@ class SecuritiesUseCases:
         quantity: float,
         entry_type: EntryType,
         asset_type: AssetType,
-        date: Optional[datetime] = None,
+        date: datetime | None = None,
         fees: float = 0.0,
     ) -> None:
         if date is None:
@@ -115,16 +116,12 @@ class SecuritiesUseCases:
 
     def get_all_positions(self) -> list[dict]:
         df = self._repo.get_all()
-        if df is None:
-            return []
         if "currency" in df.columns:
             df = df.drop("currency")
         return df.to_dicts()
 
     def get_positions_by_ticker(self, ticker: str) -> list[dict]:
-        df = self._repo.get_by_ticker(ticker)
-        if df is None:
-            return []
+        df = self._repo.get_by_ticker(ticker.strip().upper())
         if "currency" in df.columns:
             df = df.drop("currency")
         return df.to_dicts()
@@ -133,24 +130,34 @@ class SecuritiesUseCases:
         self, user_currency: str = DEFAULT_CURRENCY
     ) -> list[dict]:
         df = self._service.get_aggregated_positions(user_currency)
-        rows = df.to_dicts() if df is not None else []
-        # Backfill ticker metadata for rows missing a name (one yfinance
-        # call per ticker, cached forever after). Patch the result so
-        # the user sees the name without waiting for the next reload.
+        rows = df.to_dicts()
+
+        # Backfill ticker metadata for rows missing a name. One batch DB
+        # read covers existing entries; only truly unknown tickers hit
+        # the market-data API (one call each, cached forever after).
+        missing_name_rows = [r for r in rows if not r.get("name")]
+        if not missing_name_rows:
+            return rows
+
+        tickers = [r.get("ticker", "") for r in missing_name_rows]
+        existing = self._info_repo.get_by_ticker(tickers)
+        for ticker in tickers:
+            if ticker and ticker.upper() not in existing:
+                self._enrich_ticker(ticker)
+        # Re-read after enrichment so newly-inserted rows are included.
+        existing = self._info_repo.get_by_ticker(tickers)
+
         enriched_any = False
-        for row in rows:
-            if row.get("name"):
+        for row in missing_name_rows:
+            info = existing.get(row.get("ticker", "").upper())
+            if not info:
                 continue
-            ticker = row.get("ticker", "")
-            self._enrich_ticker(ticker)
-            info = self._info_repo.get_by_ticker(ticker) if ticker else None
-            if info:
-                row["name"] = info.name or ""
-                if not row.get("isin"):
-                    row["isin"] = info.isin or ""
-                if not row.get("display_ticker"):
-                    row["display_ticker"] = info.ticker or ticker
-                enriched_any = True
+            row["name"] = info.name or ""
+            if not row.get("isin"):
+                row["isin"] = info.isin or ""
+            if not row.get("display_ticker"):
+                row["display_ticker"] = info.ticker or row.get("ticker", "")
+            enriched_any = True
         if enriched_any:
             logger.info(
                 "Ticker info backfilled for %d position(s)",

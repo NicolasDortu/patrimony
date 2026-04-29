@@ -46,4 +46,5 @@ def properties() -> rx.Component:
         ),
         spacing="5",
         width="100%",
+        on_unmount=PropertiesState.set_chart_view(False),
     )

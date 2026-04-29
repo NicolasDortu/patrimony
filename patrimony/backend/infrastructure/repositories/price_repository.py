@@ -75,8 +75,7 @@ class PriceRepositoryImpl(PriceRepository):
                 pl.lit(ticker).alias("ticker"),
                 pl.lit(period).alias("period"),
             )
-            self._conn.connection.register("insert_df", insert_df)
-            try:
+            with self._conn.register_df("insert_df", insert_df):
                 with self._conn.transaction():
                     self._conn.execute(
                         "INSERT OR IGNORE INTO price_history "
@@ -84,8 +83,6 @@ class PriceRepositoryImpl(PriceRepository):
                         "SELECT ticker, date, close_price, period, CURRENT_TIMESTAMP "
                         "FROM insert_df",
                     )
-            finally:
-                self._conn.connection.unregister("insert_df")
         except Exception as e:
             logger.warning("Error bulk-storing price history for %s: %s", ticker, e)
 
@@ -177,8 +174,7 @@ class PriceRepositoryImpl(PriceRepository):
             insert_df = df.select(["date", "close_price"]).with_columns(
                 pl.lit(upper).alias("ticker"),
             )
-            self._conn.connection.register("intraday_insert_df", insert_df)
-            try:
+            with self._conn.register_df("intraday_insert_df", insert_df):
                 with self._conn.transaction():
                     self._conn.execute(
                         "DELETE FROM intraday_prices WHERE ticker = ?", [upper]
@@ -189,8 +185,6 @@ class PriceRepositoryImpl(PriceRepository):
                         "SELECT ticker, date, close_price, CURRENT_TIMESTAMP "
                         "FROM intraday_insert_df",
                     )
-            finally:
-                self._conn.connection.unregister("intraday_insert_df")
         except Exception as e:
             logger.warning("Error storing intraday prices for %s: %s", upper, e)
 

@@ -44,7 +44,7 @@ def resolve_ticker_aliases(
     if info_repo:
         isin_candidates = [v for v in upper_values if ISIN_RE.match(v)]
         if isin_candidates:
-            cached = info_repo.get_batch_by_isin(isin_candidates)
+            cached = info_repo.get_by_isin(isin_candidates)
 
     for val in upper_values:
         if val in cached:
@@ -94,24 +94,6 @@ def resolve_ticker_aliases(
     return result
 
 
-def save_ticker_info(
-    info_repo: TickerInfoRepository | None,
-    ticker: str,
-    isin: str | None = None,
-    source: str = "manual",
-) -> None:
-    """Persist a manual ticker → info mapping for future imports."""
-    if info_repo:
-        info_repo.upsert(
-            TickerInfo(
-                ticker=ticker.upper(),
-                isin=isin.upper() if isin else None,
-                source=source,
-                last_updated=datetime.now().isoformat(),
-            )
-        )
-
-
 def resolve_asset_types(
     tickers: list[str],
     info_repo: TickerInfoRepository | None,
@@ -128,7 +110,7 @@ def resolve_asset_types(
 
         # 1. Check ticker_info table
         if info_repo:
-            info = info_repo.get_by_ticker(upper)
+            info = info_repo.get_by_ticker([upper]).get(upper)
             if info and info.asset_type:
                 result[upper] = info.asset_type.upper()
                 continue

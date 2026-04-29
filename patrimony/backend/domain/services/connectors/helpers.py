@@ -62,6 +62,11 @@ def to_str(value) -> str:
     return str(value)
 
 
+def safe_str(row: dict, key: str) -> str:
+    """Get a row field as a stripped string (empty if missing/None)."""
+    return to_str(row.get(key)).strip()
+
+
 def normalize_number(value: str) -> str:
     """Normalize European-style numbers (comma as decimal separator).
 
@@ -103,28 +108,37 @@ def normalize_date(val) -> str:
     return ""
 
 
-def position_hash(row: dict, source: str = "") -> str:
-    """Compute SHA-256 hash for a position row."""
-    src = source.strip().upper()
+def _hash_fields(*fields: str) -> str:
+    """Compute SHA-256 hash from a sequence of normalised string fields."""
+    return hashlib.sha256("|".join(fields).encode()).hexdigest()
+
+
+def _num_field(row: dict, key: str) -> str:
+    """Normalise a numeric field for hashing (defaults to '0.0' when missing/blank)."""
+    raw = to_str(row.get(key)).strip()
+    return str(float(normalize_number(raw))) if raw else "0.0"
+
+
+def position_hash(row: dict) -> str:
+    """Compute SHA-256 hash for a position row.
+
+    Hash is independent of import source so the same row imported twice
+    (e.g. once via CSV, once re-imported via web connector) deduplicates.
+    """
     ticker = to_str(row.get("ticker")).strip().upper()
-    price_str = to_str(row.get("price")).strip()
-    price = str(float(normalize_number(price_str))) if price_str else "0.0"
-    qty_str = to_str(row.get("quantity")).strip()
-    quantity = str(float(normalize_number(qty_str))) if qty_str else "0.0"
-    fees_str = to_str(row.get("fees")).strip()
-    fees = str(float(normalize_number(fees_str))) if fees_str else "0.0"
     date = normalize_date(row.get("date")) if "date" in row else ""
-    raw = f"{src}|{ticker}|{price}|{quantity}|{fees}|{date}"
-    return hashlib.sha256(raw.encode()).hexdigest()
+    return _hash_fields(
+        ticker,
+        _num_field(row, "price"),
+        _num_field(row, "quantity"),
+        _num_field(row, "fees"),
+        date,
+    )
 
 
-def cash_hash(row: dict, source: str = "") -> str:
+def cash_hash(row: dict) -> str:
     """Compute SHA-256 hash for a cash operation row."""
-    src = source.strip().upper()
     account = to_str(row.get("account_number")).strip()
-    amount_str = to_str(row.get("amount")).strip()
-    amount = str(float(normalize_number(amount_str))) if amount_str else "0.0"
     title = to_str(row.get("title")).strip()
     date = normalize_date(row.get("operation_date")) if "operation_date" in row else ""
-    raw = f"{src}|{account}|{amount}|{title}|{date}"
-    return hashlib.sha256(raw.encode()).hexdigest()
+    return _hash_fields(account, _num_field(row, "amount"), title, date)

@@ -1,13 +1,18 @@
 """State management for physical properties (real estate, valuables, etc.)."""
 
-from datetime import datetime
 from typing import Union
 
 import reflex as rx
 
 from ..services import PropertyService, Property
 from ..utils import export_csv, get_pie_color, parse_form_date
-from .mixins import PaginationMixin, SearchSortMixin, apply_sort_and_search
+from .mixins import (
+    AddDialogMixin,
+    PaginationMixin,
+    SearchSortMixin,
+    apply_sort_and_search,
+)
+from .spreadsheet_helpers import cell_date, cell_float, cell_str, fmt_date_cell
 from .spreadsheet_mixin import SpreadsheetMixin
 
 # Default suggestions — users can also type any custom category, which
@@ -22,7 +27,9 @@ PROPERTY_CATEGORIES = [
 ]
 
 
-class PropertiesState(SpreadsheetMixin, SearchSortMixin, PaginationMixin, rx.State):
+class PropertiesState(
+    SpreadsheetMixin, SearchSortMixin, PaginationMixin, AddDialogMixin, rx.State
+):
     """State for the properties table."""
 
     items: list[dict] = []
@@ -91,6 +98,7 @@ class PropertiesState(SpreadsheetMixin, SearchSortMixin, PaginationMixin, rx.Sta
         )
         if result.success:
             self.load_entries()
+            self.add_dialog_open = False
             return rx.toast.success(result.message, position="top-center")
         else:
             return rx.toast.error(result.message, position="top-center")
@@ -117,12 +125,12 @@ class PropertiesState(SpreadsheetMixin, SearchSortMixin, PaginationMixin, rx.Sta
     @rx.var
     def spreadsheet_columns(self) -> list[dict]:
         return [
-            {"title": "Name", "type": "str"},
-            {"title": "Description", "type": "str"},
-            {"title": "Value", "type": "float"},
-            {"title": "Category", "type": "str"},
-            {"title": "Currency", "type": "str"},
-            {"title": "Purchase Date", "type": "str"},
+            {"title": "Name", "type": "str", "grow": 1},
+            {"title": "Description", "type": "str", "grow": 1},
+            {"title": "Value", "type": "float", "grow": 1},
+            {"title": "Category", "type": "str", "grow": 1},
+            {"title": "Currency", "type": "str", "grow": 1},
+            {"title": "Purchase Date", "type": "str", "grow": 1},
         ]
 
     def _load_spreadsheet_rows(self) -> tuple[list[list], list]:
@@ -134,7 +142,7 @@ class PropertiesState(SpreadsheetMixin, SearchSortMixin, PaginationMixin, rx.Sta
                 p.get("value", 0.0),
                 p.get("category", "Other"),
                 p.get("currency", "EUR"),
-                str(p.get("purchase_date", ""))[:10],
+                fmt_date_cell(p.get("purchase_date", "")),
             ]
             for p in props
         ]
@@ -142,17 +150,14 @@ class PropertiesState(SpreadsheetMixin, SearchSortMixin, PaginationMixin, rx.Sta
         return data, ids
 
     def _save_spreadsheet_row(self, row, index, rid, is_new):
-        name = str(row[0]).strip()
+        name = cell_str(row[0])
         if not name:
             return "skip"
-        description = str(row[1]).strip()
-        value = float(row[2]) if row[2] != "" else 0.0
-        category = str(row[3]).strip() or "Uncategorized"
-        currency = str(row[4]).strip() or "EUR"
-        date_str = str(row[5]).strip()
-        purchase_date = (
-            datetime.strptime(date_str, "%Y-%m-%d") if date_str else datetime.now()
-        )
+        description = cell_str(row[1])
+        value = cell_float(row[2])
+        category = cell_str(row[3], default="Uncategorized")
+        currency = cell_str(row[4], default="EUR")
+        purchase_date = cell_date(row[5])
         if is_new:
             PropertyService.add_property(
                 name=name,

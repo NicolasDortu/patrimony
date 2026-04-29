@@ -110,23 +110,32 @@ class PortfolioState(rx.State):
         return self._asset_colors.get("PROPERTY", "indigo")
 
     @rx.var
-    def available_filters(self) -> list[dict]:
+    async def available_filters(self) -> list[dict]:
         """Filter options based on owned asset types."""
-        filters = [{"label": "All", "value": "all"}]
+        theme = await self.get_state(ThemeState)
+        tr = theme.translations
+        filters = [{"label": tr.get("asset_type.all", "All"), "value": "all"}]
         type_config = [
-            ("STOCK", "Stocks", "stocks"),
-            ("ETF", "ETFs", "etfs"),
-            ("CRYPTO", "Crypto", "crypto"),
-            ("COMMODITY", "Commodity", "commodity"),
+            ("STOCK", "asset_type.stocks", "stocks", "Stocks"),
+            ("ETF", "asset_type.etfs", "etfs", "ETFs"),
+            ("CRYPTO", "asset_type.crypto", "crypto", "Crypto"),
+            ("COMMODITY", "asset_type.commodity", "commodity", "Commodity"),
         ]
         owned = {s.get("asset_type") for s in self._stocks_total_data}
-        for at, label, value in type_config:
+        for at, key, value, default in type_config:
             if at in owned:
-                filters.append({"label": label, "value": value})
+                filters.append({"label": tr.get(key, default), "value": value})
         if self.cash_value > 0:
-            filters.append({"label": "Cash", "value": "cash"})
+            filters.append(
+                {"label": tr.get("asset_type.cash", "Cash"), "value": "cash"}
+            )
         if self.properties_value > 0:
-            filters.append({"label": "Properties", "value": "properties"})
+            filters.append(
+                {
+                    "label": tr.get("asset_type.properties", "Properties"),
+                    "value": "properties",
+                }
+            )
         return filters
 
     ####################
@@ -240,7 +249,7 @@ class PortfolioState(rx.State):
         }
 
     @rx.var
-    def allocation_data(self) -> list[dict]:
+    async def allocation_data(self) -> list[dict]:
         """Calculate asset allocation for pie chart."""
         if self.total_value <= 0:
             return [
@@ -252,6 +261,8 @@ class PortfolioState(rx.State):
                 }
             ]
 
+        theme = await self.get_state(ThemeState)
+        tr = theme.translations
         color_map = self._get_asset_color_map()
         allocation = []
 
@@ -264,10 +275,10 @@ class PortfolioState(rx.State):
                 asset_totals[at] = asset_totals.get(at, 0.0) + val
 
         labels = {
-            "STOCK": "Stocks",
-            "ETF": "ETFs",
-            "CRYPTO": "Crypto",
-            "COMMODITY": "Commodity",
+            "STOCK": tr.get("asset_type.stocks", "Stocks"),
+            "ETF": tr.get("asset_type.etfs", "ETFs"),
+            "CRYPTO": tr.get("asset_type.crypto", "Crypto"),
+            "COMMODITY": tr.get("asset_type.commodity", "Commodity"),
         }
         for at, total in asset_totals.items():
             allocation.append(
@@ -278,8 +289,12 @@ class PortfolioState(rx.State):
 
         # Non-security assets
         for key, label, value in [
-            ("CASH", "Cash", self.cash_value),
-            ("PROPERTY", "Properties", self.properties_value),
+            ("CASH", tr.get("asset_type.cash", "Cash"), self.cash_value),
+            (
+                "PROPERTY",
+                tr.get("asset_type.properties", "Properties"),
+                self.properties_value,
+            ),
         ]:
             if value > 0:
                 allocation.append(self._alloc_entry(label, value, color_map[key]))

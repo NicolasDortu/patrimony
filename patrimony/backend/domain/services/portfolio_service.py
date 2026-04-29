@@ -4,7 +4,6 @@ Orchestrates asset services to provide portfolio overview and chart data.
 """
 
 import logging
-from typing import Optional
 
 from ..constants import DEFAULT_CURRENCY, DEFAULT_PERIOD
 from ..entities import PortfolioOverview
@@ -26,7 +25,7 @@ class PortfolioService:
         cash_service: CashService,
         property_service: PropertyService,
         chart_service: ChartService,
-        dividend_service: Optional[DividendService] = None,
+        dividend_service: DividendService | None = None,
     ):
         self._securities_service = securities_service
         self._cash_service = cash_service
@@ -76,14 +75,12 @@ class PortfolioService:
             period=period,
             user_currency=user_currency,
             securities=self._build_securities_map(user_currency),
-            current_cash=self._cash_service.get_total_balance(user_currency),
-            properties_value=self._property_service.get_total_value(user_currency),
         )
 
     def _build_securities_map(self, user_currency: str) -> dict[str, dict]:
         """Transform enriched positions into {ticker: {quantity, asset_type}} for chart input."""
         df = self._securities_service.get_aggregated_positions(user_currency)
-        if df is None or df.is_empty():
+        if df.is_empty():
             return {}
         return {
             row["ticker"]: {

@@ -33,7 +33,6 @@ def open_add_position_dialog(on_submit: callable) -> rx.Component:
                 rx.text(t("dialog.add_position.title"), size="4"),
                 size="3",
                 variant="surface",
-                on_click=TableStateTotal.clear_ticker_search,
             ),
         ),
         rx.dialog.content(
@@ -48,7 +47,7 @@ def open_add_position_dialog(on_submit: callable) -> rx.Component:
                         rx.text(t("label.ticker"), size="1", weight="medium"),
                         rx.box(
                             rx.input(
-                                placeholder="AAPL or Apple",
+                                placeholder=t("label.ticker_placeholder"),
                                 value=TableStateTotal.ticker_search,
                                 on_change=TableStateTotal.search_ticker,
                                 name="ticker",
@@ -77,8 +76,16 @@ def open_add_position_dialog(on_submit: callable) -> rx.Component:
                     ),
                     rx.vstack(
                         rx.text(t("label.asset_type"), size="1", weight="medium"),
-                        rx.select(
-                            ["STOCK", "ETF", "CRYPTO", "COMMODITY"],
+                        rx.select.root(
+                            rx.select.trigger(),
+                            rx.select.content(
+                                rx.select.item(t("asset_type.stocks"), value="STOCK"),
+                                rx.select.item(t("asset_type.etfs"), value="ETF"),
+                                rx.select.item(t("asset_type.crypto"), value="CRYPTO"),
+                                rx.select.item(
+                                    t("asset_type.commodity"), value="COMMODITY"
+                                ),
+                            ),
                             value=TableStateTotal.selected_asset_type,
                             on_change=TableStateTotal.set_selected_asset_type,
                             name="asset_type",
@@ -141,20 +148,16 @@ def open_add_position_dialog(on_submit: callable) -> rx.Component:
                         width="100%",
                     ),
                     rx.flex(
-                        rx.dialog.close(
-                            rx.button(
-                                t("btn.cancel"),
-                                type="button",
-                                variant="soft",
-                                color_scheme="gray",
-                                on_click=TableStateTotal.clear_ticker_search,
-                            ),
+                        rx.button(
+                            t("btn.cancel"),
+                            type="button",
+                            variant="soft",
+                            color_scheme="gray",
+                            on_click=TableStateTotal.set_add_dialog_open(False),
                         ),
-                        rx.dialog.close(
-                            rx.button(
-                                t("dialog.add_position.submit"),
-                                type="submit",
-                            ),
+                        rx.button(
+                            t("dialog.add_position.submit"),
+                            type="submit",
                         ),
                         spacing="3",
                         justify="end",
@@ -167,4 +170,6 @@ def open_add_position_dialog(on_submit: callable) -> rx.Component:
             ),
             max_width="450px",
         ),
+        open=TableStateTotal.add_dialog_open,
+        on_open_change=TableStateTotal.set_add_dialog_open,
     )

@@ -109,6 +109,20 @@ class PlaywrightSiteConnector(SiteConnector):
         raise NotImplementedError
 
     @staticmethod
+    def make_logger(
+        on_status: Callable[[str], None] | None,
+    ) -> Callable[[str], None]:
+        """Return a callable that logs to the standard logger and forwards
+        the message to ``on_status`` (if provided)."""
+
+        def _log(msg: str) -> None:
+            logger.info(msg)
+            if on_status:
+                on_status(msg)
+
+        return _log
+
+    @staticmethod
     async def request_user_input(
         on_user_input: Callable[[str, str], str] | None,
         prompt_type: str,

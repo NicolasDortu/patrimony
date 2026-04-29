@@ -52,11 +52,6 @@ class CredentialRepository(ABC):
         """Delete the master password and all stored credentials."""
         pass
 
-    @abstractmethod
-    def list_stored_profiles(self) -> list[str]:
-        """Return profile IDs that have stored credentials."""
-        pass
-
 
 class ConnectorHistoryRepository(ABC):
     """Repository for connector import history."""
@@ -69,13 +64,6 @@ class ConnectorHistoryRepository(ABC):
     @abstractmethod
     def get_all(self) -> list[ConnectorHistoryEntry]:
         """Return all history entries, newest first."""
-        pass
-
-    @abstractmethod
-    def get_latest_by_source(
-        self, connector_type: str, source_identifier: str
-    ) -> ConnectorHistoryEntry | None:
-        """Get the most recent entry for a given source."""
         pass
 
     @abstractmethod
@@ -111,13 +99,8 @@ class TickerInfoRepository(ABC):
     """Repository for enriched ticker metadata (ISIN lookups, asset type, etc.)."""
 
     @abstractmethod
-    def get_by_ticker(self, ticker: str) -> TickerInfo | None:
-        """Return ticker info for a given ticker, or None."""
-        pass
-
-    @abstractmethod
-    def get_by_isin(self, isin: str) -> TickerInfo | None:
-        """Return ticker info for a given ISIN, or None."""
+    def get_by_ticker(self, tickers: list[str]) -> dict[str, TickerInfo]:
+        """Return a dict of TICKER -> TickerInfo for all tickers found."""
         pass
 
     @abstractmethod
@@ -126,8 +109,8 @@ class TickerInfoRepository(ABC):
         pass
 
     @abstractmethod
-    def get_batch_by_isin(self, isins: list[str]) -> dict[str, TickerInfo]:
-        """Return a dict of ISIN → TickerInfo for all ISINs found."""
+    def get_by_isin(self, isins: list[str]) -> dict[str, TickerInfo]:
+        """Return a dict of ISIN -> TickerInfo for all ISINs found."""
         pass
 
     @abstractmethod

@@ -27,14 +27,14 @@ class CashService:
     def get_balance_timeline(self, user_currency: str) -> dict:
         """Build a timeline of total cash balance keyed by date."""
         df = self._cash_repo.get_cash_balance_history()
-        if df is None or df.is_empty():
+        if df.is_empty():
             return {}
 
-        account_currencies: dict[str, str] = {}
         all_cash = self._cash_repo.get_all()
-        if all_cash is not None:
-            for row in all_cash.iter_rows(named=True):
-                account_currencies[row["account_number"]] = row.get("currency", "EUR")
+        account_currencies: dict[str, str] = {
+            row["account_number"]: row.get("currency", "EUR")
+            for row in all_cash.iter_rows(named=True)
+        }
 
         rate_cache: dict[str, float] = {}
         account_balances: dict[str, float] = {}

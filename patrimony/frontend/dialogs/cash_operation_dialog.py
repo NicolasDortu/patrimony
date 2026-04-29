@@ -3,6 +3,7 @@ from datetime import datetime
 import reflex as rx
 
 from ..components.dialog_factory import DialogField, build_add_dialog
+from ..states.cash_operations_state import CashOperationsState
 
 
 _OPERATION_FIELDS = [
@@ -35,4 +36,6 @@ def open_add_operation_dialog(on_submit: callable) -> rx.Component:
         submit_key="dialog.add_operation.submit",
         fields=_OPERATION_FIELDS,
         on_submit=on_submit,
+        open_var=CashOperationsState.add_dialog_open,
+        set_open=CashOperationsState.set_add_dialog_open,
     )

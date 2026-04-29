@@ -6,13 +6,15 @@ Delegates ticker resolution to the ticker_resolution module.
 """
 
 import logging
+from dataclasses import dataclass
 from datetime import datetime
+from typing import Callable, Iterator
 
 import polars as pl
 
 from ...entities import AssetType, Currency, EntryType, TickerInfo
 from ...exceptions import MissingColumnError, MissingMappingError
-from ...interfaces import MarketDataProvider
+from ...interfaces import MarketDataProvider, UnitOfWork
 from ...repositories import (
     CashRepository,
     ImportHashRepository,
@@ -29,11 +31,22 @@ from .helpers import (
     normalize_number,
     parse_date,
     position_hash,
+    safe_str,
     to_str,
 )
 from . import ticker_resolution
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass(slots=True)
+class ParsedPosition:
+    ticker: str
+    price: float
+    quantity: float
+    fees: float
+    date: datetime
+    asset_type: AssetType
 
 
 class FileConnectorService:
@@ -45,6 +58,7 @@ class FileConnectorService:
         cash_repo: CashRepository,
         reference_repo: ReferenceRepository,
         hash_repo: ImportHashRepository,
+        unit_of_work: UnitOfWork,
         info_repo: TickerInfoRepository | None = None,
         market_data_provider: MarketDataProvider | None = None,
     ):
@@ -55,6 +69,7 @@ class FileConnectorService:
         self._cash_repo = cash_repo
         self._reference_repo = reference_repo
         self._hash_repo = hash_repo
+        self._uow = unit_of_work
         self._info_repo = info_repo
         self._market_data = market_data_provider
 
@@ -68,17 +83,6 @@ class FileConnectorService:
         """Resolve raw ticker column values to real tickers."""
         return ticker_resolution.resolve_ticker_aliases(
             raw_values, self._info_repo, self._reference_repo, self._market_data
-        )
-
-    def save_ticker_alias(
-        self, alias: str, ticker: str, alias_type: str = "MANUAL"
-    ) -> None:
-        """Persist a manual alias → ticker mapping for future imports."""
-        ticker_resolution.save_ticker_info(
-            self._info_repo,
-            ticker,
-            isin=alias if alias != ticker else None,
-            source=alias_type,
         )
 
     def resolve_asset_types(self, tickers: list[str]) -> dict[str, str | None]:
@@ -97,14 +101,15 @@ class FileConnectorService:
     # Cash row detection
     # ------------------------------------------------------------------
 
-    def detect_cash_rows(
+    def split_cash_and_positions(
         self,
         df: pl.DataFrame,
         column_mapping: dict[str, str],
     ) -> tuple[list[dict], pl.DataFrame]:
-        """Detect cash-like rows in a positions file and separate them.
+        """Separate cash-like rows from a positions file.
 
-        Detection: ticker column is empty/null/blank, OR name column contains 'CASH'.
+        A row is treated as cash when its ticker column is empty/blank,
+        or when its name column contains the word ``CASH``.
 
         Returns:
             (cash_rows, positions_df) where cash_rows is a list of dicts
@@ -122,46 +127,124 @@ class FileConnectorService:
         cash_indices: list[int] = []
 
         for i, row in enumerate(mapped_df.iter_rows(named=True)):
-            ticker_val = str(row.get("ticker") or "").strip()
-            name_val = str(row.get("name") or "").strip()
-            is_cash = False
+            ticker_val = safe_str(row, "ticker")
+            name_val = safe_str(row, "name")
+            ticker_missing = not ticker_val
+            name_says_cash = has_name and "CASH" in name_val.upper()
+            if not (ticker_missing or name_says_cash):
+                continue
 
-            if not ticker_val:
-                is_cash = True
-            elif has_name and "CASH" in name_val.upper():
-                is_cash = True
+            amount = 0.0
+            for field_name in ("price", "quantity", "fees"):
+                raw = safe_str(row, field_name)
+                if raw:
+                    try:
+                        amount = float(normalize_number(raw))
+                        break
+                    except (ValueError, TypeError):
+                        continue
 
-            if is_cash:
-                amount = 0.0
-                for field_name in ("price", "quantity", "fees"):
-                    raw = str(row.get(field_name) or "").strip()
-                    if raw:
-                        try:
-                            amount = float(normalize_number(raw))
-                            break
-                        except (ValueError, TypeError):
-                            continue
+            currency_val = safe_str(row, "currency").upper() or "EUR"
 
-                currency_val = str(row.get("currency") or "").strip().upper()
-                if not currency_val:
-                    currency_val = "EUR"
+            cash_rows.append(
+                {"amount": amount, "currency": currency_val, "raw_name": name_val}
+            )
+            cash_indices.append(i)
 
-                cash_rows.append(
-                    {"amount": amount, "currency": currency_val, "raw_name": name_val}
-                )
-                cash_indices.append(i)
+        if not cash_indices:
+            return cash_rows, df
 
-        if cash_indices:
-            mask = pl.Series([i not in cash_indices for i in range(len(df))])
-            positions_df = df.filter(mask)
-        else:
-            positions_df = df
-
-        return cash_rows, positions_df
+        keep = pl.Series("__keep", [i not in set(cash_indices) for i in range(len(df))])
+        return cash_rows, df.filter(keep)
 
     # ------------------------------------------------------------------
     # Position import
     # ------------------------------------------------------------------
+
+    def _validate_and_map(
+        self,
+        df: pl.DataFrame,
+        column_mapping: dict[str, str],
+        required: set[str],
+    ) -> pl.DataFrame:
+        """Check required mappings/columns and return the renamed sub-DataFrame."""
+        missing = required - set(column_mapping.values())
+        if missing:
+            raise MissingMappingError(missing)
+        missing_cols = {src for src in column_mapping if src not in df.columns}
+        if missing_cols:
+            raise MissingColumnError(missing_cols)
+        return df.select(list(column_mapping.keys())).rename(dict(column_mapping))
+
+    @staticmethod
+    def _iter_rows_with_hash(
+        mapped_df: pl.DataFrame, hasher: Callable[[dict], str]
+    ) -> Iterator[tuple[int, dict, str]]:
+        """Yield (1-based row index, row dict, hash) for every row."""
+        for i, row in enumerate(mapped_df.iter_rows(named=True), start=1):
+            yield i, row, hasher(row)
+
+    @staticmethod
+    def _parse_date_field(row: dict, key: str) -> datetime:
+        val = row.get(key) if key in row else None
+        if isinstance(val, datetime):
+            return val
+        if isinstance(val, str) and val.strip():
+            return parse_date(val)
+        return datetime.now()
+
+    def _resolve_asset_type(
+        self,
+        row: dict,
+        ticker: str,
+        overrides: dict[str, str],
+        resolved: dict[str, str | None],
+        strict: bool,
+        row_index: int,
+    ) -> AssetType:
+        """Resolve asset type via row > override > reference > default/strict-error."""
+        if row.get("asset_type"):
+            return AssetType(str(row["asset_type"]).strip().upper())
+        if ticker in overrides:
+            return AssetType(overrides[ticker])
+        if resolved.get(ticker):
+            return AssetType(resolved[ticker])
+        if strict:
+            raise ValueError(f"Unresolved asset type for ticker {ticker!r}")
+        logger.warning(
+            "Row %d: Could not resolve asset type for '%s', defaulting to STOCK",
+            row_index,
+            ticker,
+        )
+        return AssetType.STOCK
+
+    def _parse_position_row(
+        self,
+        row: dict,
+        index: int,
+        overrides: dict[str, str],
+        resolved: dict[str, str | None],
+        strict: bool,
+    ) -> ParsedPosition | None:
+        """Parse one row into a ParsedPosition. Returns None to skip the row."""
+        ticker = to_str(row["ticker"]).strip().upper()
+        if not ticker:
+            return None
+        qty_str = to_str(row["quantity"]).strip()
+        if not qty_str:
+            return None
+        price_str = to_str(row.get("price")).strip()
+        fees_str = to_str(row.get("fees")).strip()
+        return ParsedPosition(
+            ticker=ticker,
+            quantity=float(normalize_number(qty_str)),
+            price=float(normalize_number(price_str)) if price_str else 0.0,
+            fees=float(normalize_number(fees_str)) if fees_str else 0.0,
+            date=self._parse_date_field(row, "date"),
+            asset_type=self._resolve_asset_type(
+                row, ticker, overrides, resolved, strict, index
+            ),
+        )
 
     def import_positions(
         self,
@@ -169,127 +252,60 @@ class FileConnectorService:
         column_mapping: dict[str, str],
         entry_type: EntryType,
         asset_type_overrides: dict[str, str] | None = None,
-        source: str = "",
+        strict: bool = False,
     ) -> ImportResult:
         """Import positions from a mapped DataFrame.
 
         Only ticker and quantity are required. Price, date, fees, and
         asset_type are optional — sensible defaults are applied when missing.
+        When ``strict`` is True, rows with unresolved asset types raise
+        instead of defaulting to STOCK.
         """
-        if asset_type_overrides is None:
-            asset_type_overrides = {}
+        overrides = asset_type_overrides or {}
+        mapped_df = self._validate_and_map(df, column_mapping, REQUIRED_POSITION_FIELDS)
 
-        mapped_fields = set(column_mapping.values())
-        missing = REQUIRED_POSITION_FIELDS - mapped_fields
-        if missing:
-            raise MissingMappingError(missing)
+        hashed_rows = list(self._iter_rows_with_hash(mapped_df, position_hash))
+        known_hashes = self._hash_repo.existing_hashes({h for _, _, h in hashed_rows})
 
-        missing_cols = {src for src in column_mapping if src not in df.columns}
-        if missing_cols:
-            raise MissingColumnError(missing_cols)
-
-        rename_map = dict(column_mapping)
-        mapped_df = df.select(list(rename_map.keys())).rename(rename_map)
-
-        # Pre-compute hashes for deduplication
-        row_hashes: dict[int, str] = {}
-        for i, row in enumerate(mapped_df.iter_rows(named=True)):
-            row_hashes[i] = position_hash(row, source=source)
-        known_hashes = self._hash_repo.existing_hashes(set(row_hashes.values()))
+        all_tickers = list(
+            {to_str(r["ticker"]).strip().upper() for _, r, _ in hashed_rows} - {""}
+        )
+        resolved_types = self.resolve_asset_types(all_tickers)
 
         imported = 0
         skipped = 0
         errors: list[str] = []
         new_hashes: list[str] = []
 
-        # Batch-resolve asset types for all tickers before the loop
-        all_tickers = list(
-            {
-                to_str(row["ticker"]).strip().upper()
-                for row in mapped_df.iter_rows(named=True)
-                if to_str(row.get("ticker")).strip()
-            }
-        )
-        resolved_types = self.resolve_asset_types(all_tickers)
-
-        # Hash flush batch: bound the loss window if the process crashes mid-import.
-        _HASH_FLUSH_BATCH = 100
-
-        def _flush_hashes() -> None:
+        with self._uow.transaction():
+            for i, row, h in hashed_rows:
+                if h in known_hashes:
+                    skipped += 1
+                    continue
+                try:
+                    parsed = self._parse_position_row(
+                        row, i, overrides, resolved_types, strict
+                    )
+                    if parsed is None:
+                        skipped += 1
+                        continue
+                    self._securities_repo.add_position(
+                        ticker=parsed.ticker,
+                        price=parsed.price,
+                        quantity=parsed.quantity,
+                        entry_type=entry_type,
+                        asset_type=parsed.asset_type,
+                        date=parsed.date,
+                        fees=parsed.fees,
+                    )
+                    imported += 1
+                    new_hashes.append(h)
+                except Exception as e:
+                    logger.debug("Row %d skipped", i, exc_info=True)
+                    errors.append(f"Row {i}: {e}")
+                    skipped += 1
             if new_hashes:
                 self._hash_repo.add_hashes(new_hashes, "positions")
-                new_hashes.clear()
-
-        for i, row in enumerate(mapped_df.iter_rows(named=True), start=1):
-            try:
-                h = row_hashes.get(i - 1)
-                if h and h in known_hashes:
-                    skipped += 1
-                    continue
-
-                ticker = to_str(row["ticker"]).strip().upper()
-                if not ticker:
-                    skipped += 1
-                    continue
-
-                qty_str = to_str(row["quantity"]).strip()
-                if not qty_str:
-                    skipped += 1
-                    continue
-                quantity = float(normalize_number(qty_str))
-
-                price_str = to_str(row.get("price")).strip()
-                price = float(normalize_number(price_str)) if price_str else 0.0
-
-                fees_str = to_str(row.get("fees")).strip()
-                fees = float(normalize_number(fees_str)) if fees_str else 0.0
-
-                if "date" in row and row["date"]:
-                    date_val = row["date"]
-                    if isinstance(date_val, str):
-                        date_val = parse_date(date_val)
-                    elif isinstance(date_val, datetime):
-                        pass
-                    else:
-                        date_val = datetime.now()
-                else:
-                    date_val = datetime.now()
-
-                # Resolve asset type: row value → user override → reference/yfinance → STOCK
-                if "asset_type" in row and row["asset_type"]:
-                    asset_type = AssetType(str(row["asset_type"]).strip().upper())
-                elif ticker in asset_type_overrides:
-                    asset_type = AssetType(asset_type_overrides[ticker])
-                elif resolved_types.get(ticker):
-                    asset_type = AssetType(resolved_types[ticker])
-                else:
-                    asset_type = AssetType.STOCK
-                    logger.warning(
-                        "Row %d: Could not resolve asset type for '%s', defaulting to STOCK",
-                        i,
-                        ticker,
-                    )
-
-                self._securities_repo.add_position(
-                    ticker=ticker,
-                    price=price,
-                    quantity=quantity,
-                    entry_type=entry_type,
-                    asset_type=asset_type,
-                    date=date_val,
-                    fees=fees,
-                )
-                imported += 1
-                if h:
-                    new_hashes.append(h)
-                    if len(new_hashes) >= _HASH_FLUSH_BATCH:
-                        _flush_hashes()
-
-            except Exception as e:
-                errors.append(f"Row {i}: {e}")
-                skipped += 1
-
-        _flush_hashes()
 
         return ImportResult(
             success=imported > 0 or (skipped > 0 and not errors),
@@ -317,7 +333,7 @@ class FileConnectorService:
 
         existing_df = self._cash_repo.get_all()
         account_exists = False
-        if existing_df is not None and not existing_df.is_empty():
+        if not existing_df.is_empty():
             existing_accounts = set(existing_df["account_number"].to_list())
             account_exists = account_number in existing_accounts
 
@@ -377,7 +393,7 @@ class FileConnectorService:
         }
 
         existing_df = self._cash_repo.get_all()
-        if existing_df is not None and not existing_df.is_empty():
+        if not existing_df.is_empty():
             existing_accounts = set(existing_df["account_number"].to_list())
         else:
             existing_accounts = set()
@@ -390,7 +406,6 @@ class FileConnectorService:
         column_mapping: dict[str, str],
         entry_type: EntryType,
         new_accounts: dict[str, dict] | None = None,
-        source: str = "",
     ) -> ImportResult:
         """Import cash operations from a mapped DataFrame."""
         if new_accounts:
@@ -406,75 +421,36 @@ class FileConnectorService:
                 except Exception as e:
                     logger.warning("Failed to create account %s: %s", acct_num, e)
 
-        mapped_fields = set(column_mapping.values())
-        missing = REQUIRED_CASH_FIELDS - mapped_fields
-        if missing:
-            raise MissingMappingError(missing)
-
-        missing_cols = {src for src in column_mapping if src not in df.columns}
-        if missing_cols:
-            raise MissingColumnError(missing_cols)
-
-        rename_map = dict(column_mapping)
-        mapped_df = df.select(list(rename_map.keys())).rename(rename_map)
-
-        row_hashes: dict[int, str] = {}
-        for i, row in enumerate(mapped_df.iter_rows(named=True)):
-            row_hashes[i] = cash_hash(row, source=source)
-        known_hashes = self._hash_repo.existing_hashes(set(row_hashes.values()))
+        mapped_df = self._validate_and_map(df, column_mapping, REQUIRED_CASH_FIELDS)
+        hashed_rows = list(self._iter_rows_with_hash(mapped_df, cash_hash))
+        known_hashes = self._hash_repo.existing_hashes({h for _, _, h in hashed_rows})
 
         imported = 0
         skipped = 0
         errors: list[str] = []
         new_hashes: list[str] = []
 
-        _HASH_FLUSH_BATCH = 100
-
-        def _flush_hashes() -> None:
-            if new_hashes:
-                self._hash_repo.add_hashes(new_hashes, "cash")
-                new_hashes.clear()
-
-        for i, row in enumerate(mapped_df.iter_rows(named=True), start=1):
-            try:
-                h = row_hashes.get(i - 1)
-                if h and h in known_hashes:
+        with self._uow.transaction():
+            for i, row, h in hashed_rows:
+                if h in known_hashes:
                     skipped += 1
                     continue
-
-                account_number = str(row["account_number"]).strip()
-                amount = float(row["amount"])
-                title = str(row.get("title") or "Imported operation")
-
-                if "operation_date" in row and row["operation_date"]:
-                    date_val = row["operation_date"]
-                    if isinstance(date_val, str):
-                        date_val = parse_date(date_val)
-                    elif isinstance(date_val, datetime):
-                        pass
-                    else:
-                        date_val = datetime.now()
-                else:
-                    date_val = datetime.now()
-
-                self._cash_repo.add_operation_balance(
-                    account_number=account_number,
-                    amount=amount,
-                    title=title,
-                    operation_date=date_val,
-                    entry_type=entry_type,
-                )
-                imported += 1
-                if h:
+                try:
+                    self._cash_repo.add_operation_balance(
+                        account_number=str(row["account_number"]).strip(),
+                        amount=float(row["amount"]),
+                        title=str(row.get("title") or "Imported operation"),
+                        operation_date=self._parse_date_field(row, "operation_date"),
+                        entry_type=entry_type,
+                    )
+                    imported += 1
                     new_hashes.append(h)
-                    if len(new_hashes) >= _HASH_FLUSH_BATCH:
-                        _flush_hashes()
-
-            except Exception as e:
-                errors.append(f"Row {i}: {e}")
-                skipped += 1
-
-        _flush_hashes()
+                except Exception as e:
+                    logger.debug("Row %d skipped", i, exc_info=True)
+                    errors.append(f"Row {i}: {e}")
+                    skipped += 1
+            if new_hashes:
+                self._hash_repo.add_hashes(new_hashes, "cash")
 
         return ImportResult(
             success=imported > 0 or (skipped > 0 and not errors),

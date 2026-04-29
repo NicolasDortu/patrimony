@@ -6,7 +6,7 @@ from .common import create_dynamic_gradient, period_selector
 from ...states.portfolio_state import PortfolioState
 from ...templates import ThemeState, t
 
-# Asset config: (data_key, filter_value, color_var, has_var, gradient_id)
+# Asset config: (data_key, filter_value, color_var, has_var, gradient_id, label_key)
 _ASSETS = [
     (
         "Stocks",
@@ -14,14 +14,23 @@ _ASSETS = [
         PortfolioState.stock_color,
         PortfolioState.has_stocks,
         "colorStocks",
+        "asset_type.stocks",
     ),
-    ("ETFs", "etfs", PortfolioState.etf_color, PortfolioState.has_etfs, "colorETFs"),
+    (
+        "ETFs",
+        "etfs",
+        PortfolioState.etf_color,
+        PortfolioState.has_etfs,
+        "colorETFs",
+        "asset_type.etfs",
+    ),
     (
         "Crypto",
         "crypto",
         PortfolioState.crypto_color,
         PortfolioState.has_crypto,
         "colorCrypto",
+        "asset_type.crypto",
     ),
     (
         "Commodity",
@@ -29,14 +38,23 @@ _ASSETS = [
         PortfolioState.commodity_color,
         PortfolioState.has_commodity,
         "colorCommodity",
+        "asset_type.commodity",
     ),
-    ("Cash", "cash", PortfolioState.cash_color, PortfolioState.has_cash, "colorCash"),
+    (
+        "Cash",
+        "cash",
+        PortfolioState.cash_color,
+        PortfolioState.has_cash,
+        "colorCash",
+        "asset_type.cash",
+    ),
     (
         "Properties",
         "properties",
         PortfolioState.property_color,
         PortfolioState.has_properties,
         "colorProperties",
+        "asset_type.properties",
     ),
 ]
 
@@ -54,7 +72,7 @@ def _wealth_area_chart() -> rx.Component:
 
     gradients = [create_dynamic_gradient(ThemeState.all_color, "colorTotal")]
     gradients += [
-        create_dynamic_gradient(color, gid) for _, _, color, _, gid in _ASSETS
+        create_dynamic_gradient(color, gid) for _, _, color, _, gid, _ in _ASSETS
     ]
 
     areas = [
@@ -62,19 +80,21 @@ def _wealth_area_chart() -> rx.Component:
             PortfolioState.asset_filter == "all",
             rx.recharts.area(
                 data_key="Total",
+                name=t("label.total"),
                 stroke=all_css,
                 fill="url(#colorTotal)",
                 type_="monotone",
             ),
         ),
     ]
-    for data_key, fval, color, has_var, gid in _ASSETS:
+    for data_key, fval, color, has_var, gid, label_key in _ASSETS:
         css = "var(--" + color + "-9)"
         areas.append(
             rx.cond(
                 _asset_visible(fval, has_var),
                 rx.recharts.area(
                     data_key=data_key,
+                    name=t(label_key),
                     stroke=css,
                     fill=f"url(#{gid})",
                     type_="monotone",
@@ -101,15 +121,17 @@ def _wealth_bar_chart() -> rx.Component:
     bars = [
         rx.cond(
             PortfolioState.asset_filter == "all",
-            rx.recharts.bar(data_key="Total", fill=rx.color("blue", 9)),
+            rx.recharts.bar(
+                data_key="Total", name=t("label.total"), fill=rx.color("blue", 9)
+            ),
         ),
     ]
-    for data_key, fval, color, has_var, _ in _ASSETS:
+    for data_key, fval, color, has_var, _, label_key in _ASSETS:
         css = "var(--" + color + "-9)"
         bars.append(
             rx.cond(
                 _asset_visible(fval, has_var),
-                rx.recharts.bar(data_key=data_key, fill=css),
+                rx.recharts.bar(data_key=data_key, name=t(label_key), fill=css),
             )
         )
 

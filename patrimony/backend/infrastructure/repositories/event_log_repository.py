@@ -12,17 +12,6 @@ class EventLogRepositoryImpl(EventLogRepository):
     def __init__(self, connection: DatabaseConnection):
         self._conn = connection
 
-    def add(self, level: str, summary: str, detail: str = "") -> int:
-        result = self._conn.execute(
-            """
-            INSERT INTO event_log (level, summary, detail)
-            VALUES (?, ?, ?)
-            RETURNING id
-            """,
-            [level, summary, detail],
-        )
-        return result.fetchone()[0]
-
     def add_batch(self, events: list[dict]) -> None:
         if not events:
             return

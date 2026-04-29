@@ -25,15 +25,14 @@ class CashOperationRepositoryImpl(CashOperationRepository):
         operation_date: datetime,
         entry_type: EntryType,
         category: str = "Uncategorized",
-    ) -> int:
-        """Record a cash operation on the balance and return the operation ID."""
+    ) -> None:
+        """Record a cash operation on the balance."""
         with self._conn.transaction():
-            result = self._conn.execute(
+            self._conn.execute(
                 """
                 INSERT INTO balance_operations
                 (account_number, amount, balance, rank, title, category, operation_date, entry_type)
                 VALUES (?, ?, 0, 0, ?, ?, ?, ?)
-                RETURNING id
                 """,
                 [
                     account_number,
@@ -44,9 +43,7 @@ class CashOperationRepositoryImpl(CashOperationRepository):
                     entry_type.value,
                 ],
             )
-            op_id = result.fetchone()[0]
             self.recalculate_balances(account_number)
-        return op_id
 
     def get_operations_by_account(self, account_number: str) -> pl.DataFrame:
         """Get all balance operations for a specific account."""
@@ -147,37 +144,15 @@ class CashOperationRepositoryImpl(CashOperationRepository):
         )
 
 
-class CashRepositoryImpl(CashRepository):
+class CashRepositoryImpl(CashOperationRepositoryImpl, CashRepository):
     """Concrete implementation of CashRepository using DuckDB.
 
-    Delegates operation methods to CashOperationRepositoryImpl.
+    Inherits all balance-operation methods from
+    :class:`CashOperationRepositoryImpl` and adds account-level operations.
     """
 
     def __init__(self, connection: DatabaseConnection):
-        self._conn = connection
-        self._operations = CashOperationRepositoryImpl(connection)
-
-    # ── Delegate operation methods to operations ──
-    def add_operation_balance(self, *args, **kwargs):
-        return self._operations.add_operation_balance(*args, **kwargs)
-
-    def get_operations_by_account(self, account_number):
-        return self._operations.get_operations_by_account(account_number)
-
-    def get_all_operations(self):
-        return self._operations.get_all_operations()
-
-    def get_cash_balance_history(self):
-        return self._operations.get_cash_balance_history()
-
-    def delete_operation_by_id(self, id):
-        return self._operations.delete_operation_by_id(id)
-
-    def update_operation_by_id(self, *args, **kwargs):
-        return self._operations.update_operation_by_id(*args, **kwargs)
-
-    def recalculate_balances(self, account_number):
-        return self._operations.recalculate_balances(account_number)
+        super().__init__(connection)
 
     def add_cash(
         self,
@@ -186,14 +161,13 @@ class CashRepositoryImpl(CashRepository):
         currency: Currency,
         last_updated: datetime,
         entry_type: EntryType = EntryType.MANUAL,
-    ) -> str:
+    ) -> None:
         """Add a new cash account."""
-        result = self._conn.execute(
+        self._conn.execute(
             """
             INSERT INTO cash
             (bank, account_number, currency, last_updated, entry_type)
             VALUES (?, ?, ?, ?, ?)
-            RETURNING account_number
             """,
             [
                 bank,
@@ -203,7 +177,6 @@ class CashRepositoryImpl(CashRepository):
                 entry_type.value,
             ],
         )
-        return result.fetchone()[0]
 
     def update_cash(
         self,
@@ -242,8 +215,14 @@ class CashRepositoryImpl(CashRepository):
         return result.fetchone()[0]
 
     def delete(self, account_number: str) -> None:
-        """Delete a cash account by account number, after removing all related balance operations.
-        TODO: The operations doesn't work in a single transaction due to FK constraints. This could lead to some issue if one transaction is deleted an not the other.
+        """Delete a cash account and its balance operations.
+
+        DuckDB's FK enforcement does not fully respect MVCC, so deleting
+        the children and the parent inside the same transaction trips the
+        FK constraint. We therefore commit the child delete first, then
+        the parent. If the process crashes between the two commits the
+        cash row remains with no operations, which is recoverable
+        (re-running ``delete`` is idempotent).
         """
         with self._conn.transaction():
             self._conn.execute(

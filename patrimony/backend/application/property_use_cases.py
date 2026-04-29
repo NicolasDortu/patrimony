@@ -1,7 +1,6 @@
 """Use cases for property operations."""
 
 from datetime import datetime
-from typing import Optional
 
 from ..domain.constants import DEFAULT_CURRENCY
 from ..domain.repositories import PropertyRepository
@@ -17,15 +16,15 @@ class PropertyUseCases:
         self,
         name: str,
         value: float,
-        purchase_date: Optional[datetime] = None,
+        purchase_date: datetime | None = None,
         description: str = "",
         category: str = "Other",
         currency: str = DEFAULT_CURRENCY,
-    ) -> dict:
-        """Add a new property. Returns {'id': int}."""
+    ) -> None:
+        """Add a new property."""
         if purchase_date is None:
             purchase_date = datetime.now()
-        prop_id = self._repo.add_property(
+        self._repo.add_property(
             name=name,
             value=value,
             purchase_date=purchase_date,
@@ -33,11 +32,10 @@ class PropertyUseCases:
             category=category,
             currency=currency,
         )
-        return {"id": prop_id}
 
     def get_all_properties(self) -> list[dict]:
         df = self._repo.get_all()
-        return df.to_dicts() if df is not None else []
+        return df.to_dicts()
 
     def delete_property(self, id: int) -> None:
         self._repo.delete(id)
@@ -47,7 +45,7 @@ class PropertyUseCases:
         id: int,
         name: str,
         value: float,
-        purchase_date: Optional[datetime] = None,
+        purchase_date: datetime | None = None,
         description: str = "",
         category: str = "Other",
         currency: str = DEFAULT_CURRENCY,

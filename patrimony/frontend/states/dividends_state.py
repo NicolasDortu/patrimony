@@ -6,7 +6,8 @@ import reflex as rx
 
 from ..services import DividendService
 from ..utils import parse_form_date
-from .mixins import PaginationMixin
+from .mixins import AddDialogMixin, PaginationMixin
+from .spreadsheet_helpers import cell_date, cell_float, fmt_date_cell
 from .spreadsheet_mixin import SpreadsheetMixin
 
 
@@ -20,7 +21,7 @@ class Dividend:
     date: datetime = field(default_factory=datetime.now)
 
 
-class DividendsState(SpreadsheetMixin, PaginationMixin, rx.State):
+class DividendsState(SpreadsheetMixin, PaginationMixin, AddDialogMixin, rx.State):
     """State for managing dividends on the securities detail page."""
 
     items: list[Dividend] = []
@@ -62,6 +63,7 @@ class DividendsState(SpreadsheetMixin, PaginationMixin, rx.State):
 
         if result.success:
             self.load_entries()
+            self.add_dialog_open = False
             return rx.toast.success(result.message, position="top-center")
         else:
             return rx.toast.error(result.message, position="top-center")
@@ -85,20 +87,21 @@ class DividendsState(SpreadsheetMixin, PaginationMixin, rx.State):
     @rx.var
     def spreadsheet_columns(self) -> list[dict]:
         return [
-            {"title": "Amount", "type": "float"},
-            {"title": "Date", "type": "str"},
+            {"title": "Amount", "type": "float", "grow": 1},
+            {"title": "Date", "type": "str", "grow": 1},
         ]
 
     def _load_spreadsheet_rows(self) -> tuple[list[list], list]:
         dividends = DividendService.get_dividends_by_ticker(self.ticker)
-        data = [[d.get("amount", 0.0), str(d.get("date", ""))[:10]] for d in dividends]
+        data = [
+            [d.get("amount", 0.0), fmt_date_cell(d.get("date", ""))] for d in dividends
+        ]
         ids = [d.get("id") for d in dividends]
         return data, ids
 
     def _save_spreadsheet_row(self, row, index, rid, is_new):
-        amount = float(row[0]) if row[0] != "" else 0.0
-        date_str = str(row[1]).strip()
-        date = datetime.strptime(date_str, "%Y-%m-%d") if date_str else datetime.now()
+        amount = cell_float(row[0])
+        date = cell_date(row[1])
         if is_new:
             if amount == 0.0:
                 return "skip"

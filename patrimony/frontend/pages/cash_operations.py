@@ -26,18 +26,15 @@ def cash_operations() -> rx.Component:
             ),
             rx.spacer(),
             chart_table_toggle(CashOperationsState),
-            align="center",
-            width="100%",
-        ),
-        rx.flex(
             rx.button(
-                rx.icon("arrow-left", size=20),
+                rx.icon("arrow-left", size=18),
                 t("cash_ops.back"),
-                size="3",
+                size="2",
                 variant="soft",
                 on_click=rx.redirect("/cash"),
             ),
-            justify="end",
+            align="center",
+            spacing="3",
             width="100%",
         ),
         rx.cond(
@@ -51,4 +48,5 @@ def cash_operations() -> rx.Component:
         ),
         spacing="5",
         width="100%",
+        on_unmount=CashOperationsState.set_chart_view(False),
     )

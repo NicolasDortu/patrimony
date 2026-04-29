@@ -11,25 +11,39 @@ from ..domain.services.connectors import (
 
 logger = logging.getLogger(__name__)
 
+# Defensive cap on uploaded file size (50 MiB).  Polars can theoretically
+# stream much larger files, but Reflex passes the entire payload through
+# memory and oversized inputs are almost always user error.
+MAX_IMPORT_BYTES = 50 * 1024 * 1024
+
+
+def _check_size(file_bytes: bytes, filename: str) -> None:
+    if len(file_bytes) > MAX_IMPORT_BYTES:
+        raise ValueError(
+            f"File '{filename}' is {len(file_bytes) / 1024 / 1024:.1f} MiB, "
+            f"which exceeds the {MAX_IMPORT_BYTES // (1024 * 1024)} MiB limit."
+        )
+
 
 def build_import_message(
     imported: int, skipped: int, errors: list[str], label: str = "entries"
 ) -> tuple[bool, str]:
     """Build a standardized (success, message) tuple for import results.
 
-    Returns (True, "Imported X ...") on success, (False, "Import failed: ...") on failure.
+    Success means at least one row was imported, or the file was empty
+    (no rows, no duplicates, no errors).  Anything else is a failure.
     """
-    success = imported > 0 or (imported == 0 and skipped == 0 and not errors)
-    if success:
+    if errors:
+        return False, f"Import failed: {'; '.join(errors)}"
+    if imported > 0:
         msg = f"Imported {imported} {label}"
         if skipped:
             msg += f" ({skipped} duplicates skipped)"
         return True, msg
-    if errors:
-        return False, f"Import failed: {'; '.join(errors)}"
-    if skipped and imported == 0:
+    if skipped:
         return False, f"All {skipped} rows were duplicates"
-    return False, "No rows could be imported"
+    # Empty file: nothing to import, nothing skipped, no errors.
+    return True, f"Imported 0 {label}"
 
 
 class FileImportResult:
@@ -70,6 +84,7 @@ class FileImportUseCases:
         file_bytes: bytes,
         filename: str,
         delimiter: str = ",",
+        encoding: str = "utf8",
         *,
         preview_only: bool = True,
     ) -> tuple[list[str], list[dict]] | list[dict]:
@@ -78,7 +93,8 @@ class FileImportUseCases:
         Args:
             preview_only: If True, return (columns, first-5-rows). If False, return all rows.
         """
-        df = self._file_connector.read_file(file_bytes, filename, delimiter)
+        _check_size(file_bytes, filename)
+        df = self._file_connector.read_file(file_bytes, filename, delimiter, encoding)
         if preview_only:
             return df.columns, df.head(5).to_dicts()
         return df.to_dicts()
@@ -92,15 +108,17 @@ class FileImportUseCases:
         filename: str,
         column_mapping: dict[str, str],
         delimiter: str = ",",
+        encoding: str = "utf8",
         asset_type_overrides: dict[str, str] | None = None,
     ) -> FileImportResult:
         """Import positions from an uploaded file."""
+        _check_size(file_bytes, filename)
         lower = filename.lower()
         entry_type = (
             EntryType.EXCEL if lower.endswith((".xlsx", ".xls")) else EntryType.CSV
         )
 
-        df = self._file_connector.read_file(file_bytes, filename, delimiter)
+        df = self._file_connector.read_file(file_bytes, filename, delimiter, encoding)
         result = self._connector_service.import_positions(
             df, column_mapping, entry_type, asset_type_overrides
         )
@@ -122,9 +140,11 @@ class FileImportUseCases:
         filename: str,
         column_mapping: dict[str, str],
         delimiter: str = ",",
+        encoding: str = "utf8",
     ) -> list[str]:
         """Return account numbers from the file that don't exist in the cash table."""
-        df = self._file_connector.read_file(file_bytes, filename, delimiter)
+        _check_size(file_bytes, filename)
+        df = self._file_connector.read_file(file_bytes, filename, delimiter, encoding)
         return self._connector_service.detect_unknown_cash_accounts(df, column_mapping)
 
     def import_cash_operations(
@@ -133,15 +153,17 @@ class FileImportUseCases:
         filename: str,
         column_mapping: dict[str, str],
         delimiter: str = ",",
+        encoding: str = "utf8",
         new_accounts: dict[str, dict] | None = None,
     ) -> FileImportResult:
         """Import cash operations from an uploaded file."""
+        _check_size(file_bytes, filename)
         lower = filename.lower()
         entry_type = (
             EntryType.EXCEL if lower.endswith((".xlsx", ".xls")) else EntryType.CSV
         )
 
-        df = self._file_connector.read_file(file_bytes, filename, delimiter)
+        df = self._file_connector.read_file(file_bytes, filename, delimiter, encoding)
         result = self._connector_service.import_cash_operations(
             df, column_mapping, entry_type, new_accounts
         )
