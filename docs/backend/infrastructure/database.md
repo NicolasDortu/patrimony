@@ -1,206 +1,112 @@
 # Database
 
-Contains the DuckDB connection management, schema definitions, and seed data.
+The database is an embedded **DuckDB** file managed by
+`infrastructure/database/connection.py`. There is exactly one
+`DatabaseConnection` instance per process (provided as a Singleton from the DI
+container), shared by every repository.
 
-## Files
+## Lifecycle
 
-| File | Description |
+```python
+class DatabaseConnection:
+    def __init__(self, db_path: Path | None = None):
+        self.db_path = db_path or _get_db_path()
+        self.conn = duckdb.connect(str(self.db_path))
+        self.init_db()                      # CREATE TABLE IF NOT EXISTS …
+        atexit.register(self.close_connection)
+```
+
+- `_get_db_path()` resolves to `%LOCALAPPDATA%/patrimony/patrimony.duckdb`
+  on Windows and `~/.local/share/patrimony/patrimony.duckdb` elsewhere.
+- `init_db()` runs every statement in `ddl.DDL_COMMANDS` then calls
+  `_load_reference_data()` which seeds `tickers_reference` from
+  `database/data/tickers.csv` if the table is empty.
+- Tests can pass an explicit `db_path` (e.g. `":memory:"` or a tmp path) to
+  get an isolated database.
+
+## API
+
+```python
+execute(query, parameters=None) -> duckdb.DuckDBPyConnection
+executemany(query, parameters: list[tuple]) -> None
+fetchone(query, parameters=None) -> tuple | None
+fetchall(query, parameters=None) -> list[tuple]
+fetchdf(query, parameters=None) -> pl.DataFrame
+register_df(name, df: pl.DataFrame) -> None
+transaction() -> AbstractContextManager        # BEGIN / COMMIT / ROLLBACK
+close_connection() -> None
+```
+
+`DatabaseError` wraps any underlying `duckdb.Error` and carries the failed
+query for easier debugging.
+
+## Schema
+
+All DDL is in `database/ddl.py` as a list of `CREATE TABLE IF NOT EXISTS`
+strings. Tables are grouped below by purpose; **bold** columns are part of the
+primary key.
+
+### Securities
+
+| Table | Columns |
 |---|---|
-| `connection.py` | `DatabaseConnection` — opens/creates the DuckDB file, runs DDL, seeds reference data |
-| `ddl.py` | All `CREATE TABLE`, `CREATE VIEW`, and `CREATE INDEX` statements |
-| `data/tickers.csv` | ~100k+ securities reference data loaded on first launch |
+| `positions` | **id**, ticker, price, quantity, fees, entry_type, asset_type, date |
+| `positions_closed` | mirrors `positions` for sold lots |
+| `dividends` | **id**, ticker, amount, date — `UNIQUE(ticker, date)` |
 
----
+### Cash
 
-## Schema Overview
+| Table | Columns |
+|---|---|
+| `cash` | **account_number**, bank, currency, last_updated, entry_type |
+| `balance_operations` | **id**, account_number `→ cash`, rank, amount, balance, title, category, operation_date, entry_type |
 
-### Core Portfolio
+`balance_operations.balance` is the running balance after the operation. It is
+recomputed in-place by `recalculate_balances(account_number)` after any insert
+or update so the read path stays trivial.
 
-#### `positions`
-Individual buy/sell entries for securities.
+### Market data cache
 
-| Column | Type | Description |
-|---|---|---|
-| `id` | `INTEGER PK` | Auto-incrementing sequence |
-| `ticker` | `VARCHAR` | Uppercase ticker symbol |
-| `price` | `DOUBLE` | Purchase price per unit |
-| `quantity` | `DOUBLE` | Number of units (default 1.0) |
-| `fees` | `DOUBLE` | Transaction fees (default 0.0) |
-| `entry_type` | `VARCHAR` | `MANUAL`, `WEB`, `CSV`, `EXCEL`, `API` |
-| `asset_type` | `VARCHAR` | `STOCK`, `ETF`, `CRYPTO`, etc. |
-| `date` | `TIMESTAMP` | Purchase date |
+| Table | Columns |
+|---|---|
+| `price_cache` | **ticker**, current_price, last_updated |
+| `price_history` | **ticker**, **date**, **period**, close_price |
+| `intraday_prices` | **ticker**, **date**, close_price, last_updated |
+| `ticker_currency` | **ticker**, currency, last_updated |
+| `exchange_rate_cache` | **from_currency**, **to_currency**, rate, last_updated |
 
-#### `positions_closed`
-Same schema as `positions`. Stores positions that have been fully sold/closed, for historical reporting without affecting current aggregations.
+### Reference
 
-#### `dividends`
-| Column | Type | Description |
-|---|---|---|
-| `id` | `INTEGER PK` | Auto-incrementing |
-| `ticker` | `VARCHAR` | Uppercase ticker |
-| `amount` | `DOUBLE` | Total dividend amount received (per_share × quantity) |
-| `date` | `TIMESTAMP` | Ex-dividend date |
+| Table | Columns |
+|---|---|
+| `tickers_reference` | **ticker**, name, asset_type, exchange, category, country |
+| `ticker_info` | **ticker**, isin, name, asset_type, exchange, currency, source, last_updated |
 
-Has a `UNIQUE(ticker, date)` constraint to prevent duplicates.
-
----
-
-### Cash Management
-
-#### `cash`
-One row per bank account.
-
-| Column | Type | Description |
-|---|---|---|
-| `bank` | `VARCHAR` | Bank name |
-| `account_number` | `VARCHAR PK` | Unique account identifier |
-| `currency` | `VARCHAR` | Native currency (default `'EUR'`) |
-| `last_updated` | `TIMESTAMP` | Last metadata update |
-| `entry_type` | `VARCHAR` | How the account was created |
-
-#### `balance_operations`
-Individual credit/debit operations on a cash account.
-
-| Column | Type | Description |
-|---|---|---|
-| `id` | `INTEGER PK` | Auto-incrementing |
-| `account_number` | `VARCHAR FK` | References `cash(account_number)` |
-| `rank` | `INTEGER` | Ordering index (recomputed on every insert/delete) |
-| `amount` | `DOUBLE` | Credit (+) or debit (-) |
-| `balance` | `DOUBLE` | Cumulative running balance after this operation |
-| `title` | `VARCHAR` | Operation description |
-| `category` | `VARCHAR` | User-defined category (default `'Uncategorized'`) |
-| `operation_date` | `TIMESTAMP` | Date of the operation |
-| `entry_type` | `VARCHAR` | How the operation was created |
-
-> The `balance` and `rank` columns are always recomputed by `recalculate_balances()` after any insert/delete — they are derived values, not user inputs.
-
----
-
-### Market Data & Pricing
-
-#### `price_cache`
-Latest known price per ticker for fast live-price lookup.
-
-| Column | Type | Description |
-|---|---|---|
-| `ticker` | `VARCHAR PK` | Uppercase ticker |
-| `current_price` | `DOUBLE` | Last fetched price |
-| `last_updated` | `TIMESTAMP` | When it was fetched |
-
-#### `price_history`
-Daily (or weekly) closing prices for chart rendering.
-
-| Column | Type | Description |
-|---|---|---|
-| `ticker` | `VARCHAR` | Uppercase ticker |
-| `date` | `TIMESTAMP` | Close date |
-| `close_price` | `DOUBLE` | Closing price |
-| `period` | `VARCHAR` | Resolution granularity (e.g. `"1d"`, `"1wk"`) |
-| `last_updated` | `TIMESTAMP` | When this row was fetched |
-
-Primary key: `(ticker, date, period)`
-
-#### `intraday_prices`
-5-minute intraday prices for the 1D chart view. Always replaced as a complete snapshot per ticker.
-
-| Column | Type | Description |
-|---|---|---|
-| `ticker` | `VARCHAR` | Uppercase ticker |
-| `date` | `TIMESTAMP` | Timestamp of the 5-minute bar |
-| `close_price` | `DOUBLE` | Close price of the bar |
-| `last_updated` | `TIMESTAMP` | When this snapshot was fetched |
-
-Primary key: `(ticker, date)`
-
-#### `ticker_currency`
-Caches the native trading currency of a ticker to avoid repeated API calls.
-
-| Column | Type | Description |
-|---|---|---|
-| `ticker` | `VARCHAR PK` | Uppercase ticker |
-| `currency` | `VARCHAR` | Native currency (e.g. `"USD"`) |
-| `last_updated` | `TIMESTAMP` | Cache timestamp |
-
-#### `exchange_rate_cache`
-Caches FX rates with a 60-minute TTL (enforced in SQL by the repository).
-
-| Column | Type | Description |
-|---|---|---|
-| `from_currency` | `VARCHAR` | Source currency |
-| `to_currency` | `VARCHAR` | Target currency |
-| `rate` | `DOUBLE` | Conversion rate |
-| `last_updated` | `TIMESTAMP` | Cache timestamp |
-
-Primary key: `(from_currency, to_currency)`
-
----
-
-### Reference Data
-
-#### `tickers_reference`
-Static bulk-loaded reference table for ticker search and autocomplete. Loaded once from `data/tickers.csv` at startup.
-
-| Column | Type | Description |
-|---|---|---|
-| `ticker` | `VARCHAR PK` | Ticker symbol |
-| `name` | `VARCHAR` | Human-readable name |
-| `asset_type` | `VARCHAR` | Asset classification |
-| `exchange` | `VARCHAR` | Exchange code |
-| `category` | `VARCHAR` | Sub-category |
-| `country` | `VARCHAR` | Country of origin |
-
-#### `ticker_info`
-Enriched ticker metadata resolved from yfinance or entered manually. Acts as a persistent cache for ISIN→ticker resolution.
-
-| Column | Type | Description |
-|---|---|---|
-| `ticker` | `VARCHAR PK` | Uppercase ticker symbol |
-| `isin` | `VARCHAR` | ISIN code |
-| `name` | `VARCHAR` | Human-readable name |
-| `asset_type` | `VARCHAR` | Resolved domain asset type |
-| `exchange` | `VARCHAR` | Exchange code |
-| `currency` | `VARCHAR` | Native currency |
-| `source` | `VARCHAR` | Where the info came from (`"yfinance"`, `"manual"`, etc.) |
-| `last_updated` | `TIMESTAMP` | Resolution timestamp |
-
----
+`tickers_reference` is bulk-loaded once from a bundled CSV. `ticker_info` is
+populated incrementally by `_enrich_ticker` on every position write.
 
 ### Properties
 
-#### `properties`
-Physical assets (real estate, collectibles, etc.).
+| Table | Columns |
+|---|---|
+| `properties` | **id**, name, description, value, purchase_date, category, currency, entry_type |
 
-| Column | Type | Description |
-|---|---|---|
-| `id` | `INTEGER PK` | Auto-incrementing |
-| `name` | `VARCHAR` | Property name |
-| `description` | `VARCHAR` | Optional description |
-| `value` | `DOUBLE` | Current estimated value |
-| `purchase_date` | `TIMESTAMP` | Date acquired |
-| `category` | `VARCHAR` | User-defined category (default `'Other'`) |
-| `currency` | `VARCHAR` | Value currency |
-| `entry_type` | `VARCHAR` | How it was created |
+### Connector infrastructure
 
----
+| Table | Columns |
+|---|---|
+| `connector_master_key` | **id**, salt, verification_hash |
+| `connector_credentials` | **profile_id**, encrypted_data |
+| `connector_history` | **id**, connector_type, profile_id, source_name, source_path, import_mode, column_mapping, delimiter, asset_type_overrides, new_cash_accounts, imported, skipped, errors, status, created_at |
+| `import_hashes` | **hash**, import_type, created_at |
 
-### Connector Infrastructure
-
-#### `connector_master_key`
-Stores the PBKDF2-derived salt and verification hash for the master password. Never stores the password itself. Single-row table (id=1).
-
-#### `connector_credentials`
-Encrypted credential blobs (Fernet), one row per connector profile.
-
-#### `connector_history`
-Full audit log of every import run. Dict/list fields (`column_mapping`, `errors`, etc.) are stored as JSON strings.
-
-#### `import_hashes`
-SHA-256 hashes of previously imported rows, used for deduplication. A row with a matching hash is silently skipped on re-import.
-
----
+The credential vault uses Fernet symmetric encryption with a key derived from
+the user's master password via PBKDF2-HMAC-SHA256 with the salt stored in
+`connector_master_key`. The verification hash lets us check the password
+without decrypting any payload.
 
 ### System
 
-#### `event_log`
-Append-only application event log. Stores `event_type`, a JSON `payload`, and a `created_at` timestamp.
+| Table | Columns |
+|---|---|
+| `event_log` | **id**, timestamp, event_type, details |

@@ -1,62 +1,49 @@
-# Infrastructure Integrations
+# Integrations
 
-Concrete implementations of the domain-level `MarketDataProvider`, `FileConnector`, and `SiteConnector` interfaces. These are the only places in the codebase that touch external APIs, file I/O, and browser automation.
+External-service adapters live in `infrastructure/integrations/`.
 
-## Files
+## yfinance — `YahooFinanceProvider`
 
-| File | Implements | Description |
-|---|---|---|
-| `file_connector.py` | `FileConnector` | Parses CSV and Excel files into Polars DataFrames |
-| `market_data_provider.py` | `MarketDataProvider` | Yahoo Finance API via yfinance |
-| `web_connector/` | `SiteConnector` | Playwright browser automation per broker |
+Implements `MarketDataProvider`. All public methods are wrapped in a
+`_throttle()` helper that enforces a minimum interval between calls so we
+don't get rate-limited by Yahoo.
 
----
+```python
+get_current_price(ticker) -> float | None
+get_price_history(ticker, start_date, end_date, interval, period) -> pl.DataFrame
+get_dividend_history(ticker, start_date, end_date) -> pl.DataFrame
+get_exchange_rate(from_currency, to_currency) -> float | None
+get_ticker_currency(ticker) -> str | None
+resolve_ticker_info(ticker) -> TickerInfo | None
+```
 
-## `file_connector.py` — `ExcelCsvConnector`
+Implementation notes:
 
-A thin file-parsing adapter. All columns are read as raw strings (`infer_schema=False`) — the domain layer is responsible for type coercion during import.
+- `_throttle()` uses a class-level `threading.Lock` and a monotonic clock so
+  concurrent requests serialise behind a `~0.55s` minimum gap.
+- Every successful call flips `_provider_was_called = True`. Reset via
+  `check_provider_was_called()`, which atomically reads-and-clears the flag.
+- All methods return `None` (or empty DataFrames) on failure rather than
+  raising — domain services are responsible for converting that into a
+  `PriceSyncError` / `CurrencyConversionError` if the situation actually
+  warrants surfacing it to the user.
+- Currency for an FX pair is fetched as a synthetic `"{FROM}{TO}=X"` ticker.
 
-- **`read_file(file_bytes, filename, delimiter)`** — Detects format from the file extension:
-  - `.csv` → `pl.read_csv(buf, separator=delimiter, infer_schema=False)`
-  - `.xlsx` / `.xls` → `pl.read_excel(buf, infer_schema_length=0)`
-  - Anything else → raises `ValueError`
+## File parser — `ExcelCsvConnector`
 
----
+Implements `FileConnector`.
 
-## `market_data_provider.py` — `YahooFinanceProvider`
+```python
+read_file(file_bytes: bytes, filename: str, delimiter: str = ",", encoding: str = "utf-8") -> pl.DataFrame
+```
 
-The only market data source in the application. Wraps the `yfinance` Python library.
+Format is sniffed from the file extension:
 
-**Rate limiting:** all methods call `_throttle()` before hitting the API. This enforces a minimum interval of `0.55s` between calls using a `threading.Lock`, preventing Yahoo Finance from rate-limiting the application. The lock also sets `_provider_was_called = True` for telemetry.
-
-### Internal helpers
-
-- **`_throttle()`** — Thread-safe rate limiter. Sleeps if the last call was less than 0.55s ago.
-- **`_parse_history_df(data)`** — Converts a yfinance pandas history DataFrame to Polars `(date, close_price)`. Handles both `Date` (daily) and `Datetime` (intraday) index column names.
-
-### Provider methods
-
-- **`get_current_price(ticker)`** — Fetches `period="1d"` history and returns the last closing price. Returns `None` on any failure.
-- **`get_price_history(ticker, start_date, end_date, interval, *, period)`** — Fetches OHLCV history. Prefers `period` if supplied; otherwise uses the `(start_date, end_date)` range. Returns `(date, close_price)` DataFrame or an empty DataFrame on failure.
-- **`get_ticker_currency(ticker)`** — Reads `info["currency"]` from the yfinance ticker dict. Returns `None` on failure.
-- **`get_exchange_rate(from_currency, to_currency)`** — Constructs a composite ticker like `"EURUSD=X"` and fetches its price. Returns `None` on failure.
-- **`get_dividend_history(ticker, start_date, end_date)`** — Calls `yf.Ticker.dividends`, filters to the date range, and returns `(date, amount_per_share)` DataFrame. Returns empty DataFrame on failure.
-- **`resolve_ticker_info(identifier)`** — Calls `yf.Ticker(identifier).info`, maps `quoteType` to a domain `AssetType` via `_QUOTE_TYPE_MAP`, and returns a `TickerInfo` entity. Returns `None` if resolution fails or `symbol` is missing from the response.
-
-### `_QUOTE_TYPE_MAP`
-
-Maps yfinance `quoteType` strings to domain `AssetType` values:
-
-| yfinance quoteType | Domain AssetType |
+| Extension | Backend |
 |---|---|
-| `EQUITY` | `STOCK` |
-| `ETF` | `ETF` |
-| `CRYPTOCURRENCY` | `CRYPTO` |
-| `FUTURE` | `COMMODITY` |
-| `BOND` / `FIXED_INCOME` | `BOND` |
+| `.csv` | Polars `read_csv` (delimiter passed through) |
+| `.xlsx` | Polars `read_excel` (uses `fastexcel` engine) |
+| `.xls` | Polars `read_excel` |
 
----
-
-## `web_connector/`
-
-See the [web connector README](web_connector.md) for full details.
+The connector does not interpret column names — that's the file connector
+service's job. It only returns a normalised DataFrame.

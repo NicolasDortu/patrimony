@@ -1,168 +1,131 @@
-# Domain Repositories
+# Repository contracts
 
-Abstract repository interfaces (ABCs) that the domain services depend on. **No SQL or infrastructure code lives here** — only method contracts. Concrete implementations are in `infrastructure/repositories/`.
+Abstract repository classes live in `backend/domain/repositories/`. They define
+storage contracts in domain terms and never reference DuckDB or any other
+infrastructure detail. Implementations live in
+`backend/infrastructure/repositories/` and are wired into the DI container.
 
-The separation means you can swap the database layer (e.g. replace DuckDB with PostgreSQL) without touching any domain logic.
-
-## Files
-
-| File | What it covers |
-|---|---|
-| `asset_repositories.py` | Financial assets: securities, cash, prices, currencies, dividends, properties |
-| `support_repositories.py` | Operational concerns: credentials, import history, hashes, event log, reference data, ticker info |
-
----
+All read-side methods return `polars.DataFrame` (or `dict` for keyed lookups);
+mutation methods return `None` or the new row id.
 
 ## `asset_repositories.py`
 
 ### `BaseRepository`
-Mixin used by all repositories. Provides:
-- **`delete(id)`** — Delete a record by ID.
+```python
+get_all() -> pl.DataFrame
+get_by_id(id: int) -> pl.DataFrame
+delete(id: int) -> None
+```
 
----
-
-### `SecuritiesRepository`
-Manages individual position records (buy/sell entries).
-
-- **`add_position(ticker, price, quantity, entry_type, asset_type, date, fees)`** — Insert a new position row. Returns the new row ID.
-- **`update_position(id, ticker, price, quantity, entry_type, asset_type, date, fees)`** — Update all fields of an existing position.
-- **`get_by_ticker(ticker)`** — Return a DataFrame of all individual entries for one ticker.
-- **`get_all()`** — Return every position row in the database.
-- **`get_aggregated_positions(ticker?)`** — Return aggregated view (group by ticker): `avg_price`, `total_quantity`, `asset_type`. Optionally filter to a single ticker.
-- **`get_earliest_purchase_date(ticker?)`** — Return the oldest purchase date across all positions (or for a specific ticker). Used to clamp chart start dates.
-
----
+### `SecuritiesRepository(BaseRepository)`
+```python
+add_position(ticker, price, quantity, entry_type, asset_type, date, fees=0.0) -> int
+update_position(id, ticker, price, quantity, entry_type, asset_type, date, fees=0.0)
+get_by_ticker(ticker: str) -> pl.DataFrame
+get_aggregated_positions(ticker: str | None = None) -> pl.DataFrame
+get_earliest_purchase_date(ticker: str | None = None) -> date | None
+```
+Aggregated rows include `total_quantity`, `total_invested`, `avg_price`,
+`total_fees`, `currency`, `asset_type`, optionally `name`/`isin` after
+ticker-info enrichment.
 
 ### `CashOperationRepository`
-Manages individual balance operations (deposits, withdrawals) on cash accounts.
+```python
+add_operation_balance(account_number, amount, title, operation_date,
+                     entry_type, category="Uncategorized")
+get_operations_by_account(account_number) -> pl.DataFrame
+get_all_operations() -> pl.DataFrame
+update_operation_by_id(id, amount, title, operation_date, entry_type, category)
+delete_operation_by_id(id)
+get_cash_balance_history() -> pl.DataFrame  # for the timeline chart
+recalculate_balances(account_number)        # rolls running balance after edits
+```
 
-- **`add_operation_balance(account_number, amount, title, operation_date, entry_type, category)`** — Insert a new operation and recalculate the running balance for that account. Returns operation ID.
-- **`recalculate_balances(account_number)`** — Recompute the cumulative `balance` and `rank` columns for all operations on an account (called after every insert or delete).
-- **`get_operations_by_account(account_number)`** — Return all operations for one account, ordered newest first.
-- **`get_all_operations()`** — Return all operations across all accounts.
-- **`get_cash_balance_history()`** — Return one row per operation with `(account_number, balance, operation_date)`, used to build the cash balance timeline for charts.
-- **`delete_operation(id)`** — Delete an operation and recalculate balances.
-- **`update_operation(id, ...)`** — Update an operation's fields and recalculate balances.
-
----
-
-### `CashRepository`
-Manages cash account records (the accounts themselves, not their operations).
-
-Extends `CashOperationRepository`, so it also exposes all operation methods.
-
-- **`add_cash(bank, account_number, currency, last_updated)`** — Create a new cash account record. Returns account ID.
-- **`update_cash(bank, account_number, currency, last_updated)`** — Update an existing account's metadata.
-- **`get_all()`** — Return all cash accounts with their current balance.
-- **`delete(id)`** — Delete a cash account and all its operations.
-
----
+### `CashRepository(BaseRepository, CashOperationRepository)`
+```python
+add_cash(bank, account_number, currency, last_updated, entry_type)
+update_cash(bank, account_number, currency, last_updated)
+rename_account(old_account, new_account)
+get_balance(account_number) -> float
+get_total_balance() -> pl.DataFrame   # grouped by currency
+```
 
 ### `PriceRepository`
-Manages all price data: current price cache, daily history, intraday 5-minute data.
-
-- **`get_cached_prices(tickers, max_age_minutes)`** — Return the latest cached current prices for a list of tickers, filtered by freshness. Returns `dict[ticker, price]`.
-- **`cache_price(ticker, price, timestamp)`** — Write or overwrite the current price for a ticker in the cache table.
-- **`get_cache_timestamps(tickers)`** — Return `dict[ticker, last_updated]` for sorting tickers by staleness.
-- **`get_stored_date_range(ticker, period)`** — Return `(min_date, max_date)` of stored rows in `price_history` for a ticker. Returns `(None, None)` if no rows exist.
-- **`get_price_history(tickers, start, end)`** — Return a DataFrame of `(ticker, date, close_price)` rows within the date window.
-- **`store_price_history(ticker, df, period)`** — Upsert a price history DataFrame into the `price_history` table.
-- **`store_intraday_prices(ticker, df)`** — Replace all stored intraday rows for a ticker (DELETE then INSERT).
-- **`get_intraday_prices(tickers)`** — Return all stored intraday rows for a list of tickers as a DataFrame.
-- **`get_intraday_last_updated(ticker)`** — Return the most recent `last_updated` timestamp for a ticker's intraday data.
-- **`get_latest_intraday_prices(tickers, max_age_minutes)`** — Return `dict[ticker, latest_close_price]` only if the intraday data is fresh enough.
-
----
+```python
+cache_price(ticker, price, timestamp)
+store_price_history(ticker, df, period)
+get_stored_date_range(ticker, period) -> tuple[date, date] | None
+get_cache_timestamps(tickers) -> dict[str, datetime]
+get_cached_prices(tickers, max_age_minutes) -> dict[str, float]
+get_last_known_prices(tickers) -> dict[str, float]
+store_intraday_prices(ticker, df)
+get_intraday_prices(tickers) -> pl.DataFrame
+get_latest_intraday_prices(tickers, max_age_minutes) -> dict[str, float]
+```
 
 ### `CurrencyRepository`
-Caches ticker currencies and exchange rates to avoid repeated API calls.
+```python
+get_ticker_currency(ticker) -> str | None
+set_ticker_currency(ticker, currency)
+get_exchange_rate(from_currency, to_currency, max_age_minutes=...) -> float | None
+set_exchange_rate(from_currency, to_currency, rate)
+```
 
-- **`get_ticker_currency(ticker)`** — Return the cached native currency for a ticker, or `None`.
-- **`set_ticker_currency(ticker, currency)`** — Store or update a ticker's native currency.
-- **`get_exchange_rate(from_currency, to_currency)`** — Return the cached FX rate, or `None` if not cached.
-- **`set_exchange_rate(from_currency, to_currency, rate)`** — Store or update an FX rate.
+### `DividendRepository(BaseRepository)`
+```python
+add_dividend(ticker, amount, date)
+get_by_ticker(ticker) -> pl.DataFrame
+update_dividend(id, ticker, amount, date)
+get_total_amount() -> float
+get_totals_by_ticker() -> pl.DataFrame
+```
 
----
-
-### `DividendRepository`
-Manages dividend payment records.
-
-- **`add_dividend(ticker, amount, date)`** — Insert a new dividend record. Returns the new row ID.
-- **`get_by_ticker(ticker)`** — Return all dividends for a ticker.
-- **`get_by_id(id)`** — Return a single dividend record.
-- **`get_all()`** — Return all dividend records, newest first.
-- **`get_total_amount()`** — Return the sum of all dividend amounts.
-- **`delete(id)`** — Delete a dividend record.
-- **`update_dividend(id, ticker, amount, date)`** — Update a dividend record.
-
----
-
-### `PropertyRepository`
-Manages physical property (real estate, collectibles, etc.) records.
-
-- **`add_property(name, value, purchase_date, description, category, currency, entry_type)`** — Insert a new property. Returns row ID.
-- **`update_property(id, name, value, purchase_date, description, category, currency)`** — Update a property's fields.
-- **`get_all()`** — Return all properties as a DataFrame.
-- **`get_total_value_by_currency()`** — Return a grouped DataFrame with `(currency, total_value)` for currency conversion in `PropertyService`.
-- **`delete(id)`** — Delete a property.
-
----
+### `PropertyRepository(BaseRepository)`
+```python
+add_property(name, description, value, purchase_date, category, currency, entry_type)
+update_property(id, name, description, value, purchase_date, category, currency)
+get_total_value_by_currency() -> pl.DataFrame
+```
 
 ## `support_repositories.py`
 
 ### `CredentialRepository`
-Stores broker credentials encrypted with a user-supplied master password using Fernet symmetric encryption.
-
-- **`has_master_password()`** — Returns `True` if a master password has been configured in the database.
-- **`setup_master_password(password)`** — Derives an encryption key from the password, stores a salt and verification hash. Returns the Fernet key bytes.
-- **`verify_master_password(password)`** — Checks the password against the stored hash. Returns the Fernet key if correct, `None` if wrong.
-- **`store_credentials(profile_id, credentials, fernet_key)`** — Encrypts the credentials dict and writes it for the given profile.
-- **`get_credentials(profile_id, fernet_key)`** — Decrypts and returns credentials for a profile, or `None` if not found.
-- **`delete_credentials(profile_id)`** — Remove stored credentials for a profile.
-- **`reset_master_password()`** — Wipe the master password and all stored credentials from the database.
-- **`list_stored_profiles()`** — Return the list of profile IDs that have stored credentials.
-
----
+```python
+has_master_password() -> bool
+setup_master_password(password)
+verify_master_password(password) -> bool
+store_credentials(profile_id, credentials: dict)
+get_credentials(profile_id) -> dict | None
+delete_credentials(profile_id)
+reset_master_password()
+```
+Backed by Fernet (symmetric encryption) with a PBKDF2-derived key and a salt
+stored in `connector_master_key`.
 
 ### `ConnectorHistoryRepository`
-Persists a record of every import run (file or web connector).
-
-- **`add_entry(entry)`** — Persist a `ConnectorHistoryEntry` and return the new row ID.
-- **`get_all()`** — Return all history entries as a list of `ConnectorHistoryEntry`, newest first.
-- **`get_latest_by_source(connector_type, source_identifier)`** — Return the most recent entry for a given connector type and source, or `None`. Used to pre-fill import settings for repeat imports.
-
----
+```python
+add_entry(entry: ConnectorHistoryEntry) -> int
+get_all() -> list[ConnectorHistoryEntry]
+delete(entry_id)
+```
 
 ### `ImportHashRepository`
-Tracks SHA-256 hashes of imported rows to prevent duplicate imports.
-
-- **`has_hash(hash_value)`** — Returns `True` if this hash was already imported.
-- **`add_hash(hash_value)`** — Store a hash, marking the corresponding row as imported.
-- **`add_hashes(hashes)`** — Batch-insert multiple hashes at once.
-
----
-
-### `EventLogRepository`
-Append-only audit trail of application events.
-
-- **`log(event_type, payload)`** — Write an event with a timestamp and JSON payload.
-- **`get_recent(n)`** — Return the `n` most recent events.
-
----
+```python
+existing_hashes(hashes: list[str]) -> set[str]
+add_hashes(hashes: list[str], import_type: str)
+```
+Used by file/web connectors to dedupe re-imports.
 
 ### `ReferenceRepository`
-Provides read access to the static `tickers_reference` table (bulk-loaded from `tickers.csv`). Used for ticker search and autocomplete.
-
-- **`search(query, limit)`** — Full-text search on ticker symbol and name. Returns a list of matching dicts.
-- **`get_by_ticker(ticker)`** — Exact lookup by ticker symbol.
-
----
+```python
+search(query: str, limit: int = 10) -> pl.DataFrame
+```
+Looks up tickers from the bundled `tickers.csv` reference list.
 
 ### `TickerInfoRepository`
-Stores enriched ticker metadata resolved from yfinance or entered manually. Used as a cache to avoid repeated API calls on future imports.
-
-- **`get_by_ticker(ticker)`** — Return `TickerInfo` for an exact ticker symbol, or `None`.
-- **`get_by_isin(isin)`** — Return `TickerInfo` for an ISIN, or `None`.
-- **`get_by_name(name)`** — Case-insensitive lookup by full name, or `None`.
-- **`get_batch_by_isin(isins)`** — Batch lookup of multiple ISINs. Returns `dict[isin, TickerInfo]`.
-- **`upsert(info)`** — Insert or update a `TickerInfo` record. Uses `COALESCE` so existing non-null fields are preserved.
+```python
+get_by_ticker(tickers: list[str]) -> dict[str, TickerInfo]
+get_by_isin(isins: list[str]) -> dict[str, TickerInfo]
+upsert(info: TickerInfo)
+```
+Batch-friendly: pass a list, get back a dict keyed by ticker (or isin).

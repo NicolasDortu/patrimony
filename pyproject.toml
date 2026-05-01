@@ -20,5 +20,16 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = [
-    "flask>=3.0",
+    "pytest>=8.0",
+    "pytest-mock>=3.12",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py", "*_test.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = "-ra --strict-markers"
+markers = [
+    "integration: tests that touch DuckDB or external resources",
 ]

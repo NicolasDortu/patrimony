@@ -1,115 +1,72 @@
 # Backend
 
-The backend is structured around **Domain-Driven Design (DDD)** with a strict dependency rule: inner layers never depend on outer layers.
+The backend is a pure-Python package with no Reflex dependency. It implements
+a Domain-Driven layered architecture:
 
 ```
-domain  ←  application  ←  infrastructure
-                ↑
-           (frontend services consume use cases directly)
+patrimony/backend/
+├── application/       # Use cases (orchestration, transaction boundaries)
+│   └── di_container   # Wires everything together with dependency-injector
+├── domain/            # Business logic, free of I/O
+│   ├── entities       # Dataclasses + StrEnums (AssetType, EntryType, Currency, …)
+│   ├── constants      # Period configs, default currency/period, asset labels
+│   ├── exceptions     # Typed DomainError hierarchy
+│   ├── interfaces     # Provider Protocols / ABCs (MarketDataProvider, UnitOfWork)
+│   ├── repositories   # Abstract repository contracts
+│   └── services       # Pure business logic (portfolio, currency, charts, …)
+└── infrastructure/    # Adapters that touch the outside world
+    ├── database       # DuckDB connection + DDL + reference loader
+    ├── integrations   # yfinance, file parser, Playwright site connectors
+    └── repositories   # Concrete repository implementations
 ```
 
-## Layer Map
+## Layer rules
+
+| Layer | May import | Must NOT import |
+|---|---|---|
+| `domain` | `domain.*` only | `application`, `infrastructure`, `frontend` |
+| `application` | `domain.*` | `infrastructure.*` directly (uses DI) |
+| `infrastructure` | `domain.*` (interfaces) | `application`, `frontend` |
+| `frontend` | `frontend.services.*` only | `backend.*` (goes through the service layer) |
+
+The frontend never imports backend modules directly. It consumes a single
+`Container` instance from `frontend.services` which resolves use cases through
+the DI container.
+
+## Data flow (read example)
 
 ```
-backend/
-├── domain/           # Business rules, entities, interfaces, repositories (ABCs)
-│   ├── constants.py
-│   ├── entities.py
-│   ├── exceptions.py
-│   ├── interfaces.py
-│   ├── repositories/     # Abstract repository contracts
-│   └── services/         # Domain business logic
-│       └── connectors/   # Import pipeline services
-├── application/      # Use cases — orchestrate domain services for the frontend
-│   └── di_container.py   # Dependency injection wiring
-├── infrastructure/   # Concrete implementations (DB, APIs, file parsing)
-│   ├── database/         # DuckDB connection + schema DDL
-│   ├── integrations/     # External providers (yfinance, file parser, Playwright)
-│   └── repositories/     # SQL implementations of domain repository ABCs
-└── config/           # Logging configuration
+UI page (states.cash_state)
+    └─► frontend.services.cash_services.CashService
+            └─► backend.application.cash_use_cases.CashUseCases
+                    ├─► backend.domain.services.CashService
+                    │       └─► CashRepository (abstract)
+                    │               └─► CashRepositoryImpl (DuckDB)
+                    └─► CurrencyService (FX conversion)
 ```
 
----
-
-## Layers Explained
-
-### Domain (`domain/`)
-The core of the application. Contains all business rules, data models, and abstract contracts. **Has no dependencies on any other layer or external library** (except standard Python and Polars for data manipulation).
-
-- **`entities.py`** — All data models: `AssetType`, `EntryType`, `Currency`, `TickerInfo`, `PortfolioOverview`, `ConnectorProfile`, `WebConnectorResult`, `ConnectorHistoryEntry`, `CredentialInfo`.
-- **`constants.py`** — Shared constants: `PERIOD_CONFIG`, `ASSET_TYPE_LABELS`, `DEFAULT_CURRENCY`, `DEFAULT_PERIOD`, `MIN_CHART_DAYS`.
-- **`exceptions.py`** — Domain exception hierarchy rooted at `DomainError`.
-- **`interfaces.py`** — Abstract interfaces for external providers: `PriceProvider`, `CurrencyProvider`, `MarketDataProvider`, `FileConnector`, `SiteConnector`.
-- **`repositories/`** — Abstract repository interfaces (ABCs) for all data access.
-- **`services/`** — Business logic: `CashService`, `ChartService`, `CurrencyService`, `DividendService`, `PortfolioService`, `PriceService`, `PropertyService`, `SecuritiesService`, plus the import pipeline in `services/connectors/`.
-
-→ See [domain/domain.md](domain/domain.md)
-
----
-
-### Application (`application/`)
-Thin use case classes that the frontend calls. Each use case class:
-- Takes domain services/repositories as constructor arguments.
-- Delegates all business logic to the domain.
-- Returns plain `dict` / `list` / primitives (not domain entities) for frontend consumption.
-
-Use cases: `CashUseCases`, `ConnectorHistoryUseCases`, `DividendUseCases`, `FileImportUseCases`, `PortfolioUseCases`, `PropertyUseCases`, `SecuritiesUseCases`, `WebConnectorUseCases`.
-
-The `di_container.py` (`Container` class, using `dependency-injector`) wires all layers together as singletons, ensuring every component is instantiated once and shared correctly.
-
-→ See [applications.md](applications.md)
-
----
-
-### Infrastructure (`infrastructure/`)
-Concrete implementations. Contains all I/O: SQL queries, HTTP calls, file I/O, and browser automation.
-
-- **`database/`** — `DatabaseConnection` (DuckDB singleton) and `ddl.py` (all `CREATE TABLE` statements). See [infrastructure/database.md](infrastructure/database.md) for the full schema.
-- **`integrations/`** — `YahooFinanceProvider` (market data), `ExcelCsvConnector` (file parsing), and Playwright-based broker connectors (`web_connector/`).
-- **`repositories/`** — SQL implementations of every domain repository ABC.
-
-→ See [infrastructure/infrastructure.md](infrastructure/infrastructure.md)
-
----
-
-## Data Flow Example — Portfolio Chart
+## Data flow (mutation example: add position)
 
 ```
-Frontend state
-  → PortfolioUseCases.get_chart_data(period, currency)
-    → PortfolioService.get_chart_data()
-      → ChartService.get_portfolio_chart_data()
-        → PriceService.sync_intraday() / sync_price_history()   (writes to DB)
-        → PriceRepository.get_intraday_prices()                 (reads from DB)
-        → CurrencyService.get_rates_for_tickers()               (cache → yfinance)
-        → PriceService.sort_and_forward_fill()                  (pure computation)
-        → ChartService._build_portfolio_rows()                  (pure computation)
-      → Returns list[dict] with {Date, Stocks, ETFs, Cash, Properties, Total}
+position_dialog.on_submit
+    └─► frontend.services.SecuritiesService.add_position
+            └─► SecuritiesUseCases.add_position
+                    ├─► normalises ticker (strip().upper())
+                    ├─► SecuritiesRepository.add_position  (DuckDB transaction)
+                    └─► _enrich_ticker  (best-effort yfinance lookup)
 ```
 
-## Data Flow Example — File Import
+The application layer is the only place that opens transactions and normalises
+input. Repositories trust their inputs.
 
-```
-Frontend uploads file
-  → FileImportUseCases.import_positions(file_bytes, filename, column_mapping)
-    → ExcelCsvConnector.read_file()                             (parse bytes → DataFrame)
-    → FileConnectorService.import_positions()
-      → ticker_resolution.resolve_ticker_aliases()              (cache → reference → yfinance)
-      → ImportHashRepository.existing_hashes()                  (deduplication)
-      → SecuritiesRepository.add_position()                     (insert rows)
-      → ImportHashRepository.add_hashes()                       (mark as imported)
-    → Returns FileImportResult {success, message, imported, skipped, errors}
-```
+## See also
 
----
-
-## Key Design Decisions
-
-| Decision | Rationale |
-|---|---|
-| Domain has no SQL | Swapping DuckDB for another DB requires only changing `infrastructure/repositories/` |
-| `DEFAULT_CURRENCY` / `DEFAULT_PERIOD` constants | Single source of truth; all service defaults reference these instead of magic strings |
-| Intraday prices in a separate table | Prevents the high-frequency 5m data from polluting daily history queries |
-| SHA-256 row hashing for deduplication | Dedup works across formats (CSV re-uploads, web re-imports) without unique DB constraints per broker |
-| Playwright in a dedicated thread | Reflex occupies the main event loop; Playwright's async API needs its own loop |
-| `COALESCE` in `ticker_info` upsert | Prevents partial resolutions (e.g. from a file import) from overwriting richer data already in the cache |
+- [domain/domain.md](domain/domain.md) — entities, constants, exceptions, interfaces
+- [domain/repositories.md](domain/repositories.md) — abstract repository contracts
+- [domain/services.md](domain/services.md) — domain services
+- [domain/connectors.md](domain/connectors.md) — file & web connector services
+- [applications.md](applications.md) — use cases and DI container
+- [infrastructure/infrastructure.md](infrastructure/infrastructure.md) — adapters overview
+- [infrastructure/database.md](infrastructure/database.md) — DuckDB schema reference
+- [infrastructure/integrations.md](infrastructure/integrations.md) — yfinance & file parsing
+- [infrastructure/web_connector.md](infrastructure/web_connector.md) — Playwright site connectors

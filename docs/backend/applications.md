@@ -1,150 +1,81 @@
-# Application Layer
+# Application layer
 
-The application layer sits between the domain and the frontend. Its only jobs are:
+The application layer is the only place that:
 
-1. **Orchestrate** domain services and repositories to fulfill user-facing operations.
-2. **Translate** between domain types and plain dicts/primitives that the frontend can consume.
-3. **Enforce cooldowns** and other application-level policies that don't belong in the domain.
+- opens DB transactions (through repositories that own them)
+- normalises input at the boundary (ticker `.strip().upper()`, default dates, …)
+- composes domain services into use-case operations
+- is wired by the `dependency-injector` `Container`
 
-Nothing in this layer contains business rules or SQL. All logic is delegated to domain services.
+Use cases are deliberately thin. Most are 5–15 lines that delegate to one or
+two domain services. They exist so the frontend has a single, stable API
+surface that doesn't leak repository internals.
 
-## Files
+## Use cases
 
-| File | What it exposes |
-|---|---|
-| `cash_use_cases.py` | CRUD for cash accounts and balance operations |
-| `connector_history_use_cases.py` | Recording and retrieving import history |
-| `di_container.py` | Dependency injection container (wires everything together) |
-| `dividend_use_cases.py` | Dividend CRUD and sync with cooldown |
-| `file_import_use_cases.py` | File-based import (CSV/Excel) orchestration |
-| `portfolio_use_cases.py` | Portfolio overview and chart data |
-| `property_use_cases.py` | Physical property CRUD |
-| `securities_use_cases.py` | Securities CRUD, aggregation, prices, and ticker chart |
-| `web_connector_use_cases.py` | Browser-based connector orchestration |
+| Class | File | Purpose |
+|---|---|---|
+| `CashUseCases` | `cash_use_cases.py` | Cash account CRUD, balance operations |
+| `SecuritiesUseCases` | `securities_use_cases.py` | Position CRUD, aggregation, ticker enrichment |
+| `PortfolioUseCases` | `portfolio_use_cases.py` | Portfolio overview & chart data |
+| `DividendUseCases` | `dividend_use_cases.py` | Dividend CRUD + yfinance sync |
+| `PropertyUseCases` | `property_use_cases.py` | Property CRUD |
+| `FileImportUseCases` | `file_import_use_cases.py` | Run the file connector pipeline |
+| `WebConnectorUseCases` | `web_connector_use_cases.py` | Run a Playwright web connector |
+| `ConnectorHistoryUseCases` | `connector_history_use_cases.py` | Read/delete past import runs |
 
----
+### `SecuritiesUseCases` (representative)
 
-## `cash_use_cases.py` — `CashUseCases`
-
-**Dependencies:** `CashRepository`
-
-Handles all cash account and operation management.
-
-- **`add_cash(bank, account_number, currency, balance, last_updated)`** — Creates a new cash account. If `balance` is non-zero, also records an `"Initial balance"` operation. Returns `{"id": str}`.
-- **`update_cash(bank, account_number, currency, last_updated)`** — Updates account metadata (bank name, currency). Does not touch operations.
-- **`delete_cash(id)`** — Deletes a cash account and all its operations.
-- **`get_all_cash()`** — Returns all cash accounts with current balances as a list of dicts.
-- **`add_operation_balance(account_number, amount, title, operation_date, entry_type, category)`** — Records a new cash operation (credit or debit). Triggers balance recalculation. Returns `{"id": int}`.
-- **`get_operations_by_account(account_number)`** — Returns all operations for a specific account, ordered newest first.
-- **`get_all_operations()`** — Returns all operations across all accounts.
-- **`update_operation_by_id(id, amount, title, operation_date, entry_type, category)`** — Updates an operation's fields and recalculates the running balance.
-- **`delete_operation_by_id(id)`** — Deletes an operation and recalculates the running balance.
-- **`get_balance(account_number)`** — Returns the current balance for one account. Returns `0.0` if the account has no operations.
-
----
-
-## `connector_history_use_cases.py` — `ConnectorHistoryUseCases`
-
-**Dependencies:** `ConnectorHistoryRepository`
-
-- **`record_history(connector_type, source_name, import_mode, imported, skipped, errors, success, profile_id?, source_path?, column_mapping?, delimiter?, asset_type_overrides?, new_accounts?)`** — Creates a `ConnectorHistoryEntry` and persists it. Computes the `status` field automatically: `"success"` if no errors, `"partial"` if some succeeded and some failed, `"failed"` otherwise. Returns the new record ID.
-
----
-
-## `di_container.py` — `Container`
-
-The dependency injection container, using the `dependency-injector` library. Every service, repository, and infrastructure component is declared here as a `Singleton` or `Factory` provider. This is the single place where all wiring happens.
-
-**Lifecycle overview:**
-
-```
-DatabaseConnection (Singleton)
-    └── All repositories (Singletons, share the same DB connection)
-            └── Domain services (Singletons)
-                    └── Use case classes (assembled by the frontend service layer)
+```python
+add_position(ticker, price, quantity, entry_type, asset_type, date=None, fees=0.0) -> dict
+update_position(id, ticker, price, quantity, entry_type, asset_type, date=None, fees=0.0)
+delete_position(id)
+get_all_positions() -> list[dict]
+get_positions_by_ticker(ticker) -> list[dict]
+get_aggregated_positions(user_currency=DEFAULT_CURRENCY) -> list[dict]
+get_chart_data_ticker(ticker, period=DEFAULT_PERIOD, user_currency=DEFAULT_CURRENCY) -> list[dict]
+get_current_prices(tickers, user_currency=DEFAULT_CURRENCY) -> dict[str, float]
 ```
 
-The frontend does not construct any objects directly — it always pulls from this container. This ensures every component is instantiated once and shared correctly.
+`add_position` and `update_position` call `_enrich_ticker(ticker)` — a
+best-effort lookup that fills `TickerInfoRepository` so the UI gets a company
+name without the user having to do anything. Failures are swallowed and logged
+because the position itself is already persisted.
 
----
+`get_aggregated_positions` backfills missing names by batch-reading the info
+repo first, then calling `_enrich_ticker` only for the truly unknown tickers.
 
-## `dividend_use_cases.py` — `DividendUseCases`
+## DI container — `backend/di_container.py`
 
-**Dependencies:** `DividendRepository`, `SecuritiesRepository`, `DividendService`
+Single `Container(containers.DeclarativeContainer)` with three sections:
 
-- **`add_dividend(ticker, amount, date?)`** — Manually adds a dividend record. Returns `{"id": int}`.
-- **`get_dividends_by_ticker(ticker)`** — Returns all dividends for a specific ticker.
-- **`get_all_dividends()`** — Returns all dividend records, newest first.
-- **`get_total_amount()`** — Returns the total sum of all dividend amounts.
-- **`delete_dividend(id)`** — Deletes a dividend record.
-- **`update_dividend(id, ticker, amount, date?)`** — Updates a dividend record.
-- **`sync_dividends(tickers?)`** — Triggers a market data sync for the given tickers (or all held tickers if `None`). Applies a **1-hour cooldown** per ticker using in-memory state (`_synced_tickers`, `_last_sync_time`) — already-synced tickers are skipped until the cooldown expires. Returns `{imported, skipped, errors}`.
-- **`_filter_recently_synced(tickers)`** — *(private)* Filters out tickers synced within the last hour. Resets the cooldown state completely once the window expires.
+```python
+# Infrastructure (Singletons)
+database              = providers.Singleton(DatabaseConnection)
+market_data_provider  = providers.Singleton(YahooFinanceProvider)
+file_connector        = providers.Singleton(ExcelCsvConnector)
+site_connectors       = providers.Object(SITE_CONNECTORS)
 
----
+# Repositories (Singletons; share the singleton DB connection)
+cash_repository, securities_repository, price_repository,
+reference_repository, currency_repository, dividend_repository,
+import_hash_repository, credential_repository,
+connector_history_repository, property_repository,
+event_log_repository, ticker_info_repository
 
-## `file_import_use_cases.py` — `FileImportUseCases`
+# Domain services (Singletons)
+currency_service, price_sync, securities_service, dividend_sync,
+cash_service, property_service, chart_service, portfolio_service
 
-**Dependencies:** `FileConnector`, `FileConnectorDomainService`
+# Use cases (Singletons)
+cash_use_cases, securities_use_cases, portfolio_use_cases,
+dividend_use_cases, property_use_cases, file_import_use_cases,
+web_connector_use_cases, connector_history_use_cases
 
-Also provides two standalone helpers at module level:
+# Connector services
+file_connector_service, web_connector_service
+```
 
-- **`build_import_message(imported, skipped, errors, label)`** — Constructs a standardized `(success: bool, message: str)` tuple for display in the UI. Handles success, partial success, and failure cases.
-- **`FileImportResult`** — Value object: `success`, `message`, `errors`, `imported`, `skipped`, `history_id`.
-
-### `FileImportUseCases` methods
-
-- **`read_file(file_bytes, filename, delimiter, *, preview_only=True)`** — Reads an uploaded file. In preview mode, returns `(columns, first_5_rows)`. In full mode, returns all rows as dicts.
-- **`resolve_asset_types(tickers)`** — Delegates asset type lookup to the domain service.
-- **`import_positions(file_bytes, filename, column_mapping, delimiter?, asset_type_overrides?)`** — Full positions import pipeline: reads the file, delegates to `FileConnectorDomainService.import_positions()`, and wraps the result in a `FileImportResult` with a user-friendly message.
-- **`detect_unknown_cash_accounts(file_bytes, filename, column_mapping, delimiter?)`** — Returns a list of account numbers found in the file that don't yet exist in the cash table. Used to prompt the user to create missing accounts before importing.
-- **`import_cash_operations(file_bytes, filename, column_mapping, delimiter?, new_accounts?)`** — Imports cash operations from a file. Same pattern as `import_positions`.
-- **`reimport_from_history(history_entry, file_bytes)`** — Re-runs a previous import using the settings recorded in a `ConnectorHistoryEntry`. Useful for re-importing after a configuration fix.
-
----
-
-## `portfolio_use_cases.py` — `PortfolioUseCases`
-
-**Dependencies:** `PortfolioService`
-
-Thin pass-through to the domain service.
-
-- **`get_portfolio_overview(user_currency)`** — Returns a `PortfolioOverview` entity with aggregated totals.
-- **`get_chart_data(period, user_currency)`** — Returns the time-series chart data for the full portfolio as a list of row dicts.
-
----
-
-## `property_use_cases.py` — `PropertyUseCases`
-
-**Dependencies:** `PropertyRepository`
-
-- **`add_property(name, value, purchase_date?, description?, category?, currency?)`** — Adds a new property record. Returns `{"id": int}`.
-- **`get_all_properties()`** — Returns all properties as a list of dicts.
-- **`delete_property(id)`** — Deletes a property.
-- **`update_property(id, name, value, purchase_date?, description?, category?, currency?)`** — Updates a property's fields.
-
----
-
-## `securities_use_cases.py` — `SecuritiesUseCases`
-
-**Dependencies:** `SecuritiesRepository`, `SecuritiesService`, `ChartService`, `PriceService`, `CurrencyService`
-
-- **`add_position(ticker, price, quantity, entry_type, asset_type, date?, fees?)`** — Adds a new position. Returns `{"id": int}`.
-- **`update_position(id, ticker, price, quantity, entry_type, asset_type, date?, fees?)`** — Updates an existing position.
-- **`delete_position(id)`** — Deletes a position.
-- **`get_all_positions()`** — Returns all raw position rows as dicts (drops `currency` column if present).
-- **`get_positions_by_ticker(ticker)`** — Returns all individual position rows for one ticker.
-- **`get_aggregated_positions(user_currency)`** — Returns aggregated positions (avg price, total quantity, current price, total value) converted to `user_currency`.
-- **`get_chart_data_ticker(ticker, period, user_currency)`** — Returns single-ticker chart data as `[{name, price}]`. Delegates to `ChartService.get_ticker_chart_data()`.
-- **`get_current_prices(tickers, user_currency)`** — Returns `dict[ticker, price_in_user_currency]` for a list of tickers. Fetches live prices via `PriceService` and applies FX conversion.
-
----
-
-## `web_connector_use_cases.py` — `WebConnectorUseCases`
-
-**Dependencies:** `WebConnectorDomainService`
-
-- **`list_web_profiles()`** — Returns all available web connector profiles as frontend-friendly dicts, including formatted `credential_fields` descriptors (type, label, options).
-- **`run_web_connector(profile_id, credentials, on_user_input?, headless?)`** — Runs a connector and returns the result as a plain dict: `{success, imported, skipped, errors, status_log, needs_matching, unmatched_positions}`.
-- **`get_web_profile(profile_id)`** — Returns the raw `ConnectorProfile` for a given ID.
-- **`import_matched_positions(matched)`** — Imports positions that the user has manually matched to tickers after a connector run. Returns `{success, imported, skipped, errors}`.
+The container is instantiated once in `frontend/services/__init__.py` and
+reused for the lifetime of the app. Tests can replace any provider via
+`container.<provider>.override(...)`.
