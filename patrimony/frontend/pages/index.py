@@ -90,7 +90,12 @@ def _dashboard() -> rx.Component:
         card(wealth_chart()),
         rx.grid(
             portfolio_performers_card(),
-            allocation_card(),
+            rx.vstack(
+                allocation_card(),
+                dividend_summary_card(),
+                spacing="4",
+                width="100%",
+            ),
             gap="1rem",
             grid_template_columns=[
                 "1fr",
@@ -100,8 +105,8 @@ def _dashboard() -> rx.Component:
                 "1fr 2fr",
             ],
             width="100%",
+            align_items="stretch",
         ),
-        dividend_summary_card(),
         spacing="8",
         width="100%",
     )

@@ -29,8 +29,8 @@ def _show_item(item: SecurityTotal, index: int) -> rx.Component:
             )
         ),
         rx.table.cell(item.total_quantity),
-        rx.table.cell(ThemeState.currency_symbol + f"{item.current_price:.2f}"),
-        rx.table.cell(ThemeState.currency_symbol + f"{item.total_value:.2f}"),
+        rx.table.cell(ThemeState.currency_symbol + f"{item.current_price:,.2f}"),
+        rx.table.cell(ThemeState.currency_symbol + f"{item.total_value:,.2f}"),
         rx.table.cell(
             rx.icon_button(
                 rx.icon("arrow_right_to_line", size=22),

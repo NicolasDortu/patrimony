@@ -62,9 +62,6 @@ class FileConnectorService:
         info_repo: TickerInfoRepository | None = None,
         market_data_provider: MarketDataProvider | None = None,
     ):
-        # ``hash_repo`` is required: without it, re-importing the same file
-        # would silently double every position. Deduplication is part of the
-        # import contract, not an optional optimisation.
         self._securities_repo = securities_repo
         self._cash_repo = cash_repo
         self._reference_repo = reference_repo
@@ -258,8 +255,7 @@ class FileConnectorService:
 
         Only ticker and quantity are required. Price, date, fees, and
         asset_type are optional — sensible defaults are applied when missing.
-        When ``strict`` is True, rows with unresolved asset types raise
-        instead of defaulting to STOCK.
+        When ``strict`` is True, rows with unresolved asset types raise.
         """
         overrides = asset_type_overrides or {}
         mapped_df = self._validate_and_map(df, column_mapping, REQUIRED_POSITION_FIELDS)

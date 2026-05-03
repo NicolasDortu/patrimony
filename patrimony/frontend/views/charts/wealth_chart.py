@@ -1,10 +1,17 @@
 """Wealth chart visualization for portfolio overview."""
 
 import reflex as rx
+from reflex.vars.base import Var
 
 from .common import create_dynamic_gradient, period_selector
 from ...states.portfolio_state import PortfolioState
 from ...templates import ThemeState, t
+
+# Recharts `itemSorter` is an iteratee (called with each tooltip payload
+# entry to extract a sort key), not a comparator. Negating `value` sorts
+# tooltip rows by descending value so Total (the largest) appears first.
+_TOOLTIP_DESC_BY_VALUE = {"itemSorter": Var("((item) => -item.value)")}
+
 
 # Asset config: (data_key, filter_value, color_var, has_var, gradient_id, label_key)
 _ASSETS = [
@@ -59,13 +66,6 @@ _ASSETS = [
 ]
 
 
-def _asset_visible(filter_value: str, has_var: rx.Var[bool]) -> rx.Var[bool]:
-    """Condition: show asset when filter is 'all' (and asset exists) or filter matches."""
-    return ((PortfolioState.asset_filter == "all") & has_var) | (
-        PortfolioState.asset_filter == filter_value
-    )
-
-
 def _wealth_area_chart() -> rx.Component:
     """Area chart showing portfolio value over time."""
     all_css = "var(--" + ThemeState.all_color + "-9)"
@@ -75,41 +75,41 @@ def _wealth_area_chart() -> rx.Component:
         create_dynamic_gradient(color, gid) for _, _, color, _, gid, _ in _ASSETS
     ]
 
-    areas = [
+    return rx.recharts.area_chart(
+        *gradients,
         rx.cond(
             PortfolioState.asset_filter == "all",
             rx.recharts.area(
                 data_key="Total",
                 name=t("label.total"),
                 stroke=all_css,
+                stroke_width=3,
                 fill="url(#colorTotal)",
+                fill_opacity=0.35,
                 type_="monotone",
+                # Bigger active dot makes the Total stand out on hover too.
+                active_dot={"r": 6, "strokeWidth": 2},
             ),
         ),
-    ]
-    for data_key, fval, color, has_var, gid, label_key in _ASSETS:
-        css = "var(--" + color + "-9)"
-        areas.append(
-            rx.cond(
-                _asset_visible(fval, has_var),
+        rx.foreach(
+            PortfolioState.ordered_assets,
+            lambda a: rx.cond(
+                a["visible"],
                 rx.recharts.area(
-                    data_key=data_key,
-                    name=t(label_key),
-                    stroke=css,
-                    fill=f"url(#{gid})",
+                    data_key=a["data_key"],
+                    name=a["name"],
+                    stroke=a["stroke"],
+                    stroke_width=1.5,
+                    fill=a["fill_url"],
                     type_="monotone",
                 ),
-            )
-        )
-
-    return rx.recharts.area_chart(
-        *gradients,
-        *areas,
+            ),
+        ),
         rx.recharts.x_axis(data_key="Date", axis_line=False, tick_line=False),
         rx.recharts.y_axis(axis_line=False, tick_line=False),
         rx.recharts.cartesian_grid(stroke_dasharray="3 3", vertical=False),
-        rx.recharts.legend(),
-        rx.recharts.graphing_tooltip(),
+        rx.recharts.legend(icon_type="square"),
+        rx.recharts.graphing_tooltip(custom_attrs=_TOOLTIP_DESC_BY_VALUE),
         data=PortfolioState.get_chart_data,
         width="100%",
         height=400,
@@ -118,30 +118,34 @@ def _wealth_area_chart() -> rx.Component:
 
 def _wealth_bar_chart() -> rx.Component:
     """Bar chart showing portfolio value over time."""
-    bars = [
+    all_css = "var(--" + ThemeState.all_color + "-9)"
+    return rx.recharts.bar_chart(
         rx.cond(
             PortfolioState.asset_filter == "all",
             rx.recharts.bar(
-                data_key="Total", name=t("label.total"), fill=rx.color("blue", 9)
+                data_key="Total",
+                name=t("label.total"),
+                fill=all_css,
+                # Outline + slight gap so the Total bar reads as the
+                # "hero" series next to the per-asset bars.
+                stroke=all_css,
+                stroke_width=2,
             ),
         ),
-    ]
-    for data_key, fval, color, has_var, _, label_key in _ASSETS:
-        css = "var(--" + color + "-9)"
-        bars.append(
-            rx.cond(
-                _asset_visible(fval, has_var),
-                rx.recharts.bar(data_key=data_key, name=t(label_key), fill=css),
-            )
-        )
-
-    return rx.recharts.bar_chart(
-        *bars,
+        rx.foreach(
+            PortfolioState.ordered_assets,
+            lambda a: rx.cond(
+                a["visible"],
+                rx.recharts.bar(
+                    data_key=a["data_key"], name=a["name"], fill=a["stroke"]
+                ),
+            ),
+        ),
         rx.recharts.x_axis(data_key="Date", axis_line=False, tick_line=False),
         rx.recharts.y_axis(axis_line=False, tick_line=False),
         rx.recharts.cartesian_grid(stroke_dasharray="3 3", vertical=False),
-        rx.recharts.legend(),
-        rx.recharts.graphing_tooltip(),
+        rx.recharts.legend(icon_type="square"),
+        rx.recharts.graphing_tooltip(custom_attrs=_TOOLTIP_DESC_BY_VALUE),
         data=PortfolioState.get_chart_data,
         width="100%",
         height=400,

@@ -12,6 +12,7 @@ from ..services import (
 )
 from ..templates import ThemeState
 from ..utils import export_csv, parse_form_date
+from .aggregation_helpers import add_percentages
 from .mixins import (
     AddDialogMixin,
     PaginationMixin,
@@ -71,7 +72,7 @@ class TableStateTotal(
             at = item.asset_type or "STOCK"
             val = item.total_value or 0.0
             groups[at] = groups.get(at, 0.0) + val
-        return [
+        rows = [
             {
                 "name": labels.get(k, k),
                 "value": round(v, 2),
@@ -79,6 +80,7 @@ class TableStateTotal(
             }
             for k, v in sorted(groups.items())
         ]
+        return add_percentages(rows)
 
     @rx.var
     def heatmap_data(self) -> list[dict]:
@@ -269,7 +271,7 @@ class TableStateTotal(
     @rx.var
     def spreadsheet_columns(self) -> list[dict]:
         # Ticker is the canonical key for a position and changing it would
-        # orphan its price/dividend cache, so make it read-only here. Use the
+        # orphan its price/dividend cache, so it is read-only here. Use the
         # Add Position dialog (with autocomplete) to create new rows.
         # ``grow`` lets Glide stretch every column to fill the wrapper width
         # (which itself is 100% of the page, matching the regular table).

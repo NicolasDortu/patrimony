@@ -32,7 +32,10 @@ def securities() -> rx.Component:
     return rx.vstack(
         rx.hstack(
             rx.heading(t("page.securities.title"), size="5"),
-            _asset_type_filter(),
+            rx.cond(
+                ~TableStateTotal.spreadsheet_mode & ~TableStateTotal.chart_view,
+                _asset_type_filter(),
+            ),
             rx.spacer(),
             rx.cond(
                 TableStateTotal.total_items > 0,

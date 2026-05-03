@@ -153,6 +153,101 @@ class PortfolioState(rx.State):
         """Get the wealth chart data."""
         return self._chart_data
 
+    @rx.var
+    async def ordered_assets(self) -> list[dict]:
+        """Per-asset wealth-chart series ordered by descending value.
+
+        Drives the order of areas/bars (and therefore legend + tooltip) in
+        the wealth chart so that the most valuable asset appears first.
+        Total is rendered separately and always shown first.
+        """
+        theme = await self.get_state(ThemeState)
+        tr = theme.translations
+
+        asset_totals: dict[str, float] = {}
+        for stock in self._stocks_total_data:
+            at = stock.get("asset_type", "STOCK")
+            val = stock.get("total_value") or 0.0
+            asset_totals[at] = asset_totals.get(at, 0.0) + val
+
+        # (asset_key, data_key, filter_value, gradient_id, label_key, default_color, value)
+        configs = [
+            (
+                "STOCK",
+                "Stocks",
+                "stocks",
+                "colorStocks",
+                "asset_type.stocks",
+                "purple",
+                asset_totals.get("STOCK", 0.0),
+            ),
+            (
+                "ETF",
+                "ETFs",
+                "etfs",
+                "colorETFs",
+                "asset_type.etfs",
+                "orange",
+                asset_totals.get("ETF", 0.0),
+            ),
+            (
+                "CRYPTO",
+                "Crypto",
+                "crypto",
+                "colorCrypto",
+                "asset_type.crypto",
+                "yellow",
+                asset_totals.get("CRYPTO", 0.0),
+            ),
+            (
+                "COMMODITY",
+                "Commodity",
+                "commodity",
+                "colorCommodity",
+                "asset_type.commodity",
+                "red",
+                asset_totals.get("COMMODITY", 0.0),
+            ),
+            (
+                "CASH",
+                "Cash",
+                "cash",
+                "colorCash",
+                "asset_type.cash",
+                "green",
+                self.cash_value,
+            ),
+            (
+                "PROPERTY",
+                "Properties",
+                "properties",
+                "colorProperties",
+                "asset_type.properties",
+                "indigo",
+                self.properties_value,
+            ),
+        ]
+
+        rows: list[dict] = []
+        for key, data_key, fval, gid, label_key, default_color, value in configs:
+            color = self._asset_colors.get(key, default_color)
+            visible = (
+                self.asset_filter == "all" and value > 0
+            ) or self.asset_filter == fval
+            rows.append(
+                {
+                    "data_key": data_key,
+                    "filter_value": fval,
+                    "name": tr.get(label_key, data_key),
+                    "stroke": f"var(--{color}-9)",
+                    "fill_url": f"url(#{gid})",
+                    "value": round(value, 2),
+                    "visible": visible,
+                }
+            )
+        rows.sort(key=lambda r: r["value"], reverse=True)
+        return rows
+
     @rx.event
     async def set_asset_filter(self, filter_value: str | list[str]):
         """Change asset type filter and refresh chart display."""
@@ -207,13 +302,18 @@ class PortfolioState(rx.State):
 
     @rx.var
     def top_performers(self) -> list[dict]:
-        """Return top 3 performers."""
-        return self.sorted_performers[:3]
+        """Return up to 3 best performers — strictly positive returns only."""
+        return [p for p in self.sorted_performers if p["return"] > 0][:3]
 
     @rx.var
     def bottom_performers(self) -> list[dict]:
-        """Return bottom 3 performers."""
-        return self.sorted_performers[-3:][::-1]
+        """Return up to 3 worst performers, excluding any already shown as
+        a top performer (so the same ticker can never appear in both)."""
+        top_tickers = {p["ticker"] for p in self.top_performers}
+        remaining = [
+            p for p in self.sorted_performers if p["ticker"] not in top_tickers
+        ]
+        return remaining[-3:][::-1]
 
     #######################
     ### Allocation data ###

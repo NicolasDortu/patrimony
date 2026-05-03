@@ -3,7 +3,7 @@
 import reflex as rx
 
 from ...components.card import card
-from ...components.donut_chart import donut_pie_chart
+from ...components.donut_chart import donut_pie_chart_with_legend
 from ...states.cash_state import CashTableState
 from ...templates import t
 
@@ -16,7 +16,7 @@ def cash_charts() -> rx.Component:
             card(
                 rx.vstack(
                     rx.text(t("chart.balance_by_account"), size="3", weight="medium"),
-                    donut_pie_chart(CashTableState.balance_by_account_data),
+                    donut_pie_chart_with_legend(CashTableState.balance_by_account_data),
                     spacing="3",
                     width="100%",
                 ),
@@ -58,7 +58,9 @@ def cash_charts() -> rx.Component:
             card(
                 rx.vstack(
                     rx.text(t("chart.expense_by_category"), size="3", weight="medium"),
-                    donut_pie_chart(CashTableState.all_operations_category_data),
+                    donut_pie_chart_with_legend(
+                        CashTableState.all_operations_category_data
+                    ),
                     spacing="3",
                     width="100%",
                 ),

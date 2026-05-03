@@ -3,7 +3,7 @@
 import reflex as rx
 
 from ...components.card import card
-from ...components.donut_chart import donut_pie_chart
+from ...components.donut_chart import donut_pie_chart_with_legend
 from ...states.securities_total_state import TableStateTotal
 from ...templates import t
 
@@ -13,7 +13,7 @@ def _allocation_pie_chart() -> rx.Component:
     return card(
         rx.vstack(
             rx.text(t("chart.securities_type_allocation"), size="3", weight="medium"),
-            donut_pie_chart(TableStateTotal.asset_type_allocation),
+            donut_pie_chart_with_legend(TableStateTotal.asset_type_allocation),
             spacing="3",
             width="100%",
         ),

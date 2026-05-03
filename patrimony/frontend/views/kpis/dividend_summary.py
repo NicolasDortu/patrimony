@@ -19,8 +19,14 @@ def _dividend_item(item: dict) -> rx.Component:
             color=rx.color("grass", 9),
         ),
         rx.text(item["date"], size="2", color=rx.color("gray", 10)),
-        min_width="180px",
-        flex="1",
+        spacing="3",
+        align="center",
+        # Fixed-ish basis (don't grow): when the row wraps, items keep
+        # their natural width instead of stretching to fill, so the
+        # ticker on the left and amount/date on the right stay together.
+        flex="0 1 220px",
+        min_width="200px",
+        max_width="320px",
         padding="0.5rem",
         border_radius="6px",
         background=rx.color("gray", 2),

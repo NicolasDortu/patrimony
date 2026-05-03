@@ -20,9 +20,6 @@ Subclass contract:
   - ``_save_spreadsheet_row(row, index, rid, is_new) -> str | None``
   - ``_delete_spreadsheet_row(rid)``
   - ``_after_spreadsheet_save()``  (async)
-
-Public state vars do NOT start with an underscore - underscore-prefixed
-fields are backend-only in Reflex and won't propagate to the UI.
 """
 
 from uuid import uuid4
@@ -222,7 +219,14 @@ class SpreadsheetMixin(rx.State, mixin=True):
             self._exit_spreadsheet_mode()
             return
         data, ids = self._load_spreadsheet_rows()
-        self.rows_state = [_make_row(rid, row) for row, rid in zip(data, ids)]
+        rows = [_make_row(rid, row) for row, rid in zip(data, ids)]
+        # Glide-data-grid can hit a "Maximum update depth exceeded" loop when
+        # the grid is mounted with zero rows (its column auto-sizer keeps
+        # firing without any cell to measure against). Always start with at
+        # least one row so the grid has something to render.
+        if not rows:
+            rows = [_make_row(None, self._blank_row_data(), _DIRTY)]
+        self.rows_state = rows
         self.pending_deletes = []
         self._post_delete_skip = 0
         self.spreadsheet_mode = True

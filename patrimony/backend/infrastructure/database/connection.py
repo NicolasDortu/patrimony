@@ -124,10 +124,7 @@ class DatabaseConnection:
 
     @contextmanager
     def register_df(self, name: str, df: pl.DataFrame):
-        """Register a Polars DataFrame as a DuckDB virtual table for the duration of the block.
-
-        Always unregisters on exit (even on exception) to avoid leaking the alias.
-        """
+        """Register a Polars DataFrame as a DuckDB virtual table for the duration of the block."""
         self.conn.register(name, df)
         try:
             yield

@@ -87,8 +87,8 @@ class DividendsState(SpreadsheetMixin, PaginationMixin, AddDialogMixin, rx.State
     @rx.var
     def spreadsheet_columns(self) -> list[dict]:
         return [
-            {"title": "Amount", "type": "float", "grow": 1},
-            {"title": "Date", "type": "str", "grow": 1},
+            {"id": "amount", "title": "Amount", "type": "float", "width": 220},
+            {"id": "date", "title": "Date", "type": "str", "width": 220},
         ]
 
     def _load_spreadsheet_rows(self) -> tuple[list[list], list]:

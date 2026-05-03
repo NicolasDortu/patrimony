@@ -7,7 +7,7 @@ from ..styles import styles
 # Navigation items: (route, translation_key, icon)
 _NAV_ITEMS = [
     ("/", "nav.overview", "home"),
-    ("/securities", "nav.securities", "table-2"),
+    ("/securities", "nav.securities", "building-2"),
     ("/cash", "nav.cash", "wallet"),
     ("/properties", "nav.properties", "house"),
     ("/connectors", "nav.connectors", "plug"),

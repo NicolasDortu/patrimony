@@ -8,6 +8,7 @@ from ..services import CashService, Currency
 from ..utils import export_csv
 from ..utils import get_pie_color
 from .aggregation_helpers import (
+    add_percentages,
     aggregate_expenses_by_category,
     aggregate_monthly_income_expense,
 )
@@ -141,7 +142,7 @@ class CashTableState(
     @rx.var
     def balance_by_account_data(self) -> list[dict]:
         """Balance distribution across all accounts for pie chart."""
-        return [
+        rows = [
             {
                 "name": f"{item.get('bank', '')} - {item.get('account_number', '')}",
                 "value": round(float(item.get("balance", 0)), 2),
@@ -150,6 +151,7 @@ class CashTableState(
             for i, item in enumerate(self.items)
             if float(item.get("balance", 0)) > 0
         ]
+        return add_percentages(rows)
 
     # ── Spreadsheet mode ──
 

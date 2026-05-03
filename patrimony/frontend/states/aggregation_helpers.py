@@ -3,6 +3,16 @@
 from ..utils import get_pie_color
 
 
+def add_percentages(
+    rows: list[dict], value_key: str = "value", out_key: str = "percentage"
+) -> list[dict]:
+    """Add a percentage field to each row based on its share of the total."""
+    total = sum(r.get(value_key, 0) for r in rows) or 1.0
+    for r in rows:
+        r[out_key] = round(r.get(value_key, 0) / total * 100, 1)
+    return rows
+
+
 def aggregate_monthly_income_expense(operations: list[dict]) -> list[dict]:
     """Aggregate operations into monthly income vs expense totals."""
     monthly: dict[str, dict[str, float]] = {}
@@ -36,9 +46,10 @@ def aggregate_expenses_by_category(operations: list[dict]) -> list[dict]:
             continue
         cat = op.get("category", "Uncategorized") or "Uncategorized"
         categories[cat] = categories.get(cat, 0.0) + abs(amount)
-    return [
+    rows = [
         {"name": k, "value": round(v, 2), "fill": get_pie_color(i)}
         for i, (k, v) in enumerate(
             sorted(categories.items(), key=lambda x: x[1], reverse=True)
         )
     ]
+    return add_percentages(rows)

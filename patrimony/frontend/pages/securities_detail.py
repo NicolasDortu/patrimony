@@ -49,10 +49,19 @@ def _positions_tab() -> rx.Component:
 
 
 def _dividends_tab() -> rx.Component:
-    """Dividends tab content."""
+    """Dividends tab content.
+
+    Dividend records have only two columns (amount, date), so we constrain
+    the width to roughly half the page
+    """
+    # 220 + 220 column widths + ~50px Glide row-marker gutter ≈ 490px.
+    _DIVIDEND_WIDTH = "490px"
     return rx.vstack(
-        spreadsheet_or_table(DividendsState, dividends_table()),
-        spacing="4",
+        rx.box(
+            spreadsheet_or_table(DividendsState, dividends_table()),
+            width=_DIVIDEND_WIDTH,
+            max_width="100%",
+        ),
         width="100%",
         padding_top="1rem",
     )

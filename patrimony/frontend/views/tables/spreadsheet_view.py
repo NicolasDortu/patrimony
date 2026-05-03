@@ -66,6 +66,27 @@ def _spreadsheet_toolbar(state_cls) -> rx.Component:
     return rx.cond(
         state_cls.spreadsheet_mode,
         rx.hstack(
+            rx.hstack(
+                rx.icon("pencil-line", size=16, color=rx.color("accent", 11)),
+                rx.text(
+                    t("spreadsheet.editing"),
+                    size="2",
+                    weight="medium",
+                    color=rx.color("accent", 11),
+                ),
+                rx.cond(
+                    state_cls.has_unsaved_changes,
+                    rx.badge(
+                        t("spreadsheet.unsaved"),
+                        color_scheme="amber",
+                        variant="soft",
+                        size="1",
+                    ),
+                ),
+                spacing="2",
+                align="center",
+            ),
+            rx.spacer(),
             _icon_btn(
                 "save",
                 t("spreadsheet.save"),
@@ -96,6 +117,12 @@ def _spreadsheet_toolbar(state_cls) -> rx.Component:
             ),
             spacing="2",
             align="center",
+            width="100%",
+            padding="0.6rem 0.85rem",
+            border=f"1px solid {rx.color('accent', 6)}",
+            border_radius="10px 10px 0 0",
+            border_bottom="none",
+            background=rx.color("accent", 2),
         ),
     )
 
@@ -141,6 +168,9 @@ def spreadsheet_grid(state_cls) -> rx.Component:
         min_width="0",
         overflow="hidden",
         height="540px",
+        border=f"1px solid {rx.color('accent', 6)}",
+        border_radius="0 0 10px 10px",
+        box_shadow=f"0 4px 16px {rx.color('accent', 3)}",
     )
 
 
@@ -168,7 +198,7 @@ def spreadsheet_or_table(state_cls, table_component: rx.Component) -> rx.Compone
             spreadsheet_grid(state_cls),
             table_component,
         ),
-        spacing="3",
+        spacing="0",
         width="100%",
         # Without min_width=0 a flex child defaults to its intrinsic content
         # width — Glide's canvas would then push this vstack (and the page

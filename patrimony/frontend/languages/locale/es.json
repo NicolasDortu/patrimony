@@ -125,7 +125,8 @@
   "label.amount": "Importe",
   "label.date": "Fecha",
   "label.quantity": "Cantidad",
-  "label.price": "Precio",
+  "label.price": "Precio por unidad",
+  "label.price_hint": "Coste de una acción/unidad — no el importe total pagado.",
   "label.fees": "Comisiones",
   "label.ticker": "Ticker",
   "label.asset_type": "Tipo de activo",
@@ -147,8 +148,9 @@
   "kpi.no_performance_data": "No hay datos de rendimiento disponibles",
   "kpi.no_allocation_data": "No hay datos de asignación disponibles",
   "kpi.total_portfolio": "Portafolio total",
-  "kpi.stocks_value": "Valor de valores",
+  "kpi.securities_value": "Valor de valores",
   "kpi.cash_holdings": "Efectivo",
+  "kpi.properties_value": "Valor de propiedades",
   "kpi.dividends": "Dividendos recibidos",
   "kpi.no_dividend_data": "Ningún dividendo registrado",
 
@@ -183,8 +185,8 @@
 
   "confirm.delete_irreversible": "Esta acci\u00f3n no se puede deshacer.",
 
-  "spreadsheet.toggle": "Alternar modo hoja de c\u00e1lculo",
-  "spreadsheet.save": "Guardar cambios",
+  "spreadsheet.toggle": "Alternar modo hoja de c\u00e1lculo",  "spreadsheet.editing": "Modo edición",
+  "spreadsheet.unsaved": "Cambios sin guardar",  "spreadsheet.save": "Guardar cambios",
   "spreadsheet.discard": "Descartar",
   "spreadsheet.add_row": "Añadir fila",
   "spreadsheet.delete_selected": "Eliminar selección (Supr)",

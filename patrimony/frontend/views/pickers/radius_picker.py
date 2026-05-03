@@ -8,7 +8,7 @@ def radius_picker() -> rx.Component:
     return (
         rx.vstack(
             rx.hstack(
-                rx.icon("radius"),
+                rx.icon("radius", color=rx.color("accent", 10)),
                 rx.heading(t("settings.borders_radius"), size="6"),
                 align="center",
             ),

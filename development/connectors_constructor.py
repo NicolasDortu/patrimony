@@ -52,7 +52,6 @@ KNOWN_URLS: dict[str, str] = {
     "degiro": "https://trader.degiro.nl/trader/#/portfolio/assets",
     "trade_republic": "https://app.traderepublic.com/portfolio?timeframe=1d",
     "revolut": "https://app.revolut.com",
-    "bnp_paribas_be": "https://www.bnpparibasfortis.be/fr/secured/accounts/search-transactions",
 }
 
 DEV_DIR = Path(__file__).parent

@@ -70,7 +70,7 @@ def settings() -> rx.Component:
         # Secondary color picker
         rx.vstack(
             rx.hstack(
-                rx.icon("blend", color=rx.color("gray", 11)),
+                rx.icon("blend", color=rx.color("accent", 10)),
                 rx.heading(t("settings.secondary_color"), size="6"),
                 align="center",
             ),
@@ -78,12 +78,16 @@ def settings() -> rx.Component:
             spacing="4",
             width="100%",
         ),
-        # Radius picker
-        radius_picker(),
-        # Scaling picker
-        scaling_picker(),
-        # Asset type color picker
+        # Asset color picker
         asset_color_picker(),
+        # Radius and scaling
+        rx.grid(
+            radius_picker(),
+            scaling_picker(),
+            columns=rx.breakpoints(initial="1", sm="2"),
+            gap="1.5rem",
+            width="100%",
+        ),
         # Connectors section
         rx.vstack(
             rx.hstack(

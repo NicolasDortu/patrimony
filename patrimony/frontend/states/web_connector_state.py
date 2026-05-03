@@ -10,7 +10,6 @@ from ..templates.template import ThemeState
 
 
 # Module-level bridge for OTP prompt between Playwright thread and Reflex state.
-# Cannot live on the State class because threading.Event is not picklable.
 class _BridgeContext:
     """Inter-thread communication for OTP prompts between Playwright and Reflex."""
 

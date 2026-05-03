@@ -42,7 +42,7 @@ def open_add_position_dialog(on_submit: callable) -> rx.Component:
             ),
             rx.form(
                 rx.flex(
-                    # Ticker search with autocomplete
+                    # Ticker search
                     rx.vstack(
                         rx.text(t("label.ticker"), size="1", weight="medium"),
                         rx.box(
@@ -52,6 +52,8 @@ def open_add_position_dialog(on_submit: callable) -> rx.Component:
                                 on_change=TableStateTotal.search_ticker,
                                 name="ticker",
                                 required=True,
+                                auto_complete=False,
+                                custom_attrs={"autoComplete": "off"},
                             ),
                             rx.cond(
                                 TableStateTotal.show_suggestions,
@@ -65,6 +67,7 @@ def open_add_position_dialog(on_submit: callable) -> rx.Component:
                                     width="100%",
                                     max_height="200px",
                                     overflow_y="auto",
+                                    background=rx.color("gray", 1),
                                 ),
                             ),
                             position="relative",
@@ -103,6 +106,11 @@ def open_add_position_dialog(on_submit: callable) -> rx.Component:
                             min="0.01",
                             step="0.01",
                             required=True,
+                        ),
+                        rx.text(
+                            t("label.price_hint"),
+                            size="1",
+                            color=rx.color("gray", 10),
                         ),
                         spacing="1",
                         align="stretch",
@@ -167,6 +175,7 @@ def open_add_position_dialog(on_submit: callable) -> rx.Component:
                 ),
                 on_submit=on_submit,
                 reset_on_submit=True,
+                custom_attrs={"autoComplete": "off"},
             ),
             max_width="450px",
         ),

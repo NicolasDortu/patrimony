@@ -6,6 +6,7 @@ import reflex as rx
 
 from ..services import PropertyService, Property
 from ..utils import export_csv, get_pie_color, parse_form_date
+from .aggregation_helpers import add_percentages
 from .mixins import (
     AddDialogMixin,
     PaginationMixin,
@@ -14,17 +15,6 @@ from .mixins import (
 )
 from .spreadsheet_helpers import cell_date, cell_float, cell_str, fmt_date_cell
 from .spreadsheet_mixin import SpreadsheetMixin
-
-# Default suggestions — users can also type any custom category, which
-# becomes its own bucket in the allocation chart automatically.
-PROPERTY_CATEGORIES = [
-    "Real Estate",
-    "Watch",
-    "Vehicle",
-    "Art",
-    "Jewelry",
-    "Other",
-]
 
 
 class PropertiesState(
@@ -53,12 +43,17 @@ class PropertiesState(
         for prop in self.items:
             cat = prop.get("category") or "Uncategorized"
             categories[cat] = categories.get(cat, 0.0) + float(prop.get("value", 0))
-        return [
-            {"name": k, "value": round(v, 2), "fill": get_pie_color(i)}
+        rows = [
+            {
+                "name": k,
+                "value": round(v, 2),
+                "fill": get_pie_color(i),
+            }
             for i, (k, v) in enumerate(
                 sorted(categories.items(), key=lambda x: x[1], reverse=True)
             )
         ]
+        return add_percentages(rows)
 
     @rx.var(initial_value=[])
     def get_current_page(self) -> list[dict]:
@@ -140,7 +135,7 @@ class PropertiesState(
                 p.get("name", ""),
                 p.get("description", ""),
                 p.get("value", 0.0),
-                p.get("category", "Other"),
+                p.get("category", "Uncategorized"),
                 p.get("currency", "EUR"),
                 fmt_date_cell(p.get("purchase_date", "")),
             ]
