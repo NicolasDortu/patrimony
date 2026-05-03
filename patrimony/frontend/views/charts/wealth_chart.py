@@ -1,92 +1,115 @@
 """Wealth chart visualization for portfolio overview."""
 
 import reflex as rx
+from reflex.vars.base import Var
 
 from .common import create_dynamic_gradient, period_selector
 from ...states.portfolio_state import PortfolioState
 from ...templates import ThemeState, t
 
+# Recharts `itemSorter` is an iteratee (called with each tooltip payload
+# entry to extract a sort key), not a comparator. Negating `value` sorts
+# tooltip rows by descending value so Total (the largest) appears first.
+_TOOLTIP_DESC_BY_VALUE = {"itemSorter": Var("((item) => -item.value)")}
+
+
+# Asset config: (data_key, filter_value, color_var, has_var, gradient_id, label_key)
+_ASSETS = [
+    (
+        "Stocks",
+        "stocks",
+        PortfolioState.stock_color,
+        PortfolioState.has_stocks,
+        "colorStocks",
+        "asset_type.stocks",
+    ),
+    (
+        "ETFs",
+        "etfs",
+        PortfolioState.etf_color,
+        PortfolioState.has_etfs,
+        "colorETFs",
+        "asset_type.etfs",
+    ),
+    (
+        "Crypto",
+        "crypto",
+        PortfolioState.crypto_color,
+        PortfolioState.has_crypto,
+        "colorCrypto",
+        "asset_type.crypto",
+    ),
+    (
+        "Commodity",
+        "commodity",
+        PortfolioState.commodity_color,
+        PortfolioState.has_commodity,
+        "colorCommodity",
+        "asset_type.commodity",
+    ),
+    (
+        "Cash",
+        "cash",
+        PortfolioState.cash_color,
+        PortfolioState.has_cash,
+        "colorCash",
+        "asset_type.cash",
+    ),
+    (
+        "Properties",
+        "properties",
+        PortfolioState.property_color,
+        PortfolioState.has_properties,
+        "colorProperties",
+        "asset_type.properties",
+    ),
+]
+
 
 def _wealth_area_chart() -> rx.Component:
     """Area chart showing portfolio value over time."""
     all_css = "var(--" + ThemeState.all_color + "-9)"
-    stock_css = "var(--" + PortfolioState.stock_color + "-9)"
-    etf_css = "var(--" + PortfolioState.etf_color + "-9)"
-    crypto_css = "var(--" + PortfolioState.crypto_color + "-9)"
-    commodity_css = "var(--" + PortfolioState.commodity_color + "-9)"
-    cash_css = "var(--" + PortfolioState.cash_color + "-9)"
+
+    gradients = [create_dynamic_gradient(ThemeState.all_color, "colorTotal")]
+    gradients += [
+        create_dynamic_gradient(color, gid) for _, _, color, _, gid, _ in _ASSETS
+    ]
 
     return rx.recharts.area_chart(
-        create_dynamic_gradient(ThemeState.all_color, "colorTotal"),
-        create_dynamic_gradient(PortfolioState.cash_color, "colorCash"),
-        create_dynamic_gradient(PortfolioState.stock_color, "colorStocks"),
-        create_dynamic_gradient(PortfolioState.etf_color, "colorETFs"),
-        create_dynamic_gradient(PortfolioState.crypto_color, "colorCrypto"),
-        create_dynamic_gradient(PortfolioState.commodity_color, "colorCommodity"),
+        *gradients,
         rx.cond(
             PortfolioState.asset_filter == "all",
             rx.recharts.area(
                 data_key="Total",
+                name=t("label.total"),
                 stroke=all_css,
+                stroke_width=3,
                 fill="url(#colorTotal)",
+                fill_opacity=0.35,
                 type_="monotone",
+                # Bigger active dot makes the Total stand out on hover too.
+                active_dot={"r": 6, "strokeWidth": 2},
             ),
         ),
-        rx.cond(
-            ((PortfolioState.asset_filter == "all") & PortfolioState.has_stocks)
-            | (PortfolioState.asset_filter == "stocks"),
-            rx.recharts.area(
-                data_key="Stocks",
-                stroke=stock_css,
-                fill="url(#colorStocks)",
-                type_="monotone",
-            ),
-        ),
-        rx.cond(
-            ((PortfolioState.asset_filter == "all") & PortfolioState.has_etfs)
-            | (PortfolioState.asset_filter == "etfs"),
-            rx.recharts.area(
-                data_key="ETFs",
-                stroke=etf_css,
-                fill="url(#colorETFs)",
-                type_="monotone",
-            ),
-        ),
-        rx.cond(
-            ((PortfolioState.asset_filter == "all") & PortfolioState.has_crypto)
-            | (PortfolioState.asset_filter == "crypto"),
-            rx.recharts.area(
-                data_key="Crypto",
-                stroke=crypto_css,
-                fill="url(#colorCrypto)",
-                type_="monotone",
-            ),
-        ),
-        rx.cond(
-            ((PortfolioState.asset_filter == "all") & PortfolioState.has_commodity)
-            | (PortfolioState.asset_filter == "commodity"),
-            rx.recharts.area(
-                data_key="Commodity",
-                stroke=commodity_css,
-                fill="url(#colorCommodity)",
-                type_="monotone",
-            ),
-        ),
-        rx.cond(
-            ((PortfolioState.asset_filter == "all") & PortfolioState.has_cash)
-            | (PortfolioState.asset_filter == "cash"),
-            rx.recharts.area(
-                data_key="Cash",
-                stroke=cash_css,
-                fill="url(#colorCash)",
-                type_="monotone",
+        rx.foreach(
+            PortfolioState.ordered_assets,
+            lambda a: rx.cond(
+                a["visible"],
+                rx.recharts.area(
+                    data_key=a["data_key"],
+                    name=a["name"],
+                    stroke=a["stroke"],
+                    stroke_width=1.5,
+                    fill=a["fill_url"],
+                    type_="monotone",
+                ),
             ),
         ),
         rx.recharts.x_axis(data_key="Date", axis_line=False, tick_line=False),
         rx.recharts.y_axis(axis_line=False, tick_line=False),
         rx.recharts.cartesian_grid(stroke_dasharray="3 3", vertical=False),
-        rx.recharts.legend(),
-        rx.recharts.graphing_tooltip(),
+        rx.recharts.legend(icon_type="square"),
+        rx.recharts.graphing_tooltip(custom_attrs=_TOOLTIP_DESC_BY_VALUE),
         data=PortfolioState.get_chart_data,
         width="100%",
         height=400,
@@ -95,65 +118,34 @@ def _wealth_area_chart() -> rx.Component:
 
 def _wealth_bar_chart() -> rx.Component:
     """Bar chart showing portfolio value over time."""
-    stock_css = "var(--" + PortfolioState.stock_color + "-9)"
-    etf_css = "var(--" + PortfolioState.etf_color + "-9)"
-    crypto_css = "var(--" + PortfolioState.crypto_color + "-9)"
-    commodity_css = "var(--" + PortfolioState.commodity_color + "-9)"
-    cash_css = "var(--" + PortfolioState.cash_color + "-9)"
-
+    all_css = "var(--" + ThemeState.all_color + "-9)"
     return rx.recharts.bar_chart(
         rx.cond(
             PortfolioState.asset_filter == "all",
             rx.recharts.bar(
                 data_key="Total",
-                fill=rx.color("blue", 9),
+                name=t("label.total"),
+                fill=all_css,
+                # Outline + slight gap so the Total bar reads as the
+                # "hero" series next to the per-asset bars.
+                stroke=all_css,
+                stroke_width=2,
             ),
         ),
-        rx.cond(
-            ((PortfolioState.asset_filter == "all") & PortfolioState.has_stocks)
-            | (PortfolioState.asset_filter == "stocks"),
-            rx.recharts.bar(
-                data_key="Stocks",
-                fill=stock_css,
-            ),
-        ),
-        rx.cond(
-            ((PortfolioState.asset_filter == "all") & PortfolioState.has_etfs)
-            | (PortfolioState.asset_filter == "etfs"),
-            rx.recharts.bar(
-                data_key="ETFs",
-                fill=etf_css,
-            ),
-        ),
-        rx.cond(
-            ((PortfolioState.asset_filter == "all") & PortfolioState.has_crypto)
-            | (PortfolioState.asset_filter == "crypto"),
-            rx.recharts.bar(
-                data_key="Crypto",
-                fill=crypto_css,
-            ),
-        ),
-        rx.cond(
-            ((PortfolioState.asset_filter == "all") & PortfolioState.has_commodity)
-            | (PortfolioState.asset_filter == "commodity"),
-            rx.recharts.bar(
-                data_key="Commodity",
-                fill=commodity_css,
-            ),
-        ),
-        rx.cond(
-            ((PortfolioState.asset_filter == "all") & PortfolioState.has_cash)
-            | (PortfolioState.asset_filter == "cash"),
-            rx.recharts.bar(
-                data_key="Cash",
-                fill=cash_css,
+        rx.foreach(
+            PortfolioState.ordered_assets,
+            lambda a: rx.cond(
+                a["visible"],
+                rx.recharts.bar(
+                    data_key=a["data_key"], name=a["name"], fill=a["stroke"]
+                ),
             ),
         ),
         rx.recharts.x_axis(data_key="Date", axis_line=False, tick_line=False),
         rx.recharts.y_axis(axis_line=False, tick_line=False),
         rx.recharts.cartesian_grid(stroke_dasharray="3 3", vertical=False),
-        rx.recharts.legend(),
-        rx.recharts.graphing_tooltip(),
+        rx.recharts.legend(icon_type="square"),
+        rx.recharts.graphing_tooltip(custom_attrs=_TOOLTIP_DESC_BY_VALUE),
         data=PortfolioState.get_chart_data,
         width="100%",
         height=400,

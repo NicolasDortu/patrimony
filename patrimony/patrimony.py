@@ -3,8 +3,14 @@
 # Import all the pages.
 import reflex as rx
 
+from .backend.config import setup_backend_logging
+from .frontend.config import setup_frontend_logging
 from .frontend.styles import styles
-from .frontend.pages import *
+from .frontend.pages import *  # noqa: F403
+
+# Configure logging before anything else runs
+setup_backend_logging()
+setup_frontend_logging()
 
 # Create the app.
 app = rx.App(

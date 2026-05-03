@@ -1,0 +1,32 @@
+"""Repository implementation for persistent event log."""
+
+import polars as pl
+
+from ...domain.repositories import EventLogRepository
+from ..database.connection import DatabaseConnection
+
+
+class EventLogRepositoryImpl(EventLogRepository):
+    """Stores and retrieves notification events in DuckDB."""
+
+    def __init__(self, connection: DatabaseConnection):
+        self._conn = connection
+
+    def add_batch(self, events: list[dict]) -> None:
+        if not events:
+            return
+        params = [(e["level"], e["summary"], e.get("detail", "")) for e in events]
+        with self._conn.transaction():
+            self._conn.executemany(
+                "INSERT INTO event_log (level, summary, detail) VALUES (?, ?, ?)",
+                params,
+            )
+
+    def get_recent(self, limit: int = 100) -> pl.DataFrame:
+        return self._conn.execute(
+            "SELECT * FROM event_log ORDER BY created_at DESC LIMIT ?",
+            [limit],
+        ).pl()
+
+    def clear(self) -> None:
+        self._conn.execute("DELETE FROM event_log")

@@ -1,10 +1,10 @@
 from typing import Union
+import logging
 
 import reflex as rx
 
-from datetime import datetime
-
 from ..services import (
+    DividendService,
     SecuritiesService,
     SecurityPosition,
     EntryType,
@@ -12,9 +12,14 @@ from ..services import (
     was_market_data_fetched,
 )
 from ..templates import ThemeState
+from ..utils import export_csv
 from .dividends_state import DividendsState
 from .mixins import PaginationMixin, SearchSortMixin, apply_sort_and_search
+from .securities_total_state import TableStateTotal
+from .spreadsheet_helpers import cell_date, cell_float, fmt_date_cell
 from .spreadsheet_mixin import SpreadsheetMixin
+
+logger = logging.getLogger(__name__)
 
 
 class TableStateDetails(SpreadsheetMixin, SearchSortMixin, PaginationMixin, rx.State):
@@ -22,6 +27,7 @@ class TableStateDetails(SpreadsheetMixin, SearchSortMixin, PaginationMixin, rx.S
 
     items: list[SecurityPosition] = []
     ticker: str = ""
+    is_loading: bool = False
 
     # Stock chart state
     selected_period: str = "6M"
@@ -33,22 +39,38 @@ class TableStateDetails(SpreadsheetMixin, SearchSortMixin, PaginationMixin, rx.S
     @rx.event
     async def on_page_load(self):
         """Handle page load - get ticker from URL and load entries."""
-        ticker = self.router.url.query_parameters.get("ticker", "")
-        self.ticker = ticker
-        self.load_entries()
-        await self._load_chart_data()
-        # Load current price from aggregated positions
-        theme_state = await self.get_state(ThemeState)
-        agg = SecuritiesService.get_aggregated_positions(theme_state.default_currency)
-        for pos in agg:
-            if pos.get("ticker", "").upper() == ticker.upper():
-                self.current_price = pos.get("current_price", 0.0) or 0.0
-                break
-        dividends_state = await self.get_state(DividendsState)
-        dividends_state.ticker = ticker
-        dividends_state.load_entries()
-        if was_market_data_fetched():
-            yield rx.toast.info("Market data refreshed", position="bottom-right")
+        self.is_loading = True
+        yield
+        try:
+            ticker = self.router.url.query_parameters.get("ticker", "")
+            if not ticker:
+                # Also try page.params as fallback
+                ticker = self.router.page.params.get("ticker", "")
+            if not ticker:
+                logger.warning("No ticker in URL, redirecting to securities list")
+                self.is_loading = False
+                yield rx.redirect("/securities")
+                return
+            self.ticker = ticker
+            self.load_entries()
+            await self._load_chart_data()
+            # Load current price directly from price cache (avoids fetching all positions)
+            theme_state = await self.get_state(ThemeState)
+            prices = SecuritiesService.get_current_prices(
+                [ticker], theme_state.default_currency
+            )
+            self.current_price = prices.get(ticker.upper(), 0.0) or 0.0
+            dividends_state = await self.get_state(DividendsState)
+            dividends_state.ticker = ticker
+            DividendService.sync_dividends([ticker])
+            dividends_state.load_entries()
+            if was_market_data_fetched():
+                yield rx.toast.info("Market data refreshed", position="bottom-right")
+        except Exception as e:
+            logger.error("Failed to load security details for %s: %s", self.ticker, e)
+            yield rx.toast.error(str(e), position="bottom-right")
+        finally:
+            self.is_loading = False
 
     @rx.event
     def set_ticker(self, ticker: str) -> None:
@@ -82,7 +104,7 @@ class TableStateDetails(SpreadsheetMixin, SearchSortMixin, PaginationMixin, rx.S
         self.load_entries()
 
     @rx.event
-    def add_stock(self, form_data: dict) -> None:
+    async def add_stock(self, form_data: dict) -> None:
         """Add a new stock position from form data."""
         result = SecuritiesService.add_position(
             ticker=form_data.get("ticker", "").upper(),
@@ -95,6 +117,8 @@ class TableStateDetails(SpreadsheetMixin, SearchSortMixin, PaginationMixin, rx.S
 
         if result.success:
             self.load_entries()
+            total_state = await self.get_state(TableStateTotal)
+            total_state.add_dialog_open = False
             return rx.toast.success(result.message, position="top-center")
         else:
             return rx.toast.error(result.message, position="top-center")
@@ -120,12 +144,7 @@ class TableStateDetails(SpreadsheetMixin, SearchSortMixin, PaginationMixin, rx.S
     def export_csv(self):
         positions = SecuritiesService.get_all_positions()
         columns = list(SecurityPosition.__dataclass_fields__.keys())
-
-        header = ",".join(columns)
-        rows = [",".join(str(pos[col]) for col in columns) for pos in positions]
-
-        data = str(header + "\n" + "\n".join(rows))
-        return rx.download(data=data, filename="positions.csv")
+        return export_csv(positions, columns, "positions.csv")
 
     async def _load_chart_data(self):
         """Fetch stock price history for the chart."""
@@ -150,10 +169,10 @@ class TableStateDetails(SpreadsheetMixin, SearchSortMixin, PaginationMixin, rx.S
     @rx.var
     def spreadsheet_columns(self) -> list[dict]:
         return [
-            {"title": "Price", "type": "float"},
-            {"title": "Quantity", "type": "float"},
-            {"title": "Fees", "type": "float"},
-            {"title": "Date", "type": "str"},
+            {"title": "Price", "type": "float", "grow": 1},
+            {"title": "Quantity", "type": "float", "grow": 1},
+            {"title": "Fees", "type": "float", "grow": 1},
+            {"title": "Date", "type": "str", "grow": 1},
         ]
 
     def _load_spreadsheet_rows(self) -> tuple[list[list], list]:
@@ -163,7 +182,7 @@ class TableStateDetails(SpreadsheetMixin, SearchSortMixin, PaginationMixin, rx.S
                 p.get("price", 0.0),
                 p.get("quantity", 1.0),
                 p.get("fees", 0.0),
-                str(p.get("date", ""))[:10],
+                fmt_date_cell(p.get("date", "")),
             ]
             for p in positions
         ]
@@ -171,11 +190,10 @@ class TableStateDetails(SpreadsheetMixin, SearchSortMixin, PaginationMixin, rx.S
         return data, ids
 
     def _save_spreadsheet_row(self, row, index, rid, is_new):
-        price = float(row[0]) if row[0] != "" else 0.0
-        quantity = float(row[1]) if row[1] != "" else 1.0
-        fees = float(row[2]) if row[2] != "" else 0.0
-        date_str = str(row[3]).strip()
-        date = datetime.strptime(date_str, "%Y-%m-%d") if date_str else datetime.now()
+        price = cell_float(row[0])
+        quantity = cell_float(row[1], default=1.0)
+        fees = cell_float(row[2])
+        date = cell_date(row[3])
         if is_new:
             if price == 0.0 and quantity == 0.0:
                 return "skip"

@@ -1,33 +1,44 @@
 """State management for cash operations (deposits/expenses per account)."""
 
-from datetime import datetime
-
 import reflex as rx
 
 from ..services import CashService, EntryType
+from ..utils import export_csv, parse_form_date
 from .aggregation_helpers import (
     aggregate_expenses_by_category,
     aggregate_monthly_income_expense,
 )
-from .mixins import PaginationMixin, SearchSortMixin, apply_sort_and_search
+from .mixins import (
+    AddDialogMixin,
+    PaginationMixin,
+    SearchSortMixin,
+    apply_sort_and_search,
+)
+from .spreadsheet_helpers import cell_float, cell_iso_datetime, cell_str, fmt_date_cell
 from .spreadsheet_mixin import SpreadsheetMixin
 
 
-class CashOperationsState(SpreadsheetMixin, SearchSortMixin, PaginationMixin, rx.State):
+class CashOperationsState(
+    SpreadsheetMixin, SearchSortMixin, PaginationMixin, AddDialogMixin, rx.State
+):
     """State for cash operations table (per-account view)."""
 
     items: list[dict] = []
     account_number: str = ""
     account_currency: str = "EUR"
+    is_loading: bool = False
 
     @rx.event
-    def on_page_load(self) -> None:
+    async def on_page_load(self):
         """Handle page load - get account_number from URL and load operations."""
+        self.is_loading = True
+        yield
         account_number = self.router.url.query_parameters.get("account_number", "")
         currency = self.router.url.query_parameters.get("currency", "EUR")
         self.account_number = account_number
         self.account_currency = currency
         self.load_entries()
+        self.is_loading = False
 
     @rx.event
     def set_account_number(self, account_number: str) -> None:
@@ -63,6 +74,11 @@ class CashOperationsState(SpreadsheetMixin, SearchSortMixin, PaginationMixin, rx
     def load_entries(self) -> None:
         """Load all operations for the current account."""
         operations = CashService.get_operations_by_account(self.account_number)
+        for op in operations:
+            d = op.get("operation_date")
+            if d is not None:
+                # Trim microseconds from "2026-04-18 12:11:05.107074".
+                op["operation_date"] = str(d).split(".", 1)[0]
         self.items = operations
         self.total_items = len(self.items)
 
@@ -73,50 +89,37 @@ class CashOperationsState(SpreadsheetMixin, SearchSortMixin, PaginationMixin, rx
     @rx.event
     def add_operation(self, form_data: dict) -> None:
         """Add a new cash operation from form data."""
-        try:
-            amount = float(form_data.get("amount", 0))
-            title = form_data.get("title", "")
-            category = form_data.get("category", "Uncategorized")
-            operation_date_str = form_data.get("operation_date", "")
+        amount = float(form_data.get("amount", 0))
+        title = form_data.get("title", "")
+        category = form_data.get("category", "Uncategorized")
+        operation_date_str = form_data.get("operation_date", "")
+        operation_date = parse_form_date(operation_date_str)
 
-            if operation_date_str:
-                operation_date = datetime.fromisoformat(operation_date_str)
-            else:
-                operation_date = datetime.now()
+        result = CashService.add_operation_balance(
+            account_number=self.account_number,
+            amount=amount,
+            title=title,
+            operation_date=operation_date,
+            entry_type=EntryType.MANUAL,
+            category=category,
+        )
 
-            result = CashService.add_operation_balance(
-                account_number=self.account_number,
-                amount=amount,
-                title=title,
-                operation_date=operation_date,
-                entry_type=EntryType.MANUAL,
-                category=category,
-            )
-
-            if result.success:
-                self.load_entries()
-                return rx.toast.success(result.message, position="top-center")
-            else:
-                return rx.toast.error(result.message, position="top-center")
-        except Exception as e:
-            return rx.toast.error(
-                f"Failed to add operation: {str(e)}", position="top-center"
-            )
+        if result.success:
+            self.load_entries()
+            self.add_dialog_open = False
+            return rx.toast.success(result.message, position="top-center")
+        else:
+            return rx.toast.error(result.message, position="top-center")
 
     @rx.event
     def delete_operation(self, id: int) -> None:
         """Delete a cash operation by ID."""
-        try:
-            result = CashService.delete_operation_by_id(id)
-            if result.success:
-                self.load_entries()
-                return rx.toast.success(result.message, position="top-center")
-            else:
-                return rx.toast.error(result.message, position="top-center")
-        except Exception as e:
-            return rx.toast.error(
-                f"Failed to delete operation: {str(e)}", position="top-center"
-            )
+        result = CashService.delete_operation_by_id(id)
+        if result.success:
+            self.load_entries()
+            return rx.toast.success(result.message, position="top-center")
+        else:
+            return rx.toast.error(result.message, position="top-center")
 
     @rx.event
     def export_csv(self):
@@ -135,14 +138,10 @@ class CashOperationsState(SpreadsheetMixin, SearchSortMixin, PaginationMixin, rx
             "operation_date",
             "entry_type",
         ]
-
-        header = ",".join(columns)
-        rows = [",".join(str(op.get(col, "")) for col in columns) for op in operations]
-
-        data = str(header + "\n" + "\n".join(rows))
-        return rx.download(
-            data=data,
-            filename=f"operations_{self.account_number}.csv",
+        return export_csv(
+            operations,
+            columns,
+            f"operations_{self.account_number}.csv",
         )
 
     # ── Spreadsheet mode ──
@@ -150,11 +149,11 @@ class CashOperationsState(SpreadsheetMixin, SearchSortMixin, PaginationMixin, rx
     @rx.var
     def spreadsheet_columns(self) -> list[dict]:
         return [
-            {"title": "Title", "type": "str"},
-            {"title": "Amount", "type": "float"},
-            {"title": "Date", "type": "str"},
-            {"title": "Category", "type": "str"},
-            {"title": "Balance", "type": "float", "editable": False},
+            {"title": "Title", "type": "str", "grow": 1},
+            {"title": "Amount", "type": "float", "grow": 1},
+            {"title": "Date", "type": "str", "grow": 1},
+            {"title": "Category", "type": "str", "grow": 1},
+            {"title": "Balance", "type": "float", "editable": False, "grow": 1},
         ]
 
     def _load_spreadsheet_rows(self) -> tuple[list[list], list]:
@@ -163,7 +162,7 @@ class CashOperationsState(SpreadsheetMixin, SearchSortMixin, PaginationMixin, rx
             [
                 op.get("title", ""),
                 op.get("amount", 0.0),
-                str(op.get("operation_date", ""))[:10],
+                fmt_date_cell(op.get("operation_date", "")),
                 op.get("category", "Uncategorized"),
                 op.get("balance", 0.0),
             ]
@@ -173,13 +172,10 @@ class CashOperationsState(SpreadsheetMixin, SearchSortMixin, PaginationMixin, rx
         return data, ids
 
     def _save_spreadsheet_row(self, row, index, rid, is_new):
-        title = str(row[0]).strip() or "Operation"
-        amount = float(row[1]) if row[1] != "" else 0.0
-        date_str = str(row[2]).strip()
-        category = str(row[3]).strip() or "Uncategorized"
-        operation_date = (
-            datetime.fromisoformat(date_str) if date_str else datetime.now()
-        )
+        title = cell_str(row[0], default="Operation")
+        amount = cell_float(row[1])
+        category = cell_str(row[3], default="Uncategorized")
+        operation_date = cell_iso_datetime(row[2])
         if is_new:
             if amount == 0.0 and title == "Operation":
                 return "skip"

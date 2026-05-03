@@ -1,8 +1,4 @@
-"""Repository implementation for cash accounts.
-
-Concrete implementation of CashRepository interface handling
-all database operations for cash accounts.
-"""
+"""Repository implementation for cash accounts."""
 
 from datetime import datetime
 import polars as pl
@@ -29,15 +25,14 @@ class CashOperationRepositoryImpl(CashOperationRepository):
         operation_date: datetime,
         entry_type: EntryType,
         category: str = "Uncategorized",
-    ) -> str:
-        """Record a cash operation on the balance and return the operation ID."""
+    ) -> None:
+        """Record a cash operation on the balance."""
         with self._conn.transaction():
-            result = self._conn.execute(
+            self._conn.execute(
                 """
                 INSERT INTO balance_operations
                 (account_number, amount, balance, rank, title, category, operation_date, entry_type)
                 VALUES (?, ?, 0, 0, ?, ?, ?, ?)
-                RETURNING account_number
                 """,
                 [
                     account_number,
@@ -48,9 +43,7 @@ class CashOperationRepositoryImpl(CashOperationRepository):
                     entry_type.value,
                 ],
             )
-            op_id = result.fetchone()[0]
-            self._recalculate_ranks_and_balances(account_number)
-        return op_id
+            self.recalculate_balances(account_number)
 
     def get_operations_by_account(self, account_number: str) -> pl.DataFrame:
         """Get all balance operations for a specific account."""
@@ -92,9 +85,12 @@ class CashOperationRepositoryImpl(CashOperationRepository):
                 "SELECT account_number FROM balance_operations WHERE id = ?",
                 [id],
             )
-            account_number = result.fetchone()[0]
+            row = result.fetchone()
+            if row is None:
+                raise ValueError(f"Operation {id} not found")
+            account_number = row[0]
             self._conn.execute("DELETE FROM balance_operations WHERE id = ?", [id])
-            self._recalculate_ranks_and_balances(account_number)
+            self.recalculate_balances(account_number)
 
     def update_operation_by_id(
         self,
@@ -111,7 +107,10 @@ class CashOperationRepositoryImpl(CashOperationRepository):
                 "SELECT account_number FROM balance_operations WHERE id = ?",
                 [id],
             )
-            account_number = result.fetchone()[0]
+            row = result.fetchone()
+            if row is None:
+                raise ValueError(f"Operation {id} not found")
+            account_number = row[0]
             self._conn.execute(
                 """
                 UPDATE balance_operations
@@ -120,39 +119,37 @@ class CashOperationRepositoryImpl(CashOperationRepository):
                 """,
                 [amount, title, category, operation_date, entry_type.value, id],
             )
-            self._recalculate_ranks_and_balances(account_number)
+            self.recalculate_balances(account_number)
 
-    def _recalculate_ranks_and_balances(self, account_number: str) -> None:
+    def recalculate_balances(self, account_number: str) -> None:
         """Recalculate ranks and running balances for all operations of an account.
 
-        Orders operations by operation_date ASC, id ASC, then assigns
-        sequential ranks and recomputes the cumulative balance.
+        Uses a single UPDATE with window functions instead of per-row updates.
         """
-        rows = self._conn.execute(
+        self._conn.execute(
             """
-            SELECT id, amount
-            FROM balance_operations
-            WHERE account_number = ?
-            ORDER BY operation_date ASC, id ASC
+            UPDATE balance_operations AS bo
+            SET rank = sub.new_rank, balance = sub.running_balance
+            FROM (
+                SELECT id,
+                       ROW_NUMBER() OVER w AS new_rank,
+                       SUM(amount) OVER w AS running_balance
+                FROM balance_operations
+                WHERE account_number = ?
+                WINDOW w AS (ORDER BY operation_date ASC, id ASC)
+            ) AS sub
+            WHERE bo.id = sub.id
             """,
             [account_number],
-        ).fetchall()
-
-        running_balance = 0.0
-        for rank, (op_id, amount) in enumerate(rows, start=1):
-            running_balance += amount
-            self._conn.execute(
-                """
-                UPDATE balance_operations
-                SET rank = ?, balance = ?
-                WHERE id = ?
-                """,
-                [rank, running_balance, op_id],
-            )
+        )
 
 
-class CashRepositoryImpl(CashRepository, CashOperationRepositoryImpl):
-    """Concrete implementation of CashRepository using DuckDB."""
+class CashRepositoryImpl(CashOperationRepositoryImpl, CashRepository):
+    """Concrete implementation of CashRepository using DuckDB.
+
+    Inherits all balance-operation methods from
+    :class:`CashOperationRepositoryImpl` and adds account-level operations.
+    """
 
     def __init__(self, connection: DatabaseConnection):
         super().__init__(connection)
@@ -162,48 +159,21 @@ class CashRepositoryImpl(CashRepository, CashOperationRepositoryImpl):
         bank: str,
         account_number: str,
         currency: Currency,
-        balance: float,
         last_updated: datetime,
         entry_type: EntryType = EntryType.MANUAL,
-    ) -> str:
+    ) -> None:
         """Add a new cash account."""
-        result = self._conn.execute(
+        self._conn.execute(
             """
             INSERT INTO cash
             (bank, account_number, currency, last_updated, entry_type)
             VALUES (?, ?, ?, ?, ?)
-            RETURNING account_number
             """,
             [
                 bank,
                 account_number,
                 currency.value,
                 last_updated,
-                entry_type.value,
-            ],
-        )
-        # also create the initial balance operation
-        self._create_initial_balance_operation(account_number, balance, entry_type)
-        return result.fetchone()[0]
-
-    def _create_initial_balance_operation(
-        self,
-        account_number: str,
-        balance: float,
-        entry_type: EntryType,
-    ) -> None:
-        """Create an initial balance operation for a new cash account."""
-        self._conn.execute(
-            """
-            INSERT INTO balance_operations
-            (account_number, amount, balance, rank, title, operation_date, entry_type)
-            VALUES (?, ?, ?, 1, ?, CURRENT_TIMESTAMP, ?)
-            """,
-            [
-                account_number,
-                balance,
-                balance,
-                "Initial balance",
                 entry_type.value,
             ],
         )
@@ -234,17 +204,62 @@ class CashRepositoryImpl(CashRepository, CashOperationRepositoryImpl):
             """,
             [account_number],
         )
+        row = result.fetchone()
+        return row[0] if row is not None else 0.0
+
+    def get_total_balance(self) -> float:
+        """Return the total balance across all cash accounts (raw, no currency conversion)."""
+        result = self._conn.execute(
+            "SELECT COALESCE(SUM(balance), 0) FROM cash_balance"
+        )
         return result.fetchone()[0]
 
     def delete(self, account_number: str) -> None:
-        """Delete a cash account by account number. And also delete all related balance operations."""
+        """Delete a cash account and its balance operations.
+
+        DuckDB's FK enforcement does not fully respect MVCC, so deleting
+        the children and the parent inside the same transaction trips the
+        FK constraint. We therefore commit the child delete first, then
+        the parent. If the process crashes between the two commits the
+        cash row remains with no operations, which is recoverable
+        (re-running ``delete`` is idempotent).
+        """
         with self._conn.transaction():
             self._conn.execute(
                 "DELETE FROM balance_operations WHERE account_number = ?",
                 [account_number],
             )
+        with self._conn.transaction():
             self._conn.execute(
                 "DELETE FROM cash WHERE account_number = ?", [account_number]
+            )
+
+    def rename_account(self, old_account_number: str, new_account_number: str) -> None:
+        """Atomically rename an account, cascading to balance_operations.
+
+        DuckDB doesn't support deferred FKs, so we update the child rows
+        first (pointing them at the new key, which doesn't exist yet)
+        then the parent. Wrapping in a transaction makes the temporary
+        FK violation invisible to other readers.
+        """
+        if old_account_number == new_account_number:
+            return
+        with self._conn.transaction():
+            # Insert the new parent first so the FK target exists.
+            self._conn.execute(
+                """
+                INSERT INTO cash (bank, account_number, currency, last_updated, entry_type)
+                SELECT bank, ?, currency, last_updated, entry_type
+                FROM cash WHERE account_number = ?
+                """,
+                [new_account_number, old_account_number],
+            )
+            self._conn.execute(
+                "UPDATE balance_operations SET account_number = ? WHERE account_number = ?",
+                [new_account_number, old_account_number],
+            )
+            self._conn.execute(
+                "DELETE FROM cash WHERE account_number = ?", [old_account_number]
             )
 
     def get_all(self) -> pl.DataFrame:

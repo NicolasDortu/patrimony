@@ -5,31 +5,86 @@ for different data sources (Yahoo Finance, Alpha Vantage, etc.). Only Yfinance i
 """
 
 import logging
+import threading
+import time
 from datetime import datetime
 
-import yfinance as yf
-from typing import Optional
 import polars as pl
+import yfinance as yf
 
 from ...domain.interfaces import MarketDataProvider
+from ...domain.entities import TickerInfo
 
 
 logger = logging.getLogger(__name__)
+
+_EMPTY_HISTORY = pl.DataFrame({"date": [], "close_price": []})
+_EMPTY_DIVIDENDS = pl.DataFrame({"date": [], "amount_per_share": []})
+
+# Minimum interval between consecutive API calls to avoid rate-limit bans.
+_MIN_REQUEST_INTERVAL_S: float = 0.55
 
 
 class YahooFinanceProvider(MarketDataProvider):
     """Market data provider using Yahoo Finance (yfinance library).
 
     This is the default provider - free, no API key required.
+    Includes per-call throttling to avoid hitting Yahoo Finance rate limits.
     """
 
-    def get_current_price(self, ticker: str) -> Optional[float]:
+    def __init__(self) -> None:
+        self._last_call: float = 0.0
+        self._lock = threading.Lock()
+
+    def _throttle(self) -> None:
+        """Block until at least ``_MIN_REQUEST_INTERVAL_S`` has passed since the last call.
+
+        Holds the lock throughout check-sleep-update to prevent concurrent
+        threads from slipping through the rate-limit window.
+        """
+        with self._lock:
+            now = time.monotonic()
+            wait = self._last_call + _MIN_REQUEST_INTERVAL_S - now
+            if wait > 0:
+                time.sleep(wait)
+            self._last_call = time.monotonic()
+            self._provider_was_called = True
+
+    @staticmethod
+    def _parse_history_df(data) -> pl.DataFrame:
+        """Convert a yfinance pandas history DataFrame into a polars DataFrame.
+
+        Returns a DataFrame with columns: date, close_price.
+
+        Raises:
+            ValueError: When the expected date / close columns are missing.
+        """
+        data = data.reset_index()
+        if "Datetime" in data.columns:
+            date_col = "Datetime"
+        elif "Date" in data.columns:
+            date_col = "Date"
+        else:
+            raise ValueError(
+                "yfinance history is missing a 'Date'/'Datetime' column; "
+                f"got columns={list(data.columns)!r}"
+            )
+        if "Close" not in data.columns:
+            raise ValueError(
+                "yfinance history is missing the 'Close' column; "
+                f"got columns={list(data.columns)!r}"
+            )
+
+        data = data.rename(columns={date_col: "date", "Close": "close_price"})
+        return pl.from_pandas(data[["date", "close_price"]])
+
+    def get_current_price(self, ticker: str) -> float | None:
         """Fetch current price from Yahoo Finance."""
         try:
+            self._throttle()
             stock = yf.Ticker(ticker)
             data = stock.history(period="1d")
             if not data.empty:
-                self._api_was_called = True
                 return float(data["Close"].iloc[-1])
             else:
                 logger.warning("No price data found for %s", ticker)
@@ -44,54 +99,67 @@ class YahooFinanceProvider(MarketDataProvider):
         start_date: datetime = None,
         end_date: datetime = None,
         interval: str = "1d",
+        *,
+        period: str | None = None,
     ) -> pl.DataFrame:
-        """Fetch price history from Yahoo Finance using date range."""
+        """Fetch price history from Yahoo Finance.
+
+        Uses ``period`` (e.g. '1d', '1mo') when provided, otherwise falls
+        back to the (start_date, end_date) range.
+        """
         try:
+            self._throttle()
             stock = yf.Ticker(ticker)
-            data = stock.history(
-                start=start_date.strftime("%Y-%m-%d"),
-                end=end_date.strftime("%Y-%m-%d"),
-                interval=interval,
-            )
-            if not data.empty:
-                data = data.reset_index()
-                date_col = "Datetime" if "Datetime" in data.columns else "Date"
-                return pl.DataFrame(
-                    {
-                        "date": data[date_col].tolist(),
-                        "close_price": data["Close"].tolist(),
-                    }
+            if period:
+                data = stock.history(period=period, interval=interval)
+            else:
+                data = stock.history(
+                    start=start_date.strftime("%Y-%m-%d"),
+                    end=end_date.strftime("%Y-%m-%d"),
+                    interval=interval,
                 )
+            if not data.empty:
+                return self._parse_history_df(data)
         except Exception as e:
             logger.warning("Error fetching price history for %s: %s", ticker, e)
-        return pl.DataFrame(schema={"date": pl.Datetime, "close_price": pl.Float64})
+        return _EMPTY_HISTORY.clone()
 
-    def get_price_history_period(
+    def get_dividend_history(
         self,
         ticker: str,
-        period: str = None,
-        interval: str = "1d",
+        start_date: datetime | None = None,
+        end_date: datetime | None = None,
     ) -> pl.DataFrame:
-        """Fetch price history from Yahoo Finance using period."""
-        try:
-            stock = yf.Ticker(ticker)
-            data = stock.history(period=period, interval=interval)
-            if not data.empty:
-                data = data.reset_index()
-                date_col = "Datetime" if "Datetime" in data.columns else "Date"
-                return pl.DataFrame(
-                    {
-                        "date": data[date_col].tolist(),
-                        "close_price": data["Close"].tolist(),
-                    }
-                )
-        except Exception as e:
-            logger.warning("Error fetching price history for %s: %s", ticker, e)
-        return pl.DataFrame(schema={"date": pl.Datetime, "close_price": pl.Float64})
+        """Fetch dividend history from Yahoo Finance.
 
-    def get_ticker_currency(self, ticker: str) -> Optional[str]:
+        Returns a polars DataFrame with columns: date, amount_per_share.
+        """
+        try:
+            self._throttle()
+            stock = yf.Ticker(ticker)
+            dividends = stock.dividends  # pandas Series indexed by date
+            if dividends.empty:
+                return _EMPTY_DIVIDENDS.clone()
+
+            pdf = dividends.reset_index()
+            pdf.columns = ["date", "amount_per_share"]
+            # Strip timezone info to avoid tz-aware vs tz-naive comparison issues
+            pdf["date"] = pdf["date"].dt.tz_localize(None)
+            df = pl.from_pandas(pdf)
+
+            if start_date is not None:
+                df = df.filter(pl.col("date") >= start_date)
+            if end_date is not None:
+                df = df.filter(pl.col("date") <= end_date)
+            return df
+        except Exception as e:
+            logger.warning("Error fetching dividends for %s: %s", ticker, e)
+        return _EMPTY_DIVIDENDS.clone()
+
+    def get_ticker_currency(self, ticker: str) -> str | None:
         """Fetch the native trading currency of a ticker from Yahoo Finance."""
         try:
+            self._throttle()
             stock = yf.Ticker(ticker)
             currency = stock.fast_info.get("currency")
             return currency.upper() if currency else None
@@ -99,9 +167,54 @@ class YahooFinanceProvider(MarketDataProvider):
             logger.warning("Error fetching currency for %s: %s", ticker, e)
             return None
 
-    def get_exchange_rate(
-        self, from_currency: str, to_currency: str
-    ) -> Optional[float]:
+    def get_exchange_rate(self, from_currency: str, to_currency: str) -> float | None:
         """Fetch exchange rate using yfinance's {FROM}{TO}=X ticker format."""
         rate_ticker = f"{from_currency.upper()}{to_currency.upper()}=X"
         return self.get_current_price(rate_ticker)
+
+    # Mapping from yfinance quoteType to our AssetType values
+    _QUOTE_TYPE_MAP: dict[str, str] = {
+        "EQUITY": "STOCK",
+        "ETF": "ETF",
+        "CRYPTOCURRENCY": "CRYPTO",
+        "BOND": "BOND",
+        "COMMODITY": "COMMODITY",
+        "MUTUALFUND": "ETF",
+    }
+
+    def resolve_ticker_info(self, identifier: str) -> TickerInfo | None:
+        """Resolve an identifier (ISIN or ticker) to enriched info via a single API call.
+
+        Returns a TickerInfo entity or None if the lookup fails entirely.
+        """
+        try:
+            self._throttle()
+            stock = yf.Ticker(identifier)
+            info = stock.info
+
+            symbol = info.get("symbol")
+            if not symbol:
+                logger.warning("No symbol returned for %s", identifier)
+                return None
+
+            quote_type = info.get("quoteType", "")
+            asset_type = self._QUOTE_TYPE_MAP.get(quote_type.upper())
+
+            result = TickerInfo(
+                ticker=symbol.upper(),
+                asset_type=asset_type,
+                name=info.get("shortName") or info.get("longName"),
+                currency=info.get("currency"),
+                exchange=info.get("exchange"),
+            )
+
+            logger.info(
+                "Resolved info for %s: symbol=%s, type=%s",
+                identifier,
+                result.ticker,
+                result.asset_type,
+            )
+            return result
+        except Exception as e:
+            logger.warning("Error resolving ticker info for %s: %s", identifier, e)
+            return None

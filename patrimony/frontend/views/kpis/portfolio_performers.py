@@ -119,15 +119,17 @@ def bottom_performers_card() -> rx.Component:
             spacing="4",
             width="100%",
         ),
+        height="100%",
     )
 
 
 def portfolio_performers_card() -> rx.Component:
-    """Display top and bottom performers stacked vertically."""
-    return rx.grid(
-        top_performers_card(),
-        bottom_performers_card(),
+    """Display top and bottom performers stacked vertically, filling parent height."""
+    return rx.flex(
+        rx.box(top_performers_card(), flex="1 1 0", width="100%"),
+        rx.box(bottom_performers_card(), flex="1 1 0", width="100%"),
+        direction="column",
         gap="1rem",
-        grid_template_columns="1fr",
         width="100%",
+        height="100%",
     )

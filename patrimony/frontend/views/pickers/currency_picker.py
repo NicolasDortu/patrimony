@@ -1,6 +1,7 @@
 import reflex as rx
 
 from ...services import Currency
+from ...templates import t
 from ...templates.template import ThemeState
 
 
@@ -8,7 +9,7 @@ def currency_picker() -> rx.Component:
     return rx.vstack(
         rx.hstack(
             rx.icon("banknote", color=rx.color("accent", 10)),
-            rx.heading("Default currency", size="6"),
+            rx.heading(t("settings.default_currency"), size="6"),
             align="center",
         ),
         rx.select.root(

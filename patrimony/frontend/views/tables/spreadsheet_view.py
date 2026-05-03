@@ -40,55 +40,142 @@ _DARK_THEME = rx.data_editor_theme(
 )
 
 
+def _icon_btn(icon: str, label: str, on_click, **kwargs) -> rx.Component:
+    """Square icon-only button with a tooltip."""
+    return rx.tooltip(
+        rx.icon_button(rx.icon(icon, size=18), on_click=on_click, size="2", **kwargs),
+        content=label,
+    )
+
+
+_DISPATCH_DELETE_JS = """
+(() => {
+  const canvas = document.querySelector('canvas[data-testid="data-grid-canvas"]');
+  if (!canvas) return;
+  canvas.focus();
+  const evt = new KeyboardEvent('keydown', {
+    key: 'Delete', code: 'Delete', keyCode: 46, which: 46, bubbles: true,
+  });
+  canvas.dispatchEvent(evt);
+})();
+"""
+
+
 def _spreadsheet_toolbar(state_cls) -> rx.Component:
-    """Toolbar with save and discard buttons (shown only in spreadsheet mode)."""
+    """Toolbar shown only while in spreadsheet mode."""
     return rx.cond(
         state_cls.spreadsheet_mode,
         rx.hstack(
-            rx.button(
-                rx.icon("save", size=16),
+            rx.hstack(
+                rx.icon("pencil-line", size=16, color=rx.color("accent", 11)),
+                rx.text(
+                    t("spreadsheet.editing"),
+                    size="2",
+                    weight="medium",
+                    color=rx.color("accent", 11),
+                ),
+                rx.cond(
+                    state_cls.has_unsaved_changes,
+                    rx.badge(
+                        t("spreadsheet.unsaved"),
+                        color_scheme="amber",
+                        variant="soft",
+                        size="1",
+                    ),
+                ),
+                spacing="2",
+                align="center",
+            ),
+            rx.spacer(),
+            _icon_btn(
+                "save",
                 t("spreadsheet.save"),
-                size="2",
+                state_cls.save_spreadsheet_changes,
                 color_scheme="green",
                 disabled=~state_cls.has_unsaved_changes,
-                on_click=state_cls.save_spreadsheet_changes,
+            ),
+            _icon_btn(
+                "plus",
+                t("spreadsheet.add_row"),
+                state_cls.on_spreadsheet_row_appended,
+                variant="soft",
+            ),
+            _icon_btn(
+                "trash-2",
+                t("spreadsheet.delete_selected"),
+                rx.call_script(_DISPATCH_DELETE_JS),
+                color_scheme="red",
+                variant="soft",
             ),
             rx.button(
                 rx.icon("x", size=16),
                 t("spreadsheet.discard"),
                 size="2",
                 variant="outline",
-                color_scheme="red",
+                color_scheme="gray",
                 on_click=state_cls.discard_spreadsheet_changes,
             ),
             spacing="2",
             align="center",
+            width="100%",
+            padding="0.6rem 0.85rem",
+            border=f"1px solid {rx.color('accent', 6)}",
+            border_radius="10px 10px 0 0",
+            border_bottom="none",
+            background=rx.color("accent", 2),
         ),
     )
 
 
 def spreadsheet_grid(state_cls) -> rx.Component:
-    """Editable data grid powered by Glide Data Grid."""
-    return rx.data_editor(
-        columns=state_cls.spreadsheet_columns,
-        data=state_cls.spreadsheet_data,
-        rows=state_cls.spreadsheet_row_count,
-        on_cell_edited=state_cls.on_spreadsheet_cell_edited,
-        on_row_appended=state_cls.on_spreadsheet_row_appended,
-        on_delete=state_cls.on_spreadsheet_delete,
-        theme=rx.color_mode_cond(_LIGHT_THEME, _DARK_THEME),
-        row_markers="checkbox-visible",
-        row_select="multi",
-        smooth_scroll_x=True,
-        smooth_scroll_y=True,
-        column_select="none",
+    """Editable data grid powered by Glide Data Grid.
+
+    Edits live in state until the user hits Save:
+      - new rows: "Add row" toolbar button
+      - deletes: tick row markers, then press the Delete key
+
+    Sizing notes:
+      * ``min_width=0`` + ``overflow=hidden`` on the wrapper stops Glide's
+        canvas from pushing the parent flex container wider than the page
+        (which would push toolbar buttons off-screen).
+      * Fixed height roughly matches a paginated table so toggling doesn't
+        cause a visible layout jump.
+    """
+    return rx.box(
+        rx.data_editor(
+            columns=state_cls.spreadsheet_columns,
+            data=state_cls.spreadsheet_data,
+            rows=state_cls.spreadsheet_row_count,
+            on_cell_edited=state_cls.on_spreadsheet_cell_edited,
+            on_delete=state_cls.on_spreadsheet_delete,
+            theme=rx.color_mode_cond(_LIGHT_THEME, _DARK_THEME),
+            row_markers="checkbox-visible",
+            row_select="multi",
+            smooth_scroll_x=True,
+            smooth_scroll_y=True,
+            column_select="none",
+            width="100%",
+            height="100%",
+        ),
+        # The ``spreadsheet-wrapper`` class is targeted by assets/styles.css
+        # to (a) force Glide's internal scrollers to width:100%, (b) push
+        # ``min-width: 0`` up to every ancestor via the ``:has()`` selector
+        # so the canvas can never make the page wider than the viewport,
+        # and (c) mask the unavoidable measure-then-grow reflow with a
+        # short fade-in so the user never sees columns expanding.
+        class_name="spreadsheet-wrapper",
         width="100%",
-        height="65vh",
+        min_width="0",
+        overflow="hidden",
+        height="540px",
+        border=f"1px solid {rx.color('accent', 6)}",
+        border_radius="0 0 10px 10px",
+        box_shadow=f"0 4px 16px {rx.color('accent', 3)}",
     )
 
 
 def spreadsheet_toggle_button(state_cls) -> rx.Component:
-    """Toggle button for switching between table and spreadsheet mode."""
+    """Toggle between table and spreadsheet mode."""
     return rx.button(
         rx.cond(
             state_cls.spreadsheet_mode,
@@ -103,11 +190,7 @@ def spreadsheet_toggle_button(state_cls) -> rx.Component:
 
 
 def spreadsheet_or_table(state_cls, table_component: rx.Component) -> rx.Component:
-    """Conditionally render spreadsheet grid or the regular table view.
-
-    Includes contextual save/discard controls when in spreadsheet mode.
-    Place spreadsheet_toggle_button() separately in your page's action bar.
-    """
+    """Render the spreadsheet grid or the regular table, with a toolbar."""
     return rx.vstack(
         _spreadsheet_toolbar(state_cls),
         rx.cond(
@@ -115,6 +198,10 @@ def spreadsheet_or_table(state_cls, table_component: rx.Component) -> rx.Compone
             spreadsheet_grid(state_cls),
             table_component,
         ),
-        spacing="3",
+        spacing="0",
         width="100%",
+        # Without min_width=0 a flex child defaults to its intrinsic content
+        # width — Glide's canvas would then push this vstack (and the page
+        # header above it) wider than the viewport, causing horizontal scroll.
+        min_width="0",
     )

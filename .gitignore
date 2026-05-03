@@ -1,11 +1,13 @@
 .states
 assets/external/
+development/records/
 *.db
 *.py[cod]
 .cursorignore
 .venv/
 .vscode/
 .web
+.pytest*
 __pycache__/
 venv/
 bin/

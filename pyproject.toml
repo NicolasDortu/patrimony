@@ -5,11 +5,31 @@ description = "A personal wealth tracking application."
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
-    "dependency-injector>=4.48.3",
-    "duckdb>=1.4.3",
-    "fastexcel>=0.19.0",
-    "polars>=1.37.1",
-    "pyarrow>=22.0.0",
-    "reflex>=0.8.25",
-    "yfinance>=1.0",
+    "cryptography==46.0.6",
+    "dependency-injector==4.48.3",
+    "duckdb==1.4.3",
+    "fastexcel==0.19.0",
+    "playwright==1.58.0",
+    "playwright-stealth==2.0.2",
+    "polars==1.39.3",
+    "pyarrow==22.0.0",
+    "pydantic-settings==2.13.1",
+    "reflex==0.8.28.post1",
+    "yfinance==1.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest==9.0.3",
+    "pytest-mock==3.15.1",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py", "*_test.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = "-ra --strict-markers"
+markers = [
+    "integration: tests that touch DuckDB or external resources",
 ]

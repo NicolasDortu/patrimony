@@ -1,15 +1,13 @@
 """Repository implementation for price data.
 
-Handles fetching current prices from external APIs and
-caching price data in the database.
+Handles caching and retrieving price data from the database.
 """
 
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime
 
 import polars as pl
 
-from ...domain.interfaces import MarketDataProvider
 from ...domain.repositories import PriceRepository
 from ..database.connection import DatabaseConnection
 
@@ -17,30 +15,13 @@ logger = logging.getLogger(__name__)
 
 
 class PriceRepositoryImpl(PriceRepository):
-    """Concrete implementation of PriceRepository.
-
-    Integrates external market data provider with local caching.
-    """
+    """Concrete implementation of PriceRepository."""
 
     def __init__(
         self,
         connection: DatabaseConnection,
-        market_data_provider: MarketDataProvider,
     ):
         self._conn = connection
-        self._market_data = market_data_provider
-
-    def get_current_price(self, ticker: str) -> float:
-        """Fetch current price, using cache when available."""
-        cached_price = self.get_cached_price(ticker, max_age_minutes=15)
-        if cached_price:
-            return cached_price
-
-        price = self._market_data.get_current_price(ticker)
-        if price:
-            self.cache_price(ticker, price, datetime.now())
-
-        return price
 
     def cache_price(self, ticker: str, price: float, timestamp: datetime) -> None:
         """Cache a price in the database."""
@@ -52,22 +33,6 @@ class PriceRepositoryImpl(PriceRepository):
             """,
             [ticker.upper(), price, timestamp],
         )
-
-    def get_cached_price(self, ticker: str, max_age_minutes: int = 15) -> float:
-        """Get cached price if available and not stale."""
-        result = self._conn.execute(
-            f"""
-            SELECT current_price, last_updated
-            FROM price_cache
-            WHERE ticker = ?
-            AND last_updated > current_timestamp - INTERVAL '{max_age_minutes}' MINUTE
-            ORDER BY last_updated DESC
-            LIMIT 1
-            """,
-            [ticker.upper()],
-        ).fetchone()
-
-        return result[0] if result else None
 
     def get_price_history(
         self,
@@ -99,74 +64,180 @@ class PriceRepositoryImpl(PriceRepository):
             [t.upper() for t in tickers] + [start_date, end_date, period],
         ).pl()
 
-    def _store_price_history(
+    def store_price_history(
         self, ticker: str, df: pl.DataFrame, period: str = "1d"
     ) -> None:
-        """Insert new price history rows, ignoring duplicates."""
-        for row in df.iter_rows(named=True):
-            try:
-                self._conn.execute(
-                    """
-                    INSERT OR IGNORE INTO price_history
-                    (ticker, date, close_price, period, last_updated)
-                    VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
-                    """,
-                    [ticker, row["date"], row["close_price"], period],
-                )
-            except Exception as e:
-                logger.warning(
-                    "Error storing price history for %s at %s: %s",
-                    ticker,
-                    row["date"],
-                    e,
-                )
+        """Insert new price history rows in bulk"""
+        if df.is_empty():
+            return
+        try:
+            insert_df = df.select(["date", "close_price"]).with_columns(
+                pl.lit(ticker).alias("ticker"),
+                pl.lit(period).alias("period"),
+            )
+            with self._conn.register_df("insert_df", insert_df):
+                with self._conn.transaction():
+                    self._conn.execute(
+                        "INSERT OR IGNORE INTO price_history "
+                        "(ticker, date, close_price, period, last_updated) "
+                        "SELECT ticker, date, close_price, period, CURRENT_TIMESTAMP "
+                        "FROM insert_df",
+                    )
+        except Exception as e:
+            logger.warning("Error bulk-storing price history for %s: %s", ticker, e)
 
-    def sync_price_history(
-        self, tickers: list[str], start_date: datetime, period: str = "1d"
-    ) -> None:
-        """Fetch and store only missing price history data."""
-        today = datetime.now()
+    def get_stored_date_range(
+        self, ticker: str, period: str = "1d"
+    ) -> tuple[datetime | None, datetime | None]:
+        """Return (min_date, max_date) of stored price history for a ticker."""
+        result = self._conn.execute(
+            """
+            SELECT MIN(date), MAX(date) FROM price_history
+            WHERE ticker = ? AND period = ?
+            """,
+            [ticker.upper(), period],
+        ).fetchone()
+        min_date = result[0] if result and result[0] else None
+        max_date = result[1] if result and result[1] else None
+        return min_date, max_date
 
-        for ticker in tickers:
-            ticker = ticker.upper()
+    def get_cache_timestamps(self, tickers: list[str]) -> dict[str, datetime]:
+        """Return {ticker: last_updated} for tickers present in price cache."""
+        if not tickers:
+            return {}
+        upper_tickers = [t.upper() for t in tickers]
+        placeholders = ", ".join(["?"] * len(upper_tickers))
+        rows = self._conn.execute(
+            f"""
+            SELECT ticker, last_updated
+            FROM price_cache
+            WHERE ticker IN ({placeholders})
+            """,
+            upper_tickers,
+        ).fetchall()
+        return {r[0]: r[1] for r in rows}
 
-            # Check what date range we already have stored
-            result = self._conn.execute(
-                """
-                SELECT MIN(date), MAX(date) FROM price_history
-                WHERE ticker = ? AND period = ?
-                """,
-                [ticker, period],
-            ).fetchone()
+    def get_cached_prices(
+        self, tickers: list[str], max_age_minutes: int = 15
+    ) -> dict[str, float]:
+        """Return cached prices that are still fresh (within max_age_minutes)."""
+        if not tickers:
+            return {}
 
-            min_date = result[0] if result and result[0] else None
-            max_date = result[1] if result and result[1] else None
+        upper_tickers = [t.upper() for t in tickers]
+        placeholders = ", ".join(["?"] * len(upper_tickers))
 
-            # No data at all — fetch full range
-            if min_date is None:
-                df = self._market_data.get_price_history(
-                    ticker, start_date=start_date, end_date=today
-                )
-                if df is not None and not df.is_empty():
-                    self._store_price_history(ticker, df, period)
-                continue
+        rows = self._conn.execute(
+            f"""
+            SELECT ticker, current_price
+            FROM price_cache
+            WHERE ticker IN ({placeholders})
+            AND last_updated > current_timestamp - INTERVAL '{max_age_minutes}' MINUTE
+            """,
+            upper_tickers,
+        ).fetchall()
 
-            # Fill missing early data if start_date is before our earliest
-            if start_date.date() < (min_date - timedelta(days=1)).date():
-                df = self._market_data.get_price_history(
-                    ticker,
-                    start_date=start_date,
-                    end_date=min_date - timedelta(days=1),
-                )
-                if df is not None and not df.is_empty():
-                    self._store_price_history(ticker, df, period)
+        return {r[0]: r[1] for r in rows if r[1] is not None}
 
-            # Fill missing recent data if latest date is before yesterday
-            if max_date.date() < (today - timedelta(days=1)).date():
-                df = self._market_data.get_price_history(
-                    ticker,
-                    start_date=max_date + timedelta(days=1),
-                    end_date=today,
-                )
-                if df is not None and not df.is_empty():
-                    self._store_price_history(ticker, df, period)
+    def get_last_known_prices(self, tickers: list[str]) -> dict[str, float]:
+        """Return the most recent stored historical close price per ticker.
+
+        Only returns strictly positive prices.
+        """
+        if not tickers:
+            return {}
+        upper_tickers = [t.upper() for t in tickers]
+        placeholders = ", ".join(["?"] * len(upper_tickers))
+        rows = self._conn.execute(
+            f"""
+            SELECT ticker, close_price
+            FROM price_history
+            WHERE ticker IN ({placeholders})
+              AND close_price > 0
+              AND (ticker, date) IN (
+                  SELECT ticker, MAX(date)
+                  FROM price_history
+                  WHERE ticker IN ({placeholders}) AND close_price > 0
+                  GROUP BY ticker
+              )
+            """,
+            upper_tickers + upper_tickers,
+        ).fetchall()
+        return {r[0]: r[1] for r in rows if r[1] and r[1] > 0}
+
+    def store_intraday_prices(self, ticker: str, df: pl.DataFrame) -> None:
+        """Replace stored intraday prices for a ticker with fresh data."""
+        if df.is_empty():
+            return
+        upper = ticker.upper()
+        try:
+            insert_df = df.select(["date", "close_price"]).with_columns(
+                pl.lit(upper).alias("ticker"),
+            )
+            with self._conn.register_df("intraday_insert_df", insert_df):
+                with self._conn.transaction():
+                    self._conn.execute(
+                        "DELETE FROM intraday_prices WHERE ticker = ?", [upper]
+                    )
+                    self._conn.execute(
+                        "INSERT INTO intraday_prices "
+                        "(ticker, date, close_price, last_updated) "
+                        "SELECT ticker, date, close_price, CURRENT_TIMESTAMP "
+                        "FROM intraday_insert_df",
+                    )
+        except Exception as e:
+            logger.warning("Error storing intraday prices for %s: %s", upper, e)
+
+    def get_intraday_prices(self, tickers: list[str]) -> pl.DataFrame:
+        """Get today's intraday price data for the given tickers."""
+        if not tickers:
+            return pl.DataFrame(
+                schema={
+                    "ticker": pl.Utf8,
+                    "date": pl.Datetime,
+                    "close_price": pl.Float64,
+                }
+            )
+        placeholders = ", ".join(["?"] * len(tickers))
+        return self._conn.execute(
+            f"""
+            SELECT ticker, date, close_price
+            FROM intraday_prices
+            WHERE ticker IN ({placeholders})
+            ORDER BY date
+            """,
+            [t.upper() for t in tickers],
+        ).pl()
+
+    def get_intraday_last_updated(self, ticker: str) -> "datetime | None":
+        """Return the most recent last_updated timestamp for a ticker's intraday data."""
+        result = self._conn.execute(
+            "SELECT MAX(last_updated) FROM intraday_prices WHERE ticker = ?",
+            [ticker.upper()],
+        ).fetchone()
+        return result[0] if result and result[0] else None
+
+    def get_latest_intraday_prices(
+        self, tickers: list[str], max_age_minutes: int = 15
+    ) -> dict[str, float]:
+        """Return the latest intraday close price per ticker if data is fresh."""
+        if not tickers:
+            return {}
+        upper_tickers = [t.upper() for t in tickers]
+        placeholders = ", ".join(["?"] * len(upper_tickers))
+        rows = self._conn.execute(
+            f"""
+            SELECT ticker, close_price
+            FROM intraday_prices
+            WHERE ticker IN ({placeholders})
+            AND last_updated > current_timestamp - INTERVAL '{max_age_minutes}' MINUTE
+            AND (ticker, date) IN (
+                SELECT ticker, MAX(date)
+                FROM intraday_prices
+                WHERE ticker IN ({placeholders})
+                GROUP BY ticker
+            )
+            """,
+            upper_tickers + upper_tickers,
+        ).fetchall()
+        return {r[0]: r[1] for r in rows if r[1] is not None and r[1] > 0}

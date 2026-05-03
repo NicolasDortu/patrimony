@@ -4,7 +4,7 @@ import reflex as rx
 
 from ..states.connector_state import ConnectorState
 from ..templates import template
-from ..views.connectors.file_import_wizard import (
+from ..views.connectors.file_connector_wizard import (
     step_indicator,
     step_mapping,
     step_result,

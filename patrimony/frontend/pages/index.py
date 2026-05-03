@@ -5,8 +5,9 @@ import reflex as rx
 from ..components.card import card
 from ..components.loading import loading_spinner
 from ..components.notification import notification
-from ..templates import template, t
+from ..templates import template, t, ThemeState
 from ..states.portfolio_state import PortfolioState
+from ..states.notification_state import NotificationState
 from ..views.charts.wealth_chart import wealth_chart
 from ..views.kpis.portfolio_stats_card import portfolio_kpi_cards
 from ..views.kpis.portfolio_performers import portfolio_performers_card
@@ -75,7 +76,7 @@ def _dashboard() -> rx.Component:
         rx.flex(
             rx.heading(t("page.overview.title"), size="5", white_space="nowrap"),
             rx.flex(
-                notification("message-square-text", "plum", 0),
+                notification("message-square-text", ThemeState.accent_color),
                 spacing="4",
                 width="100%",
                 wrap="nowrap",
@@ -89,24 +90,33 @@ def _dashboard() -> rx.Component:
         card(wealth_chart()),
         rx.grid(
             portfolio_performers_card(),
-            allocation_card(),
-            dividend_summary_card(),
+            rx.vstack(
+                allocation_card(),
+                dividend_summary_card(),
+                spacing="4",
+                width="100%",
+            ),
             gap="1rem",
             grid_template_columns=[
                 "1fr",
                 "1fr",
-                "1fr 1fr 1fr",
-                "1fr 1fr 1fr",
-                "1fr 1fr 1fr",
+                "1fr 2fr",
+                "1fr 2fr",
+                "1fr 2fr",
             ],
             width="100%",
+            align_items="stretch",
         ),
         spacing="8",
         width="100%",
     )
 
 
-@template(route="/", title="Overview", on_load=PortfolioState.load_portfolio_data)
+@template(
+    route="/",
+    title="Overview",
+    on_load=[PortfolioState.load_portfolio_data, NotificationState.load_events],
+)
 def index() -> rx.Component:
     """The overview page."""
     return rx.cond(

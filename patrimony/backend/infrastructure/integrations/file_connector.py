@@ -8,10 +8,14 @@ from ...domain.interfaces import FileConnector
 
 
 class ExcelCsvConnector(FileConnector):
-    """Reads CSV and Excel files into Polars DataFrames."""
+    """Reads CSV and Excel files into polars DataFrames."""
 
     def read_file(
-        self, file_bytes: bytes, filename: str, delimiter: str = ","
+        self,
+        file_bytes: bytes,
+        filename: str,
+        delimiter: str = ",",
+        encoding: str = "utf8",
     ) -> pl.DataFrame:
         """Parse an uploaded CSV or Excel file.
 
@@ -19,15 +23,19 @@ class ExcelCsvConnector(FileConnector):
             file_bytes: Raw bytes of the uploaded file.
             filename: Original filename (used to detect format).
             delimiter: Delimiter for CSV files (e.g. ',', ';', '\\t').
+            encoding: Text encoding for CSV files (e.g. 'utf8', 'utf8-lossy',
+                'latin1'). Ignored for Excel.
 
         Returns:
-            A Polars DataFrame with all columns as strings for safe mapping.
+            A polars DataFrame with all columns as strings for safe mapping.
         """
         lower = filename.lower()
         buf = io.BytesIO(file_bytes)
 
         if lower.endswith(".csv"):
-            df = pl.read_csv(buf, separator=delimiter, infer_schema_length=0)
+            df = pl.read_csv(
+                buf, separator=delimiter, infer_schema=False, encoding=encoding
+            )
         elif lower.endswith((".xlsx", ".xls")):
             df = pl.read_excel(buf, infer_schema_length=0)
         else:
@@ -36,6 +44,4 @@ class ExcelCsvConnector(FileConnector):
                 "Only .csv, .xlsx, and .xls files are supported."
             )
 
-        # Cast all columns to string for uniform handling during mapping
-        df = df.cast({col: pl.Utf8 for col in df.columns})
         return df

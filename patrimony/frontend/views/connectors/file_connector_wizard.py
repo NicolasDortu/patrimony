@@ -4,6 +4,7 @@ import reflex as rx
 
 from ...services import AssetType, Currency
 from ...states.connector_state import ConnectorState
+from ...templates import t
 
 # Asset type options for the override dropdown - Exclude CASH
 ASSET_TYPE_OPTIONS = [at.name for at in AssetType if at != AssetType.CASH]
@@ -16,6 +17,23 @@ DELIMITER_OPTIONS = [
     {"value": "\t", "label": "Tab"},
     {"value": "|", "label": "Pipe ( | )"},
 ]
+
+# JavaScript to open Tauri native file dialog (returns full path)
+_PICK_FILE_JS = """
+(async function() {
+    if (!window.__TAURI__) return '';
+    try {
+        const path = await window.__TAURI__.dialog.open({
+            multiple: false,
+            directory: false,
+            filters: [{name: 'Spreadsheets', extensions: ['csv', 'xlsx', 'xls']}]
+        });
+        return path || '';
+    } catch (e) {
+        return '';
+    }
+})()
+"""
 
 
 # ============================================================================
@@ -37,15 +55,15 @@ def _on_delimiter_change(label: str) -> None:
 def step_upload() -> rx.Component:
     """File upload step with import mode and delimiter selection."""
     return rx.vstack(
-        rx.text("Select what you want to import:", weight="bold", size="3"),
+        rx.text(t("connector.select_import_type"), weight="bold", size="3"),
         rx.segmented_control.root(
-            rx.segmented_control.item("Positions", value="positions"),
-            rx.segmented_control.item("Cash Operations", value="cash"),
+            rx.segmented_control.item(t("connector.positions"), value="positions"),
+            rx.segmented_control.item(t("connector.cash_operations"), value="cash"),
             value=ConnectorState.import_mode,
             on_change=ConnectorState.set_import_mode,
         ),
         rx.separator(),
-        rx.text("CSV Delimiter:", weight="bold", size="3"),
+        rx.text(t("connector.csv_delimiter"), weight="bold", size="3"),
         rx.select(
             [opt["label"] for opt in DELIMITER_OPTIONS],
             value=rx.cond(
@@ -64,65 +82,27 @@ def step_upload() -> rx.Component:
             on_change=_on_delimiter_change,
         ),
         rx.text(
-            "Only relevant for CSV files. Excel files ignore this setting.",
+            t("connector.csv_delimiter_note"),
             size="1",
             color=rx.color("gray", 10),
         ),
         rx.separator(),
-        rx.upload(
-            rx.vstack(
-                rx.icon("upload", size=40, color=rx.color("accent", 9)),
-                rx.text(
-                    "Drag and drop or click to upload",
-                    size="3",
-                    weight="bold",
-                ),
-                rx.text(
-                    "Supports .csv, .xlsx, .xls files",
-                    size="2",
-                    color=rx.color("gray", 10),
-                ),
-                align="center",
-                spacing="2",
-            ),
-            id="connector_upload",
-            accept={
-                "text/csv": [".csv"],
-                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": [
-                    ".xlsx"
-                ],
-                "application/vnd.ms-excel": [".xls"],
-            },
-            max_files=1,
-            border=f"2px dashed {rx.color('accent', 6)}",
-            border_radius="var(--radius-3)",
-            padding="3em",
-            width="100%",
-            cursor="pointer",
-            _hover={"border_color": rx.color("accent", 9)},
-        ),
-        rx.cond(
-            rx.selected_files("connector_upload"),
-            rx.hstack(
-                rx.icon("file-check", size=16, color=rx.color("green", 9)),
-                rx.text(
-                    rx.selected_files("connector_upload")[0],
-                    size="2",
-                    weight="bold",
-                    color=rx.color("green", 11),
-                ),
-                align="center",
-                spacing="2",
-            ),
-        ),
+        # Tauri native file picker (full path)
         rx.button(
-            "Read File",
-            on_click=ConnectorState.handle_upload(
-                rx.upload_files(upload_id="connector_upload")
+            rx.icon("folder-open", size=20),
+            t("btn.browse_file"),
+            on_click=rx.call_script(
+                _PICK_FILE_JS,
+                callback=ConnectorState.handle_file_path,
             ),
-            disabled=~rx.selected_files("connector_upload"),
             size="3",
             width="100%",
+            variant="outline",
+        ),
+        rx.text(
+            t("connector.supported_files"),
+            size="1",
+            color=rx.color("gray", 10),
         ),
         spacing="4",
         width="100%",
@@ -143,7 +123,7 @@ def _mapping_select(file_column: str) -> rx.Component:
             ConnectorState.target_fields,
             value=ConnectorState.column_mapping[file_column],
             on_change=lambda val: ConnectorState.set_column_mapping(file_column, val),
-            placeholder="-- Ignore --",
+            placeholder=t("connector.ignore_column"),
             width="250px",
         ),
         align="center",
@@ -190,7 +170,7 @@ def step_mapping() -> rx.Component:
     """Column mapping step with preview table."""
     return rx.vstack(
         rx.hstack(
-            rx.text("File Preview", weight="bold", size="3"),
+            rx.text(t("connector.file_preview"), weight="bold", size="3"),
             rx.text(
                 f"({ConnectorState.filename})",
                 size="2",
@@ -201,9 +181,9 @@ def step_mapping() -> rx.Component:
         ),
         _preview_table(),
         rx.separator(),
-        rx.text("Map your columns", weight="bold", size="3"),
+        rx.text(t("connector.map_columns"), weight="bold", size="3"),
         rx.text(
-            "Link each column from your file to the corresponding data field.",
+            t("connector.map_columns_desc"),
             size="2",
             color=rx.color("gray", 10),
         ),
@@ -216,14 +196,14 @@ def step_mapping() -> rx.Component:
         rx.hstack(
             rx.button(
                 rx.icon("arrow-left", size=16),
-                "Back",
+                t("btn.back"),
                 variant="outline",
                 on_click=ConnectorState.go_back,
                 size="3",
             ),
             rx.spacer(),
             rx.button(
-                "Continue",
+                t("btn.continue"),
                 rx.icon("arrow-right", size=16),
                 on_click=ConnectorState.proceed_to_review,
                 disabled=~ConnectorState.mapping_valid,
@@ -247,7 +227,7 @@ def _asset_type_row(ticker: str) -> rx.Component:
         rx.text(ticker, size="2", weight="bold", min_width="120px"),
         rx.select(
             ASSET_TYPE_OPTIONS,
-            placeholder="Select asset type",
+            placeholder=t("connector.select_asset_type"),
             on_change=lambda val: ConnectorState.set_asset_type_override(ticker, val),
             width="200px",
         ),
@@ -261,13 +241,13 @@ def _unknown_account_row(account: str) -> rx.Component:
     return rx.hstack(
         rx.text(account, size="2", weight="bold", min_width="150px"),
         rx.input(
-            placeholder="Bank name",
+            placeholder=t("connector.bank_name"),
             on_change=lambda val: ConnectorState.set_account_bank(account, val),
             width="200px",
         ),
         rx.select(
             CURRENCY_OPTIONS,
-            placeholder="Currency",
+            placeholder=t("connector.currency_label"),
             on_change=lambda val: ConnectorState.set_account_currency(account, val),
             width="120px",
         ),
@@ -279,21 +259,21 @@ def _unknown_account_row(account: str) -> rx.Component:
 def step_review() -> rx.Component:
     """Review step: show mapping summary and resolve unresolved tickers."""
     return rx.vstack(
-        rx.text("Review your import", weight="bold", size="4"),
+        rx.text(t("connector.review_import"), weight="bold", size="4"),
         rx.card(
             rx.vstack(
                 rx.hstack(
-                    rx.text("File:", weight="bold", size="2"),
+                    rx.text(t("connector.file_label"), weight="bold", size="2"),
                     rx.text(ConnectorState.filename, size="2"),
                     spacing="2",
                 ),
                 rx.hstack(
-                    rx.text("Mode:", weight="bold", size="2"),
+                    rx.text(t("connector.mode_label"), weight="bold", size="2"),
                     rx.badge(ConnectorState.import_mode),
                     spacing="2",
                 ),
                 rx.hstack(
-                    rx.text("Rows:", weight="bold", size="2"),
+                    rx.text(t("connector.rows_label"), weight="bold", size="2"),
                     rx.text(ConnectorState.preview_rows.length(), size="2"),
                     spacing="2",
                 ),
@@ -307,8 +287,7 @@ def step_review() -> rx.Component:
                 rx.separator(),
                 rx.callout(
                     rx.text(
-                        "The following tickers were not found in the reference database. "
-                        "Please assign an asset type for each:",
+                        t("connector.unknown_tickers"),
                         size="2",
                     ),
                     icon="triangle-alert",
@@ -330,8 +309,7 @@ def step_review() -> rx.Component:
                 rx.separator(),
                 rx.callout(
                     rx.text(
-                        "The following account numbers don't exist yet. "
-                        "Please provide a bank name and currency for each:",
+                        t("connector.unknown_accounts"),
                         size="2",
                     ),
                     icon="triangle-alert",
@@ -351,7 +329,7 @@ def step_review() -> rx.Component:
         rx.hstack(
             rx.button(
                 rx.icon("arrow-left", size=16),
-                "Back",
+                t("btn.back"),
                 variant="outline",
                 on_click=ConnectorState.go_back,
                 size="3",
@@ -359,7 +337,7 @@ def step_review() -> rx.Component:
             rx.spacer(),
             rx.button(
                 rx.icon("import", size=16),
-                "Import",
+                t("btn.import"),
                 on_click=ConnectorState.run_import,
                 disabled=~ConnectorState.can_import,
                 loading=ConnectorState.is_loading,
@@ -384,14 +362,14 @@ def step_result() -> rx.Component:
             ConnectorState.result_success,
             rx.vstack(
                 rx.icon("circle-check", size=48, color=rx.color("green", 9)),
-                rx.text("Import Successful!", weight="bold", size="4"),
+                rx.text(t("connector.import_successful"), weight="bold", size="4"),
                 rx.text(ConnectorState.result_message, size="2"),
                 align="center",
                 spacing="3",
             ),
             rx.vstack(
                 rx.icon("circle-x", size=48, color=rx.color("red", 9)),
-                rx.text("Import Failed", weight="bold", size="4"),
+                rx.text(t("connector.import_failed"), weight="bold", size="4"),
                 rx.text(ConnectorState.result_message, size="2"),
                 align="center",
                 spacing="3",
@@ -401,7 +379,7 @@ def step_result() -> rx.Component:
             ConnectorState.result_errors.length() > 0,
             rx.vstack(
                 rx.separator(),
-                rx.text("Details:", weight="bold", size="3"),
+                rx.text(t("connector.details"), weight="bold", size="3"),
                 rx.box(
                     rx.foreach(
                         ConnectorState.result_errors,
@@ -421,7 +399,7 @@ def step_result() -> rx.Component:
         rx.separator(),
         rx.button(
             rx.icon("rotate-ccw", size=16),
-            "Import Another File",
+            t("connector.import_another"),
             on_click=ConnectorState.reset_wizard,
             size="3",
             width="100%",
@@ -471,13 +449,13 @@ def step_indicator() -> rx.Component:
         )
 
     return rx.hstack(
-        _dot("1", "Upload"),
+        _dot("1", t("connector.step_upload")),
         rx.box(width="40px", height="2px", background=rx.color("gray", 6)),
-        _dot("2", "Mapping"),
+        _dot("2", t("connector.step_mapping")),
         rx.box(width="40px", height="2px", background=rx.color("gray", 6)),
-        _dot("3", "Review"),
+        _dot("3", t("connector.step_review")),
         rx.box(width="40px", height="2px", background=rx.color("gray", 6)),
-        _dot("4", "Result"),
+        _dot("4", t("connector.step_result")),
         justify="center",
         align="center",
         spacing="3",

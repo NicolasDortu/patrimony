@@ -1,4 +1,8 @@
-"""Repository implementation for dividends."""
+"""Repository implementation for dividends.
+
+Tickers are normalized to upper-case at the application layer
+(``dividend_use_cases``); repos trust the input.
+"""
 
 from datetime import datetime
 import polars as pl
@@ -18,24 +22,34 @@ class DividendRepositoryImpl(DividendRepository):
         ticker: str,
         amount: float,
         date: datetime,
-    ) -> int:
+    ) -> None:
         """Add a new dividend to the database."""
-        result = self._conn.execute(
+        self._conn.execute(
             """
             INSERT INTO dividends (ticker, amount, date)
             VALUES (?, ?, ?)
-            RETURNING id
             """,
-            [ticker.upper(), amount, date],
+            [ticker, amount, date],
         )
-        return result.fetchone()[0]
 
     def get_by_ticker(self, ticker: str) -> pl.DataFrame:
         """Get all dividends for a specific ticker."""
         return self._conn.execute(
             "SELECT * FROM dividends WHERE ticker = ? ORDER BY date DESC",
-            [ticker.upper()],
+            [ticker],
         ).pl()
+
+    def get_total_amount(self) -> float:
+        """Return the total amount of all dividends (raw, no currency conversion)."""
+        result = self._conn.execute("SELECT COALESCE(SUM(amount), 0) FROM dividends")
+        return result.fetchone()[0]
+
+    def get_totals_by_ticker(self) -> dict[str, float]:
+        """Return ``{ticker: total_amount}`` for all dividends in native currency."""
+        rows = self._conn.execute(
+            "SELECT ticker, COALESCE(SUM(amount), 0) FROM dividends GROUP BY ticker"
+        ).fetchall()
+        return {r[0]: float(r[1]) for r in rows if r[1]}
 
     def get_by_id(self, id: int) -> pl.DataFrame:
         """Get a dividend by ID."""
@@ -63,5 +77,5 @@ class DividendRepositoryImpl(DividendRepository):
             SET ticker = ?, amount = ?, date = ?
             WHERE id = ?
             """,
-            [ticker.upper(), amount, date, id],
+            [ticker, amount, date, id],
         )

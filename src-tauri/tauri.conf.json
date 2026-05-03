@@ -9,6 +9,7 @@
     "beforeDevCommand": "uv run reflex run"
   },
   "app": {
+    "withGlobalTauri": true,
     "windows": [
       {
         "title": "patrimony",

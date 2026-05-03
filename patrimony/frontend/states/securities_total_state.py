@@ -2,8 +2,6 @@ from typing import Union
 
 import reflex as rx
 
-from datetime import datetime
-
 from ..services import (
     SecuritiesService,
     SecuritiesReferenceService,
@@ -13,14 +11,25 @@ from ..services import (
     was_market_data_fetched,
 )
 from ..templates import ThemeState
-from .mixins import PaginationMixin, SearchSortMixin, apply_sort_and_search
+from ..utils import export_csv, parse_form_date
+from .aggregation_helpers import add_percentages
+from .mixins import (
+    AddDialogMixin,
+    PaginationMixin,
+    SearchSortMixin,
+    apply_sort_and_search,
+)
+from .spreadsheet_helpers import cell_date, cell_float, cell_str, fmt_date_cell
 from .spreadsheet_mixin import SpreadsheetMixin
 
 
-class TableStateTotal(SpreadsheetMixin, SearchSortMixin, PaginationMixin, rx.State):
+class TableStateTotal(
+    SpreadsheetMixin, SearchSortMixin, PaginationMixin, AddDialogMixin, rx.State
+):
     """The state class."""
 
     items: list[SecurityTotal] = []
+    is_loading: bool = False
 
     # Asset type filter for the table
     selected_asset_filter: str = "all"
@@ -48,21 +57,30 @@ class TableStateTotal(SpreadsheetMixin, SearchSortMixin, PaginationMixin, rx.Sta
         return filters
 
     @rx.var
-    def asset_type_allocation(self) -> list[dict]:
+    async def asset_type_allocation(self) -> list[dict]:
         """Group positions by asset type for pie chart with colors from settings."""
+        theme = await self.get_state(ThemeState)
+        tr = theme.translations
+        labels = {
+            "STOCK": tr.get("asset_type.stocks", "Stocks"),
+            "ETF": tr.get("asset_type.etfs", "ETFs"),
+            "CRYPTO": tr.get("asset_type.crypto", "Crypto"),
+            "COMMODITY": tr.get("asset_type.commodity", "Commodity"),
+        }
         groups: dict[str, float] = {}
         for item in self.items:
             at = item.asset_type or "STOCK"
             val = item.total_value or 0.0
             groups[at] = groups.get(at, 0.0) + val
-        return [
+        rows = [
             {
-                "name": k,
+                "name": labels.get(k, k),
                 "value": round(v, 2),
                 "fill": self._asset_colors.get(k, "var(--gray-9)"),
             }
             for k, v in sorted(groups.items())
         ]
+        return add_percentages(rows)
 
     @rx.var
     def heatmap_data(self) -> list[dict]:
@@ -101,7 +119,7 @@ class TableStateTotal(SpreadsheetMixin, SearchSortMixin, PaginationMixin, rx.Sta
             self.sort_value,
             self.sort_reverse,
             self.search_value,
-            numeric_sort_fields=["price"],
+            numeric_sort_fields=["current_price", "total_value", "total_quantity"],
             search_fields=["ticker", "date"],
             accessor="attr",
         )
@@ -130,7 +148,10 @@ class TableStateTotal(SpreadsheetMixin, SearchSortMixin, PaginationMixin, rx.Sta
 
     @rx.event
     async def on_page_load(self):
+        self.is_loading = True
+        yield
         await self.load_entries()
+        self.is_loading = False
         if was_market_data_fetched():
             yield rx.toast.info("Market data refreshed", position="bottom-right")
 
@@ -166,7 +187,12 @@ class TableStateTotal(SpreadsheetMixin, SearchSortMixin, PaginationMixin, rx.Sta
         self.selected_asset_type = value
 
     @rx.event
-    def clear_ticker_search(self) -> None:
+    def set_add_dialog_open(self, value: bool) -> None:
+        self.add_dialog_open = value
+        if not value:
+            self._reset_ticker_search()
+
+    def _reset_ticker_search(self) -> None:
         self.ticker_search = ""
         self._ticker_suggestions = []
         self.show_suggestions = False
@@ -182,9 +208,7 @@ class TableStateTotal(SpreadsheetMixin, SearchSortMixin, PaginationMixin, rx.Sta
         ticker = form_data.get("ticker", self.ticker_search).upper()
         asset_type_str = form_data.get("asset_type", self.selected_asset_type)
         date_str = form_data.get("date", "")
-        purchase_date = (
-            datetime.strptime(date_str, "%Y-%m-%d") if date_str else datetime.now()
-        )
+        purchase_date = parse_form_date(date_str)
         result = SecuritiesService.add_position(
             ticker=ticker,
             price=float(form_data.get("price", 0)),
@@ -197,13 +221,11 @@ class TableStateTotal(SpreadsheetMixin, SearchSortMixin, PaginationMixin, rx.Sta
             else 0.0,
         )
 
-        self.ticker_search = ""
-        self._ticker_suggestions = []
-        self.show_suggestions = False
-        self.selected_asset_type = "STOCK"
+        self._reset_ticker_search()
 
         if result.success:
             await self.load_entries()
+            self.add_dialog_open = False
             return rx.toast.success(result.message, position="top-center")
         else:
             return rx.toast.error(result.message, position="top-center")
@@ -229,12 +251,7 @@ class TableStateTotal(SpreadsheetMixin, SearchSortMixin, PaginationMixin, rx.Sta
     def export_csv(self):
         positions = SecuritiesService.get_aggregated_positions()
         columns = list(SecurityTotal.__dataclass_fields__.keys())
-
-        header = ",".join(columns)
-        rows = [",".join(str(pos[col]) for col in columns) for pos in positions]
-
-        data = str(header + "\n" + "\n".join(rows))
-        return rx.download(data=data, filename="positions.csv")
+        return export_csv(positions, columns, "positions.csv")
 
     @rx.event
     def open_detail_view(self, ticker: str):
@@ -253,60 +270,78 @@ class TableStateTotal(SpreadsheetMixin, SearchSortMixin, PaginationMixin, rx.Sta
 
     @rx.var
     def spreadsheet_columns(self) -> list[dict]:
+        # Ticker is the canonical key for a position and changing it would
+        # orphan its price/dividend cache, so it is read-only here. Use the
+        # Add Position dialog (with autocomplete) to create new rows.
+        # ``grow`` lets Glide stretch every column to fill the wrapper width
+        # (which itself is 100% of the page, matching the regular table).
         return [
-            {"title": "Ticker", "type": "str"},
-            {"title": "Price", "type": "float"},
-            {"title": "Quantity", "type": "float"},
-            {"title": "Fees", "type": "float"},
-            {"title": "Asset Type", "type": "str"},
-            {"title": "Date", "type": "str"},
+            {"title": "Ticker", "type": "str", "editable": False, "grow": 1},
+            {"title": "Price", "type": "float", "grow": 1},
+            {"title": "Quantity", "type": "float", "grow": 1},
+            {"title": "Fees", "type": "float", "grow": 1},
+            {"title": "Asset Type", "type": "str", "grow": 1},
+            {"title": "Date", "type": "str", "grow": 1},
         ]
+
+    @rx.event
+    def on_spreadsheet_row_appended(self):
+        # New rows need a ticker resolved against the reference table; that
+        # flow lives in the Add Position dialog.
+        return rx.toast.info(
+            "Use the Add Position button to add new securities.",
+            position="top-center",
+        )
 
     @rx.event
     def on_spreadsheet_cell_edited(self, pos: tuple[int, int], cell: dict) -> None:
         """Override mixin to add ticker auto-resolve and asset type validation."""
-        col, row = pos
-        if row < 0 or row >= len(self._spreadsheet_data):
+        if self._consume_post_delete_blank():
             return
-        if col < 0 or col >= len(self._spreadsheet_data[row]):
+        col, row_idx = pos
+        target = self._row_at_visible_index(row_idx)
+        if target is None or not (0 <= col < len(target["data"])):
             return
 
         value = cell.get("data", "")
-        new_data = [r[:] for r in self._spreadsheet_data]
+        invalid_asset_type = False
 
-        if col == 0:
-            # Ticker column — auto-resolve asset type from reference table
-            ticker = str(value).strip().upper()
-            new_data[row][col] = ticker
-            if ticker:
-                results = SecuritiesReferenceService.search(ticker, limit=1)
-                if results and results[0].get("ticker", "").upper() == ticker:
-                    new_data[row][4] = results[0].get("asset_type", "STOCK").upper()
-        elif col == 4:
-            # Asset type column — validate and auto-correct
-            raw = str(value).strip().upper()
-            matched = None
-            for at in self._VALID_ASSET_TYPES:
-                if at == raw:
-                    matched = at
-                    break
-            if matched is None:
-                for at in self._VALID_ASSET_TYPES:
-                    if at.startswith(raw):
-                        matched = at
-                        break
-            new_data[row][col] = matched if matched else new_data[row][col]
-            if matched is None:
-                self._spreadsheet_data = new_data
-                return rx.toast.info(
-                    f"Valid types: {', '.join(self._VALID_ASSET_TYPES)}",
-                    position="top-center",
+        def mutate(r):
+            nonlocal invalid_asset_type
+            if col == 0:
+                # Ticker column — auto-resolve asset type from reference table.
+                ticker = str(value).strip().upper()
+                r["data"][col] = ticker
+                if ticker:
+                    results = SecuritiesReferenceService.search(ticker, limit=1)
+                    if results and results[0].get("ticker", "").upper() == ticker:
+                        r["data"][4] = results[0].get("asset_type", "STOCK").upper()
+            elif col == 4:
+                # Asset type column — validate (exact, then prefix match).
+                raw = str(value).strip().upper()
+                matched = next(
+                    (at for at in self._VALID_ASSET_TYPES if at == raw),
+                    None,
+                ) or next(
+                    (at for at in self._VALID_ASSET_TYPES if at.startswith(raw)),
+                    None,
                 )
-        else:
-            new_data[row][col] = value
+                if matched:
+                    r["data"][col] = matched
+                else:
+                    invalid_asset_type = True
+            else:
+                r["data"][col] = value
+            if r["state"] == "clean" and r["data"] != r["original"]:
+                r["state"] = "dirty"
 
-        self._spreadsheet_data = new_data
-        self._has_edits = True
+        self._replace_row(target["uuid"], mutate)
+
+        if invalid_asset_type:
+            return rx.toast.info(
+                f"Valid types: {', '.join(self._VALID_ASSET_TYPES)}",
+                position="top-center",
+            )
 
     def _load_spreadsheet_rows(self) -> tuple[list[list], list]:
         positions = SecuritiesService.get_all_positions()
@@ -317,7 +352,7 @@ class TableStateTotal(SpreadsheetMixin, SearchSortMixin, PaginationMixin, rx.Sta
                 p.get("quantity", 1.0),
                 p.get("fees", 0.0),
                 p.get("asset_type", "STOCK"),
-                str(p.get("date", ""))[:10],
+                fmt_date_cell(p.get("date", "")),
             ]
             for p in positions
         ]
@@ -325,15 +360,14 @@ class TableStateTotal(SpreadsheetMixin, SearchSortMixin, PaginationMixin, rx.Sta
         return data, ids
 
     def _save_spreadsheet_row(self, row, index, rid, is_new):
-        ticker = str(row[0]).strip().upper()
+        ticker = cell_str(row[0], upper=True)
         if is_new and not ticker:
             return "skip"
-        price = float(row[1]) if row[1] != "" else 0.0
-        quantity = float(row[2]) if row[2] != "" else 1.0
-        fees = float(row[3]) if row[3] != "" else 0.0
-        asset_type_str = str(row[4]).strip().upper() or "STOCK"
-        date_str = str(row[5]).strip()
-        date = datetime.strptime(date_str, "%Y-%m-%d") if date_str else datetime.now()
+        price = cell_float(row[1])
+        quantity = cell_float(row[2], default=1.0)
+        fees = cell_float(row[3])
+        asset_type_str = cell_str(row[4], default="STOCK", upper=True)
+        date = cell_date(row[5])
         if is_new:
             SecuritiesService.add_position(
                 ticker=ticker,

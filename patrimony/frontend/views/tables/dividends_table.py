@@ -5,13 +5,11 @@ from .pagination import pagination_view
 from .spreadsheet_view import spreadsheet_toggle_button
 from ...states.dividends_state import DividendsState, Dividend
 from ...dialogs.dividend_dialog import open_add_dividend_dialog
-from ...templates import ThemeState
+from ...templates import ThemeState, t
 
 
 def _show_item(item: Dividend, index: int) -> rx.Component:
     return table_row(
-        rx.table.row_header_cell(item.id),
-        rx.table.cell(item.ticker),
         rx.table.cell(ThemeState.currency_symbol + f"{item.amount:.2f}"),
         rx.table.cell(item.date),
         index=index,
@@ -22,13 +20,23 @@ def dividends_table() -> rx.Component:
     return rx.box(
         rx.flex(
             rx.flex(
-                open_add_dividend_dialog(),
+                open_add_dividend_dialog(DividendsState.add_dividend),
                 spreadsheet_toggle_button(DividendsState),
                 align="center",
                 spacing="3",
             ),
+            rx.spacer(),
+            rx.text(
+                t("label.total"),
+                ": ",
+                ThemeState.currency_symbol,
+                f"{DividendsState.total_dividends:.2f}",
+                size="3",
+                weight="bold",
+                white_space="nowrap",
+            ),
             spacing="3",
-            justify="start",
+            align="center",
             wrap="wrap",
             width="100%",
             padding_bottom="1em",
@@ -36,10 +44,8 @@ def dividends_table() -> rx.Component:
         rx.table.root(
             rx.table.header(
                 rx.table.row(
-                    header_cell("id", "hash"),
-                    header_cell("ticker", "notebook-pen"),
-                    header_cell("amount", "dollar-sign"),
-                    header_cell("date", "calendar"),
+                    header_cell(t("label.amount"), "dollar-sign"),
+                    header_cell(t("label.date"), "calendar"),
                 ),
             ),
             rx.table.body(

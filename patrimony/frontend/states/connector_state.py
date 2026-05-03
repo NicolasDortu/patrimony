@@ -1,12 +1,10 @@
 """State for the file connector wizard (CSV/Excel import)."""
 
-import logging
+from pathlib import Path
 
 import reflex as rx
 
 from ..services import FileConnectorService
-
-logger = logging.getLogger(__name__)
 
 # Fields the user can map to
 POSITION_TARGET_FIELDS: list[str] = [
@@ -16,6 +14,7 @@ POSITION_TARGET_FIELDS: list[str] = [
     "fees",
     "date",
     "asset_type",
+    "currency",
 ]
 
 CASH_TARGET_FIELDS: list[str] = [
@@ -38,6 +37,7 @@ class ConnectorState(rx.State):
     # Upload state
     filename: str = ""
     _file_bytes: bytes = b""
+    _source_path: str = ""
     delimiter: str = ","
 
     # Parsed data
@@ -79,7 +79,7 @@ class ConnectorState(rx.State):
         """Check if all required fields are mapped."""
         mapped_values = set(self.column_mapping.values())
         if self.import_mode == "positions":
-            required = {"ticker", "price", "quantity"}
+            required = {"ticker", "quantity"}
         else:
             required = {"account_number", "amount", "title"}
         return required.issubset(mapped_values)
@@ -119,8 +119,10 @@ class ConnectorState(rx.State):
     def reset_wizard(self) -> None:
         """Reset all state to start fresh."""
         self.step = 1
+        self.import_mode = "positions"
         self.filename = ""
         self._file_bytes = b""
+        self._source_path = ""
         self.delimiter = ","
         self.file_columns = []
         self.preview_rows = []
@@ -136,7 +138,7 @@ class ConnectorState(rx.State):
 
     @rx.event
     async def handle_upload(self, files: list[rx.UploadFile]):
-        """Handle file upload from rx.upload."""
+        """Handle file upload from rx.upload (browser fallback)."""
         if not files:
             return
 
@@ -144,6 +146,7 @@ class ConnectorState(rx.State):
         self.filename = file.filename or "unknown"
         upload_data = await file.read()
         self._file_bytes = upload_data
+        self._source_path = ""  # No original path available in browser mode
 
         try:
             columns, preview = FileConnectorService.read_file(
@@ -152,6 +155,32 @@ class ConnectorState(rx.State):
             self.file_columns = columns
             self.preview_rows = preview
             # Initialize mapping with empty values
+            self.column_mapping = {col: "" for col in columns}
+            self.step = 2
+        except Exception as e:
+            yield rx.toast.error(f"Failed to read file: {e}", position="top-center")
+
+    @rx.event
+    def handle_file_path(self, path: str):
+        """Handle file selection from Tauri native dialog (full path)."""
+        if not path:
+            return
+
+        file_path = Path(path)
+        if not file_path.is_file():
+            yield rx.toast.error(f"File not found: {path}", position="top-center")
+            return
+
+        self.filename = file_path.name
+        self._file_bytes = file_path.read_bytes()
+        self._source_path = str(file_path)
+
+        try:
+            columns, preview = FileConnectorService.read_file(
+                self._file_bytes, self.filename, self.delimiter
+            )
+            self.file_columns = columns
+            self.preview_rows = preview
             self.column_mapping = {col: "" for col in columns}
             self.step = 2
         except Exception as e:
@@ -191,11 +220,11 @@ class ConnectorState(rx.State):
             )
             return
 
-        # For positions, resolve asset types
+        self.is_loading = True
+        yield
+
         if self.import_mode == "positions":
-            # Only resolve if asset_type is not mapped
-            if "asset_type" not in self.column_mapping.values():
-                self._resolve_tickers()
+            self._resolve_tickers()
         else:
             # For cash, detect unknown accounts
             clean_mapping = {k: v for k, v in self.column_mapping.items() if v}
@@ -204,10 +233,11 @@ class ConnectorState(rx.State):
             )
             self.new_account_details = {}
 
+        self.is_loading = False
         self.step = 3
 
     def _resolve_tickers(self) -> None:
-        """Find tickers that need manual asset type assignment."""
+        """Resolve asset types for tickers found in the file."""
         ticker_col = None
         for col, target in self.column_mapping.items():
             if target == "ticker":
@@ -216,21 +246,23 @@ class ConnectorState(rx.State):
         if not ticker_col:
             return
 
-        # Collect unique tickers from preview data
-        all_rows = FileConnectorService.read_file_full(
-            self._file_bytes, self.filename, self.delimiter
+        all_rows = FileConnectorService.read_file(
+            self._file_bytes, self.filename, self.delimiter, preview_only=False
         )
+
+        # Collect unique non-empty tickers (handle None values from polars)
         tickers = list(
             {
-                str(row.get(ticker_col, "")).strip().upper()
+                str(v).strip().upper()
                 for row in all_rows
-                if row.get(ticker_col)
+                if (v := row.get(ticker_col)) is not None and str(v).strip()
             }
         )
+        if not tickers:
+            return
 
         resolved = FileConnectorService.resolve_asset_types(tickers)
         self.unresolved_tickers = [t for t, at in resolved.items() if at is None]
-        # Pre-fill resolved ones
         self.asset_type_overrides = {
             t: at for t, at in resolved.items() if at is not None
         }
@@ -284,6 +316,7 @@ class ConnectorState(rx.State):
                 column_mapping=clean_mapping,
                 delimiter=self.delimiter,
                 asset_type_overrides=self.asset_type_overrides,
+                source_path=self._source_path,
             )
         else:
             result = FileConnectorService.import_cash_operations(
@@ -294,6 +327,7 @@ class ConnectorState(rx.State):
                 new_accounts=self.new_account_details
                 if self.unknown_accounts
                 else None,
+                source_path=self._source_path,
             )
 
         self.result_message = result.message

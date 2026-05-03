@@ -2,6 +2,8 @@
 
 import reflex as rx
 
+from ...templates import t
+
 
 def pagination_view(state_cls) -> rx.Component:
     """Generic pagination controls that bind to any state with PaginationMixin.
@@ -16,9 +18,13 @@ def pagination_view(state_cls) -> rx.Component:
 
     return rx.hstack(
         rx.text(
-            "Page ",
+            t("label.page"),
+            " ",
             rx.code(state_cls.page_number),
-            f" of {state_cls.total_pages}",
+            " ",
+            t("label.of"),
+            " ",
+            state_cls.total_pages,
             justify="end",
         ),
         rx.hstack(

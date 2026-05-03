@@ -3,6 +3,7 @@
 import reflex as rx
 
 from ..components.card import card
+from ..components.loading import loading_spinner
 from ..states.securities_details_state import TableStateDetails
 from ..states.dividends_state import DividendsState
 from ..templates import template, ThemeState, t
@@ -10,15 +11,6 @@ from ..views.tables.securities_details_table import main_table
 from ..views.tables.dividends_table import dividends_table
 from ..views.tables.spreadsheet_view import spreadsheet_or_table
 from ..views.charts.stock_chart import stock_chart
-
-
-class SecuritiesDetailState(rx.State):
-    @rx.event
-    def on_load(self):
-        # Get ticker from URL query params
-        ticker = self.router.page.params.get("ticker", "")
-        if ticker:
-            return TableStateDetails.set_ticker(ticker)
 
 
 def _header() -> rx.Component:
@@ -32,7 +24,16 @@ def _header() -> rx.Component:
             variant="surface",
             color_scheme="grass",
         ),
+        rx.spacer(),
+        rx.button(
+            rx.icon("arrow-left", size=18),
+            t("securities.back"),
+            size="2",
+            variant="soft",
+            on_click=rx.redirect("/securities"),
+        ),
         align="center",
+        spacing="3",
         width="100%",
     )
 
@@ -43,29 +44,26 @@ def _positions_tab() -> rx.Component:
         spreadsheet_or_table(TableStateDetails, main_table()),
         spacing="4",
         width="100%",
+        padding_top="1rem",
     )
 
 
 def _dividends_tab() -> rx.Component:
-    """Dividends tab content."""
-    return rx.hstack(
-        rx.vstack(
+    """Dividends tab content.
+
+    Dividend records have only two columns (amount, date), so we constrain
+    the width to roughly half the page
+    """
+    # 220 + 220 column widths + ~50px Glide row-marker gutter ≈ 490px.
+    _DIVIDEND_WIDTH = "490px"
+    return rx.vstack(
+        rx.box(
             spreadsheet_or_table(DividendsState, dividends_table()),
-            spacing="4",
-            flex="1",
+            width=_DIVIDEND_WIDTH,
+            max_width="100%",
         ),
-        rx.text(
-            t("label.total"),
-            ": ",
-            ThemeState.currency_symbol,
-            f"{DividendsState.total_dividends:.2f}",
-            size="3",
-            weight="bold",
-            white_space="nowrap",
-        ),
-        align="start",
-        spacing="4",
         width="100%",
+        padding_top="1rem",
     )
 
 
@@ -76,19 +74,23 @@ def _dividends_tab() -> rx.Component:
 )
 def securities_detail() -> rx.Component:
     """The securities detail page."""
-    return rx.vstack(
-        _header(),
-        card(stock_chart()),
-        rx.tabs.root(
-            rx.tabs.list(
-                rx.tabs.trigger(t("tab.positions"), value="positions"),
-                rx.tabs.trigger(t("tab.dividends"), value="dividends"),
+    return rx.cond(
+        TableStateDetails.is_loading,
+        loading_spinner(),
+        rx.vstack(
+            _header(),
+            card(stock_chart()),
+            rx.tabs.root(
+                rx.tabs.list(
+                    rx.tabs.trigger(t("tab.positions"), value="positions"),
+                    rx.tabs.trigger(t("tab.dividends"), value="dividends"),
+                ),
+                rx.tabs.content(_positions_tab(), value="positions"),
+                rx.tabs.content(_dividends_tab(), value="dividends"),
+                default_value="positions",
+                width="100%",
             ),
-            rx.tabs.content(_positions_tab(), value="positions"),
-            rx.tabs.content(_dividends_tab(), value="dividends"),
-            default_value="positions",
+            spacing="5",
             width="100%",
         ),
-        spacing="5",
-        width="100%",
     )

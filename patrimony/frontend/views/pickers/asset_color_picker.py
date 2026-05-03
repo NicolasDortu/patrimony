@@ -7,17 +7,38 @@ from ...templates import ThemeState, t
 _asset_color_options: list[str] = list(LiteralAccentColor.__args__)
 
 ASSET_TYPES = [
-    ("All", "all_color", ThemeState.all_color, ThemeState.set_all_color),
-    ("Stocks", "stock_color", ThemeState.stock_color, ThemeState.set_stock_color),
-    ("ETFs", "etf_color", ThemeState.etf_color, ThemeState.set_etf_color),
-    ("Crypto", "crypto_color", ThemeState.crypto_color, ThemeState.set_crypto_color),
+    (t("asset_type.all"), "all_color", ThemeState.all_color, ThemeState.set_all_color),
     (
-        "Commodity",
+        t("asset_type.stocks"),
+        "stock_color",
+        ThemeState.stock_color,
+        ThemeState.set_stock_color,
+    ),
+    (t("asset_type.etfs"), "etf_color", ThemeState.etf_color, ThemeState.set_etf_color),
+    (
+        t("asset_type.crypto"),
+        "crypto_color",
+        ThemeState.crypto_color,
+        ThemeState.set_crypto_color,
+    ),
+    (
+        t("asset_type.commodity"),
         "commodity_color",
         ThemeState.commodity_color,
         ThemeState.set_commodity_color,
     ),
-    ("Cash", "cash_color", ThemeState.cash_color, ThemeState.set_cash_color),
+    (
+        t("asset_type.cash"),
+        "cash_color",
+        ThemeState.cash_color,
+        ThemeState.set_cash_color,
+    ),
+    (
+        t("asset_type.properties"),
+        "property_color",
+        ThemeState.property_color,
+        ThemeState.set_property_color,
+    ),
 ]
 
 

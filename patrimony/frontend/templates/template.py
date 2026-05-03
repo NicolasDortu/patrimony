@@ -22,21 +22,6 @@ default_meta = [
 ]
 
 
-def menu_item_link(text, href):
-    return rx.menu.item(
-        rx.link(
-            text,
-            href=href,
-            width="100%",
-            color="inherit",
-        ),
-        _hover={
-            "color": styles.accent_color,
-            "background_color": styles.accent_text_color,
-        },
-    )
-
-
 class ThemeState(rx.State):
     """The state for the theme of the app."""
 
@@ -62,7 +47,11 @@ class ThemeState(rx.State):
     crypto_color: str = "yellow"
     commodity_color: str = "red"
     cash_color: str = "green"
+    property_color: str = "indigo"
     all_color: str = "blue"
+
+    # Connector settings
+    show_browser: bool = True
 
     @rx.var
     def currency_symbol(self) -> str:
@@ -82,7 +71,9 @@ class ThemeState(rx.State):
         "crypto_color",
         "commodity_color",
         "cash_color",
+        "property_color",
         "all_color",
+        "show_browser",
     ]
 
     def _save(self) -> None:
@@ -154,6 +145,15 @@ class ThemeState(rx.State):
     @rx.event
     def set_all_color(self, value: str):
         self._set_and_save("all_color", value)
+
+    @rx.event
+    def set_property_color(self, value: str):
+        self._set_and_save("property_color", value)
+
+    @rx.event
+    def set_show_browser(self, value: bool):
+        self.show_browser = value
+        self._save()
 
 
 def t(key: str):

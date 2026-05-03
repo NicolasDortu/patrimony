@@ -4,6 +4,9 @@ from .portfolio_state import PortfolioState
 from .cash_operations_state import CashOperationsState
 from .dividends_state import DividendsState
 from .connector_state import ConnectorState
+from .web_connector_state import WebConnectorState
+from .connector_history_state import ConnectorHistoryState
+from .properties_state import PropertiesState
 
 __all__ = [
     "TableStateDetails",
@@ -12,4 +15,7 @@ __all__ = [
     "CashOperationsState",
     "DividendsState",
     "ConnectorState",
+    "WebConnectorState",
+    "ConnectorHistoryState",
+    "PropertiesState",
 ]

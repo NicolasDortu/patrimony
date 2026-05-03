@@ -1,20 +1,36 @@
 import reflex as rx
 
-from .common import header_cell, table_row
+from .common import header_cell, table_row, table_toolbar
 from .pagination import pagination_view
-from .spreadsheet_view import spreadsheet_toggle_button
 from ...states.securities_total_state import TableStateTotal
 from ...services import SecurityTotal
 from ...dialogs import open_add_position_dialog
-from ...templates import ThemeState
+from ...templates import ThemeState, t
 
 
 def _show_item(item: SecurityTotal, index: int) -> rx.Component:
+    # Show the company name as the primary label and ticker as the
+    # subtitle. Fall back to ticker as the primary if name is unknown.
     return table_row(
-        rx.table.cell(item.ticker),
+        rx.table.cell(
+            rx.vstack(
+                rx.cond(
+                    item.name != "",
+                    rx.text(item.name, weight="medium"),
+                    rx.text(item.display_ticker, weight="medium"),
+                ),
+                rx.cond(
+                    item.name != "",
+                    rx.text(item.display_ticker, size="1", color_scheme="gray"),
+                    rx.fragment(),
+                ),
+                spacing="0",
+                align="start",
+            )
+        ),
         rx.table.cell(item.total_quantity),
-        rx.table.cell(ThemeState.currency_symbol + f"{item.current_price:.2f}"),
-        rx.table.cell(ThemeState.currency_symbol + f"{item.total_value:.2f}"),
+        rx.table.cell(ThemeState.currency_symbol + f"{item.current_price:,.2f}"),
+        rx.table.cell(ThemeState.currency_symbol + f"{item.total_value:,.2f}"),
         rx.table.cell(
             rx.icon_button(
                 rx.icon("arrow_right_to_line", size=22),
@@ -28,85 +44,23 @@ def _show_item(item: SecurityTotal, index: int) -> rx.Component:
 
 def main_table() -> rx.Component:
     return rx.box(
-        rx.flex(
-            rx.flex(
-                open_add_position_dialog(TableStateTotal.add_stock),
-                spreadsheet_toggle_button(TableStateTotal),
-                rx.icon_button(
-                    rx.icon("arrow-down-to-line", size=20),
-                    variant="surface",
-                    size="3",
-                    on_click=TableStateTotal.export_csv,
-                ),
-                align="center",
-                spacing="3",
-            ),
-            rx.flex(
-                rx.cond(
-                    TableStateTotal.sort_reverse,
-                    rx.icon(
-                        "arrow-down-z-a",
-                        size=28,
-                        stroke_width=1.5,
-                        cursor="pointer",
-                        flex_shrink="0",
-                        on_click=TableStateTotal.toggle_sort,
-                    ),
-                    rx.icon(
-                        "arrow-down-a-z",
-                        size=28,
-                        stroke_width=1.5,
-                        cursor="pointer",
-                        flex_shrink="0",
-                        on_click=TableStateTotal.toggle_sort,
-                    ),
-                ),
-                rx.select(
-                    [
-                        "ticker",
-                        "total_quantity",
-                        "current_price",
-                        "total_value",
-                    ],
-                    placeholder="Sort By: ticker",
-                    size="3",
-                    on_change=TableStateTotal.set_sort_value,
-                ),
-                rx.input(
-                    rx.input.slot(rx.icon("search")),
-                    rx.input.slot(
-                        rx.icon("x"),
-                        justify="end",
-                        cursor="pointer",
-                        on_click=TableStateTotal.set_search_value(""),
-                        display=rx.cond(TableStateTotal.search_value, "flex", "none"),
-                    ),
-                    value=TableStateTotal.search_value,
-                    placeholder="Search here...",
-                    size="3",
-                    max_width=["150px", "150px", "200px", "250px"],
-                    width="100%",
-                    variant="surface",
-                    color_scheme="gray",
-                    on_change=TableStateTotal.set_search_value,
-                ),
-                align="center",
-                justify="end",
-                spacing="3",
-            ),
-            spacing="3",
-            justify="between",
-            wrap="wrap",
-            width="100%",
-            padding_bottom="1em",
+        table_toolbar(
+            TableStateTotal,
+            [
+                (t("label.company"), "ticker"),
+                (t("label.quantity"), "total_quantity"),
+                (t("label.current_price"), "current_price"),
+                (t("label.total_value"), "total_value"),
+            ],
+            add_button=open_add_position_dialog(TableStateTotal.add_stock),
         ),
         rx.table.root(
             rx.table.header(
                 rx.table.row(
-                    header_cell("ticker", "building"),
-                    header_cell("total_quantity", "notebook-pen"),
-                    header_cell("current_price", "dollar-sign"),
-                    header_cell("total_value", "wallet"),
+                    header_cell(t("label.company"), "building"),
+                    header_cell(t("label.quantity"), "notebook-pen"),
+                    header_cell(t("label.current_price"), "dollar-sign"),
+                    header_cell(t("label.total_value"), "wallet"),
                     header_cell("", "chart_no_axes_combined"),
                 ),
             ),

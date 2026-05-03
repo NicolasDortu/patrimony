@@ -1,138 +1,128 @@
 """Domain service for securities-specific business logic.
 
-Handles price enrichment, currency conversion, and chart data
-for individual tickers.
+Handles price enrichment, currency conversion, and metrics for positions.
 """
 
-import logging
-from datetime import datetime, timedelta
-from typing import Optional
+import math
+from bisect import bisect_right
 
 import polars as pl
 
-from ..constants import PERIOD_CONFIG
-from ..interfaces import MarketDataProvider
-from ..repositories import (
-    PriceRepository,
-    SecuritiesRepository,
-)
+from ..constants import DEFAULT_CURRENCY
+from ..repositories import SecuritiesRepository
 from .currency_service import CurrencyService
-from .enrichment_utilities import apply_currency_conversion, enrich_with_prices
-
-logger = logging.getLogger(__name__)
+from .date_utils import normalize_date
+from .price_service import PriceService
 
 
 class SecuritiesService:
-    """Domain service for securities enrichment and per-ticker charts."""
+    """Domain service for securities enrichment."""
 
     def __init__(
         self,
         securities_repo: SecuritiesRepository,
-        price_repo: PriceRepository,
         currency_service: CurrencyService,
-        market_data: MarketDataProvider,
+        price_sync: PriceService,
     ):
         self._securities_repo = securities_repo
-        self._price_repo = price_repo
         self._currency_service = currency_service
-        self._market_data = market_data
+        self._price_sync = price_sync
 
     def get_aggregated_positions(
-        self, user_currency: str = "EUR"
-    ) -> Optional[pl.DataFrame]:
-        """Get aggregated positions enriched with current prices and currency-converted."""
-        df = self._securities_repo.get_aggregated_positions()
-        if df is None or df.is_empty():
-            return None
+        self, user_currency: str = DEFAULT_CURRENCY
+    ) -> pl.DataFrame:
+        """Get aggregated positions enriched with current prices and currency-converted.
 
-        df = enrich_with_prices(df, self._price_repo)
-        df = apply_currency_conversion(df, self._currency_service, user_currency)
+        Returns an empty DataFrame when no positions exist.
+        """
+        df = self._securities_repo.get_aggregated_positions()
+        if df.is_empty():
+            return df
+
+        df = self._enrich_with_prices(df)
+        df = self._currency_service.apply_conversion(df, user_currency)
         return df
 
-    def get_chart_data_ticker(
-        self, ticker: str, period: str = "1M", user_currency: str = "EUR"
-    ) -> list[dict]:
-        """Get time-series price data for a single ticker."""
-        config = PERIOD_CONFIG.get(period, PERIOD_CONFIG["1M"])
-        df = self._securities_repo.get_aggregated_positions_by_ticker(ticker)
-        if df is None or df.is_empty():
-            return []
+    def _enrich_with_prices(self, df: pl.DataFrame) -> pl.DataFrame:
+        """Add current_price (and total_value if applicable) columns."""
+        if "ticker" not in df.columns:
+            return df
 
-        is_intraday = period == "1D"
-        price_df = self._fetch_price_data(ticker, config, is_intraday)
-        if price_df is None or price_df.is_empty():
-            return []
+        tickers = df["ticker"].to_list()
+        bulk_prices = self._price_sync.get_current_prices(tickers)
+        prices = [bulk_prices.get(t, 0.0) or 0.0 for t in tickers]
 
-        rate = self._currency_service.get_rates_for_tickers(
-            [ticker], user_currency
-        ).get(ticker, 1.0)
+        df = df.with_columns(pl.Series("current_price", prices))
+        if "total_quantity" in df.columns:
+            df = df.with_columns(
+                (pl.col("current_price") * pl.col("total_quantity")).alias(
+                    "total_value"
+                )
+            )
+        return df
 
-        date_fmt = (
-            "%H:%M" if is_intraday else ("%Y-%m" if config["days"] > 365 else "%d/%m")
+    def calculate_metrics(
+        self, user_currency: str = DEFAULT_CURRENCY
+    ) -> tuple[float, float, float]:
+        """Compute (total_invested, securities_value, return_pct)."""
+        df = self.get_aggregated_positions(user_currency)
+        if df.is_empty():
+            return 0.0, 0.0, 0.0
+
+        valid = df.filter(
+            pl.col("current_price").is_not_null()
+            & pl.col("total_quantity").is_not_null()
+            & (pl.col("total_quantity") > 0)
+        )
+        if valid.is_empty():
+            return 0.0, 0.0, 0.0
+
+        quantities = valid["total_quantity"].to_list()
+        buy_prices = valid["avg_price"].to_list()
+        current_prices = valid["current_price"].to_list()
+        fees = (
+            valid["total_fees"].to_list()
+            if "total_fees" in valid.columns
+            else [0.0] * len(quantities)
         )
 
-        rows = []
-        last_valid_price = None
-        for row in price_df.iter_rows(named=True):
-            price = row["close_price"]
-            if price is not None and price == price and price > 0:
-                last_valid_price = price
-            elif last_valid_price is not None:
-                price = last_valid_price
-            else:
-                continue
+        gross_invested = math.fsum(q * p for q, p in zip(quantities, buy_prices))
+        invested = gross_invested + math.fsum(f or 0.0 for f in fees)
+        value = math.fsum(q * p for q, p in zip(quantities, current_prices))
+        return_pct = ((value - invested) / invested * 100) if invested > 0 else 0.0
+        return invested, value, return_pct
 
-            date_str = (
-                row["date"].strftime(date_fmt)
-                if hasattr(row["date"], "strftime")
-                else str(row["date"])
+    def build_quantity_timeline(self) -> dict[str, list[tuple]]:
+        """Build per-ticker cumulative quantity timeline from individual positions.
+
+        Returns a dict mapping ticker -> sorted list of (date, cumulative_quantity).
+        """
+        df = self._securities_repo.get_all()
+        if df.is_empty():
+            return {}
+
+        df = df.sort("date").with_columns(
+            pl.col("quantity").cum_sum().over("ticker").alias("cum_qty"),
+            pl.col("date").cast(pl.Date).alias("norm_date"),
+        )
+
+        timeline: dict[str, list[tuple]] = {}
+        for partition in df.partition_by("ticker", as_dict=True).items():
+            key, ticker_df = partition
+            ticker = key[0] if isinstance(key, tuple) else key
+            timeline[ticker] = list(
+                zip(ticker_df["norm_date"].to_list(), ticker_df["cum_qty"].to_list())
             )
-            rows.append(
-                {
-                    "name": date_str,
-                    "price": round(price * df["total_quantity"][0] * rate, 2),
-                }
-            )
+        return timeline
 
-        # Add today's data point for non-intraday charts
-        if not is_intraday and rows:
-            today_str = datetime.now().strftime(date_fmt)
-            if rows[-1]["name"] != today_str:
-                current_price = self._price_repo.get_current_price(ticker)
-                if current_price and current_price > 0:
-                    rows.append(
-                        {
-                            "name": today_str,
-                            "price": round(
-                                current_price * df["total_quantity"][0] * rate, 2
-                            ),
-                        }
-                    )
-
-        return rows
-
-    # -- Internal helpers ----------------------------------------------------
-
-    def _fetch_price_data(
-        self, ticker: str, config: dict, is_intraday: bool
-    ) -> Optional[pl.DataFrame]:
-        if is_intraday:
-            return self._market_data.get_price_history_period(
-                ticker, period=config["period"], interval=config["interval"]
-            )
-        start = datetime.now() - timedelta(days=config["days"])
-        earliest = self._securities_repo.get_earliest_purchase_date(ticker)
-        if earliest is not None:
-            earliest_dt = (
-                datetime.combine(earliest, datetime.min.time())
-                if not isinstance(earliest, datetime)
-                else earliest
-            )
-            if earliest_dt > start:
-                start = earliest_dt
-        end = datetime.now()
-        # Ensure at least a 1-day range so yfinance doesn't return empty
-        if (end - start).days < 1:
-            start = end - timedelta(days=1)
-        self._price_repo.sync_price_history([ticker], start)
-        return self._price_repo.get_price_history([ticker], start, end)
+    @staticmethod
+    def get_quantity_at_date(
+        quantity_timeline: dict[str, list[tuple]], ticker: str, dt
+    ) -> float:
+        """Get the cumulative quantity held for a ticker at a given date."""
+        entries = quantity_timeline.get(ticker, [])
+        if not entries:
+            return 0.0
+        dt_date = normalize_date(dt)
+        idx = bisect_right(entries, dt_date, key=lambda e: e[0])
+        return entries[idx - 1][1] if idx > 0 else 0.0

@@ -15,3 +15,49 @@ body {
 .rt-BaseTabList {
 	box-shadow: none;
 }
+
+/*
+ * Glide Data Grid (rx.data_editor) sizing.
+ *
+ * Two problems we fix here:
+ *
+ * 1. Width mismatch vs. the regular table on window resize.
+ *    Glide is canvas-based and measures its container on mount/resize,
+ *    then sets internal pixel widths. Forcing every internal scroller +
+ *    portal to width:100% guarantees it always tracks the wrapper width,
+ *    which itself is 100% of the page (same as rx.table.root).
+ *
+ * 2. Visible "column expanding" jump on first paint.
+ *    Glide first renders columns at their intrinsic width, then a frame
+ *    or two later re-measures and stretches them via the `grow` setting.
+ *    We mask that re-flow with a short fade-in: opacity stays at 0 while
+ *    Glide settles, then animates to 1 — so the user only ever sees the
+ *    final, correctly sized grid.
+ */
+.spreadsheet-wrapper,
+.spreadsheet-wrapper > div,
+.spreadsheet-wrapper .dvn-scroller,
+.spreadsheet-wrapper .dvn-scroll-inner {
+	width: 100% !important;
+}
+
+/*
+ * Force every ancestor of the spreadsheet to allow shrinking below its
+ * intrinsic content width. Without this, Glide's canvas (which reports a
+ * large natural width) pushes the page-level vstack/flex containers wider
+ * than the viewport, sending the chart-toggle button off-screen on smaller
+ * windows like 1680x1080. ``:has()`` is supported in all modern Chromium
+ * builds (and Tauri's WebView2 on Windows).
+ */
+*:has(.spreadsheet-wrapper) {
+	min-width: 0 !important;
+}
+
+.spreadsheet-wrapper {
+	animation: spreadsheet-fade-in 180ms ease-out 60ms both;
+}
+
+@keyframes spreadsheet-fade-in {
+	from { opacity: 0; }
+	to   { opacity: 1; }
+}
