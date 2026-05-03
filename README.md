@@ -20,42 +20,46 @@ An open-source personal wealth tracking desktop application built with **Reflex*
 ```
 patrimony/
 ├─ backend/               # Pure Python business logic
-│  ├─ domain/             # Entities, repository ABCs, services
-│  │  └─ services/        # Portfolio, securities, currency, file & web connector
-│  ├─ infrastructure/     # Implementations
+│  ├─ di_container.py     # Dependency-injector DI container (wires all layers)
+│  ├─ config/             # Backend logging configuration
+│  ├─ domain/             # Entities, repository ABCs, domain services
+│  │  ├─ repositories/    # Abstract repository contracts (asset & support)
+│  │  └─ services/        # Portfolio, securities, cash, currency, price, …
+│  │     └─ connectors/   # File & web connector domain services
+│  ├─ infrastructure/     # Concrete implementations
 │  │  ├─ database/        # DuckDB connection, DDL, reference data
-│  │  ├─ integrations/    # yfinance provider, Playwright connector, file reader
+│  │  ├─ integrations/    # yfinance provider, file reader, Playwright connectors
+│  │  │  └─ web_connector/# Broker-specific scripts (Degiro, Revolut, TR, …)
 │  │  └─ repositories/    # All repository implementations
-│  └─ application/        # Use cases + DI container (dependency-injector)
+│  └─ application/        # Use cases (one module per aggregate)
 ├─ frontend/              # Reflex UI layer
+│  ├─ config/             # File connector path store (JSON) + logging config
 │  ├─ components/         # Reusable components (card, loading, notification, …)
-│  ├─ config/             # File connector path store (JSON)
 │  ├─ dialogs/            # Add/edit dialogs for positions, cash, dividends
 │  ├─ languages/locale/   # i18n JSON files
 │  ├─ pages/              # Route pages (index, securities, cash, connectors, …)
+│  ├─ services/           # Frontend ↔ backend interface (one module per domain)
 │  ├─ states/             # Reflex state classes per page/feature
 │  ├─ styles/             # Global CSS-in-Python styles
 │  ├─ templates/          # Page template wrapper with sidebar and theme state
-│  ├─ views/              # Charts, tables, KPIs, pickers
-│  ├─ services.py         # Single interface between frontend and backend
-│  └─ logging_config.py   # Frontend logging + event collector
+│  └─ views/              # Charts, tables, KPIs, pickers
 src-tauri/                # Tauri v2 desktop shell (Rust)
 ```
 
-The frontend **never** imports the backend directly — all calls go through `frontend/services.py` which consumes the DI container.
+The frontend **never** imports the backend directly — all calls go through `frontend/services/` which consumes the DI container.
 
 ## Tech stack
 
 | Layer | Technology |
 |-------|-----------|
-| UI framework | [Reflex](https://reflex.dev/) (Python) |
-| Desktop shell | [Tauri v2](https://v2.tauri.app/) (Rust) |
-| Database | [DuckDB](https://duckdb.org/) (embedded) |
+| UI framework | [Reflex](https://reflex.dev/) |
+| Desktop shell | [Tauri v2](https://v2.tauri.app/) |
+| Database | [DuckDB](https://duckdb.org/) |
 | DataFrames | [Polars](https://www.pola.rs/) |
 | Market data | [yfinance](https://github.com/ranaroussi/yfinance) |
 | Web scraping | [Playwright](https://playwright.dev/python/) |
 | Encryption | [cryptography](https://cryptography.io/) (Fernet/PBKDF2) |
-| DI | [dependency-injector](https://python-dependency-injector.ets-labs.org/) |
+| DI | dependency-injector |
 
 ## Prerequisites
 
@@ -111,4 +115,86 @@ Detailed architecture and API documentation lives in [`docs/`](docs/).
 
 ## License
 
-Open source.
+Free & open source.
+
+## Screenshots
+
+### Portfolio Overview
+
+<table>
+  <tr>
+    <td><kbd><img src="docs/screenshots/01_patrimony_home.png" alt="Portfolio Overview – Dark theme"></kbd></td>
+    <td><kbd><img src="docs/screenshots/02_patrimony_home_white.png" alt="Portfolio Overview – Light theme"></kbd></td>
+  </tr>
+  <tr>
+    <td align="center">Dark theme</td>
+    <td align="center">Light theme</td>
+  </tr>
+</table>
+
+### Securities
+
+<table>
+  <tr>
+    <td><kbd><img src="docs/screenshots/03_patrimony_securities.png" alt="Securities – Table view"></kbd></td>
+    <td><kbd><img src="docs/screenshots/04_patrimony_securities_chart_view.png" alt="Securities – Chart view"></kbd></td>
+  </tr>
+  <tr>
+    <td align="center">Table view</td>
+    <td align="center">Chart view (allocation &amp; heatmap)</td>
+  </tr>
+</table>
+
+### Cash &amp; Expenses
+
+<table>
+  <tr>
+    <td><kbd><img src="docs/screenshots/05_patrimony_cash.png" alt="Cash Management"></kbd></td>
+    <td><kbd><img src="docs/screenshots/06_patrimony_cash_edit.png" alt="Cash Management – Edit mode"></kbd></td>
+  </tr>
+  <tr>
+    <td align="center">Cash accounts</td>
+    <td align="center">Edit mode</td>
+  </tr>
+</table>
+
+### Properties
+
+<table>
+  <tr>
+    <td><kbd><img src="docs/screenshots/07_patrimony_properties.png" alt="Properties"></kbd></td>
+  </tr>
+  <tr>
+    <td align="center">Properties list</td>
+  </tr>
+</table>
+
+### Connectors
+
+<table>
+  <tr>
+    <td><kbd><img src="docs/screenshots/08_patrimony_connetors.png" alt="Connectors overview"></kbd></td>
+    <td><kbd><img src="docs/screenshots/09_patrimony_connector_import.png" alt="File Import wizard"></kbd></td>
+  </tr>
+  <tr>
+    <td align="center">Connectors overview</td>
+    <td align="center">File import wizard (column mapping)</td>
+  </tr>
+  <tr>
+    <td><kbd><img src="docs/screenshots/10_patrimony_connector_web.png" alt="Web Connector credentials"></kbd></td>
+  </tr>
+  <tr>
+    <td align="center">Web connector (credentials &amp; master password)</td>
+  </tr>
+</table>
+
+### Settings
+
+<table>
+  <tr>
+    <td><kbd><img src="docs/screenshots/11_patrimony_settings.png" alt="Settings"></kbd></td>
+  </tr>
+  <tr>
+    <td align="center">Language, currency, theme &amp; asset-type colours</td>
+  </tr>
+</table>
