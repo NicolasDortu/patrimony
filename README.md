@@ -117,6 +117,10 @@ Detailed architecture and API documentation lives in [`docs/`](docs/).
 
 Free & open source.
 
+## Demo
+
+See here : [Patrimony Demo](docs/demo/patrimony_demo.mp4)
+
 ## Screenshots
 
 ### Portfolio Overview
